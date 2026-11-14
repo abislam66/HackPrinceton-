@@ -129,6 +129,8 @@ A labeled text input. `label` is required and always visible; a placeholder is n
 
 The top bar of the internal app. The client-facing proposal page does not use it.
 
+Wordmark on the left, home. On the right, `SiteNav`: "Clients" (`/`, also current on `/clients/...`) and "Activity" (`/activity`), `tm-label` links with a 44 px tap area. The current link gets `aria-current="page"` and an underline, so it is not marked by color alone.
+
 ## Tape
 
 `<span className="tm-tape" />` is Cone hazard tape, 8 px tall. Use it as an edge, a divider or a marker, at most once per page. Never as a fill and never behind type.

@@ -1,0 +1,190 @@
+{
+  "documentation": {
+    "pitch": {
+      "teaserLine": "You're building this. We're here to document it.",
+      "headline": "The whole build, on record.",
+      "problem": "A build this size happens once. Most of what your crews do is covered up by the next trade, and phone photos are all that is left of it when the job closes out.",
+      "solution": "We film and photograph the project across the life of the build, from the air and from the ground. The shots below are planned on a model of your project, so you can see what the record will look like before we fly."
+    },
+    "shots": [
+      {
+        "id": "south-site-overview",
+        "name": "Whole site overview",
+        "description": "A wide pass over the south side that shows the full site and how far the build has come.",
+        "platform": "drone",
+        "lens": "24 mm",
+        "timeOfDay": "Morning",
+        "constructionPhase": "Structure rise",
+        "side": "south",
+        "camera": {
+          "fov": 45,
+          "keyframes": [
+            { "t": 0, "position": [0.6, 1.6, 2.1], "target": [0, 0.4, 0] },
+            { "t": 4, "position": [0, 1.8, 2.2], "target": [0, 0.45, 0] },
+            { "t": 8, "position": [-0.6, 1.6, 2.1], "target": [0, 0.4, 0] }
+          ]
+        }
+      },
+      {
+        "id": "east-side-progress",
+        "name": "East side progress",
+        "description": "A slow rise along the east side that records each floor as it goes up.",
+        "platform": "drone",
+        "lens": "35 mm",
+        "timeOfDay": "Midday",
+        "constructionPhase": "Envelope",
+        "side": "east",
+        "camera": {
+          "fov": 40,
+          "keyframes": [
+            { "t": 0, "position": [1.9, 0.6, 0.6], "target": [0, 0.4, 0] },
+            { "t": 4, "position": [2.0, 1.0, 0], "target": [0, 0.5, 0] },
+            { "t": 8, "position": [1.9, 1.3, -0.6], "target": [0, 0.55, 0] }
+          ]
+        }
+      },
+      {
+        "id": "north-face-orbit",
+        "name": "North face orbit",
+        "description": "A high arc around the north side that frames the whole building against the site.",
+        "platform": "drone",
+        "lens": "24 mm",
+        "timeOfDay": "Late afternoon",
+        "constructionPhase": "Topping out",
+        "side": "north",
+        "camera": {
+          "fov": 42,
+          "keyframes": [
+            { "t": 0, "position": [-1.2, 1.4, -1.6], "target": [0, 0.5, 0] },
+            { "t": 4.5, "position": [0, 1.6, -2.0], "target": [0, 0.5, 0] },
+            { "t": 9, "position": [1.2, 1.4, -1.6], "target": [0, 0.5, 0] }
+          ]
+        }
+      }
+    ]
+  },
+  "sales-and-bids": {
+    "pitch": {
+      "teaserLine": "The {focus}, from the air.",
+      "headline": "Proof for the next bid.",
+      "problem": "Your next bid is judged on work the owner cannot see. Once the building is finished, the install is hidden: the sequencing, the crew on the lifts, the days the {focus} went up. A few phone photos do not show it.",
+      "solution": "We film the {focus} as it is installed, from the air and from the ground, and cut it into footage you can put in front of the next owner or general contractor. The shots below are planned around the faces of the building your work is on."
+    },
+    "shots": [
+      {
+        "id": "south-face-rise",
+        "name": "South face rise",
+        "description": "A close climb up the south face that follows the {focus} from the ground to the top.",
+        "platform": "drone",
+        "lens": "50 mm",
+        "timeOfDay": "Morning",
+        "constructionPhase": "Facade install",
+        "side": "south",
+        "camera": {
+          "fov": 35,
+          "keyframes": [
+            { "t": 0, "position": [-0.4, 0.1, 1.2], "target": [-0.2, 0.15, 0.3] },
+            { "t": 4, "position": [0, 0.5, 1.2], "target": [0, 0.5, 0.3] },
+            { "t": 8, "position": [0.4, 0.9, 1.2], "target": [0.2, 0.85, 0.3] }
+          ]
+        }
+      },
+      {
+        "id": "east-face-pass",
+        "name": "East face pass",
+        "description": "A level pass along the east face at mid height that shows the {focus} up close.",
+        "platform": "drone",
+        "lens": "50 mm",
+        "timeOfDay": "Late afternoon",
+        "constructionPhase": "Facade install",
+        "side": "east",
+        "camera": {
+          "fov": 35,
+          "keyframes": [
+            { "t": 0, "position": [1.2, 0.6, 0.6], "target": [0.3, 0.55, 0.4] },
+            { "t": 7, "position": [1.2, 0.6, -0.6], "target": [0.3, 0.55, -0.4] }
+          ]
+        }
+      },
+      {
+        "id": "west-ground-view",
+        "name": "Ground view up",
+        "description": "A ground view on the west side that looks up at the {focus} from street level.",
+        "platform": "ground",
+        "lens": "24 mm",
+        "timeOfDay": "Morning",
+        "constructionPhase": "Facade install",
+        "side": "west",
+        "camera": {
+          "fov": 50,
+          "keyframes": [
+            { "t": 0, "position": [-1.4, 0.04, 0.5], "target": [0, 0.35, 0.1] },
+            { "t": 6, "position": [-1.3, 0.04, -0.2], "target": [0, 0.45, -0.1] }
+          ]
+        }
+      }
+    ]
+  },
+  "community-and-pr": {
+    "pitch": {
+      "teaserLine": "The project, before it opens.",
+      "headline": "The build, shown to its neighbors.",
+      "problem": "The people who live and work beside a construction site see fences, trucks and noise. They do not see what is being made. The only pictures they have are renders drawn before work started.",
+      "solution": "We document the build as it is: aerial passes over the site, the way the project sits in its surroundings, and the progress from one visit to the next. The footage is yours to share while the work is still under way."
+    },
+    "shots": [
+      {
+        "id": "neighborhood-approach",
+        "name": "Neighborhood approach",
+        "description": "A high approach from the south that starts over the surrounding blocks and settles on the building.",
+        "platform": "drone",
+        "lens": "24 mm",
+        "timeOfDay": "Late afternoon",
+        "constructionPhase": "Facade install",
+        "side": "south",
+        "camera": {
+          "fov": 48,
+          "keyframes": [
+            { "t": 0, "position": [0.6, 2.2, 2.4], "target": [0, 0.2, 0] },
+            { "t": 8, "position": [0.3, 1.4, 1.8], "target": [0, 0.4, 0] }
+          ]
+        }
+      },
+      {
+        "id": "west-context-orbit",
+        "name": "West context orbit",
+        "description": "A high arc along the west side that shows the project with the streets around it.",
+        "platform": "drone",
+        "lens": "24 mm",
+        "timeOfDay": "Morning",
+        "constructionPhase": "Structure rise",
+        "side": "west",
+        "camera": {
+          "fov": 45,
+          "keyframes": [
+            { "t": 0, "position": [-2.0, 1.8, 1.0], "target": [0, 0.3, 0] },
+            { "t": 4.5, "position": [-2.3, 2.0, 0], "target": [0, 0.3, 0] },
+            { "t": 9, "position": [-2.0, 1.8, -1.0], "target": [0, 0.3, 0] }
+          ]
+        }
+      },
+      {
+        "id": "north-skyline-pass",
+        "name": "North skyline pass",
+        "description": "A side to side pass north of the site that shows the building in its skyline.",
+        "platform": "drone",
+        "lens": "35 mm",
+        "timeOfDay": "Late afternoon",
+        "constructionPhase": "Topping out",
+        "side": "north",
+        "camera": {
+          "fov": 40,
+          "keyframes": [
+            { "t": 0, "position": [1.5, 1.2, -2.0], "target": [0.3, 0.5, 0] },
+            { "t": 8, "position": [-1.5, 1.4, -2.0], "target": [-0.3, 0.5, 0] }
+          ]
+        }
+      }
+    ]
+  }
+}

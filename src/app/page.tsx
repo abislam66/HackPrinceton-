@@ -3,7 +3,10 @@ import { Eyebrow } from "@/components/Eyebrow";
 import { Heading } from "@/components/Heading";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Tag } from "@/components/Tag";
+import { loadModelInfo } from "@/features/model/load";
 import { loadClients, loadProject } from "@/features/project/load";
+import { loadProposal } from "@/lib/proposals";
+import { StatusTag } from "./clients/[client]/_components/status";
 
 // Read the client list on every request, so a new client file shows up without a rebuild.
 export const dynamic = "force-dynamic";
@@ -12,7 +15,13 @@ export const dynamic = "force-dynamic";
 const plain = (value: string) => value.replaceAll("-", " ");
 
 export default async function Home() {
-  const [project, clients] = await Promise.all([loadProject(), loadClients()]);
+  const [project, clientList, model] = await Promise.all([loadProject(), loadClients(), loadModelInfo()]);
+  const clients = await Promise.all(
+    clientList.map(async (client) => ({
+      ...client,
+      status: (await loadProposal(client, model))?.proposal.status ?? null,
+    })),
+  );
 
   const specs = [
     { label: "Building", value: project.buildingType },
@@ -72,12 +81,10 @@ export default async function Home() {
                       <Tag variant="quiet">{plain(client.need)}</Tag>
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button href={`/proposals/${client.id}`} compact>
-                      Proposal
-                    </Button>
-                    <Button href={`/proposals/${client.id}/shots`} compact>
-                      Shot preview
+                  <div className="flex flex-wrap items-center gap-4">
+                    <StatusTag status={client.status} />
+                    <Button href={`/clients/${client.id}`} compact>
+                      Review
                     </Button>
                   </div>
                 </li>

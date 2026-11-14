@@ -47,7 +47,7 @@ There are two programs. The **web app** (Next.js, TypeScript) is the only backen
 5. **One viewer, two uses.** The proposal page's opening fly-up and the shot preview are the same `ModelViewer` component playing different camera paths.
 6. **Pre-loaded data lives in the repo as files.** `data/demo-project/` holds the project, the clients and their needs, and the reference images. There is no live research and no needs classification.
 7. **Generated proposals live in Supabase.** Generation writes one row per client to `proposals` with status `draft`. The pages read from there. Tracking events go to `proposal_events`.
-8. **The pages work without Supabase.** With no keys set, pages render the model and an empty state; only storing proposals and tracking are unavailable.
+8. **The pages work without Supabase.** With no keys set, each client shows a prepared proposal chosen by its need (`supabase/seed/prepared-proposals.json`, loaded through `src/lib/proposals.ts`). Proposal status and tracking events are held in process memory, which is fine for a laptop demo and lost on restart. With keys set, Supabase is used.
 9. **Cache Components is off** (`cacheComponents: false` in `next.config.ts`). Pages read the files and the database on every request, so a new model or proposal appears without a rebuild.
 10. **LLM output is always parsed against a Zod schema** (`shotListSchema`, `pitchSchema`) before it is stored or shown.
 
