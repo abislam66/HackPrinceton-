@@ -1,20 +1,125 @@
 @import "tailwindcss";
+@import "../styles/tradesmark/tokens.css";
+@import "../styles/tradesmark/type.css" layer(components);
+@import "../styles/tradesmark/components.css" layer(components);
 
-:root {
-  --background: #0b0d10;
-  --foreground: #ededed;
-  color-scheme: dark;
-}
+/* The Tradesmark design system. Rules and usage: DESIGN.md at the repo root.
+   tokens.css is a straight copy of the brand kit file; never edit it by hand.
+   Every color below is a brand token. Use these names (bg-plaster, text-asphalt, border-concrete),
+   never a default Tailwind color (zinc, gray, white, black) and never a raw hex. */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Roles. Reach for these first. */
+  --color-ground: var(--tm-ground); /* Plaster: the page */
+  --color-ink: var(--tm-ink); /* Asphalt: text */
+  --color-accent: var(--tm-accent); /* Cone: whatever should be seen first */
+  --color-muted: var(--tm-mortar); /* secondary text on Plaster or Sheet */
+  --color-rule: var(--tm-concrete); /* hairlines on Plaster */
+
+  /* Every named brand color. */
+  --color-cone: var(--tm-cone);
+  --color-asphalt: var(--tm-asphalt);
+  --color-tar: var(--tm-tar);
+  --color-basalt: var(--tm-basalt);
+  --color-slate: var(--tm-slate);
+  --color-mortar: var(--tm-mortar);
+  --color-concrete: var(--tm-concrete);
+  --color-limestone: var(--tm-limestone);
+  --color-stucco: var(--tm-stucco);
+  --color-plaster: var(--tm-plaster);
+  --color-sheet: var(--tm-sheet);
+  --color-molten: var(--tm-molten);
+  --color-pour: var(--tm-pour);
+  --color-heat: var(--tm-heat);
+  --color-slag: var(--tm-slag);
+  --color-cinder: var(--tm-cinder);
+  --color-char: var(--tm-char);
+  --color-vis: var(--tm-vis);
+  --color-safety: var(--tm-safety);
+  --color-retro: var(--tm-retro);
+  --color-print: var(--tm-print);
+  --color-loader: var(--tm-loader);
+  --color-tarp: var(--tm-tarp);
+  --color-tractor: var(--tm-tractor);
+  --color-primer: var(--tm-primer);
+  --color-water: var(--tm-water);
+  --color-turf: var(--tm-turf);
+  --color-plumb: var(--tm-plumb);
+  --color-flag: var(--tm-flag);
+  --color-varnish: var(--tm-varnish);
+  --color-patina: var(--tm-patina);
+  --color-brick: var(--tm-brick);
+  --color-denim: var(--tm-denim);
+  --color-rubber: var(--tm-rubber);
+  --color-felt: var(--tm-felt);
+  --color-vinyl: var(--tm-vinyl);
+  --color-membrane: var(--tm-membrane);
+  --color-resin: var(--tm-resin);
+  --color-nylon: var(--tm-nylon);
+  --color-fiberglass: var(--tm-fiberglass);
+  --color-canvas: var(--tm-canvas);
+  --color-cotton: var(--tm-cotton);
+  --color-paper: var(--tm-paper);
+  --color-lead: var(--tm-lead);
+  --color-cobalt: var(--tm-cobalt);
+  --color-iron: var(--tm-iron);
+  --color-tungsten: var(--tm-tungsten);
+  --color-titanium: var(--tm-titanium);
+  --color-nickel: var(--tm-nickel);
+  --color-zinc: var(--tm-zinc);
+  --color-tin: var(--tm-tin);
+  --color-aluminum: var(--tm-aluminum);
+  --color-silver: var(--tm-silver);
+  --color-copper: var(--tm-copper);
+  --color-brass: var(--tm-brass);
+  --color-bronze: var(--tm-bronze);
+  --color-gold: var(--tm-gold);
+  --color-halt: var(--tm-halt);
+  --color-go: var(--tm-go);
+
+  --font-sans: var(--tm-f-body);
+  --font-mono: var(--tm-f-mono);
+  --font-head: var(--tm-f-head);
+
+  /* Corners are square. Inputs take 2 px. Nothing is rounder than 3 px. */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 3px;
+  --radius-2xl: 3px;
+  --radius-3xl: 3px;
+  --radius-4xl: 3px;
+
+  /* No shadows anywhere, on boxes or on text. Depth is a ground change. */
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+
+  /* The brand breakpoints, beside Tailwind's own: 8 columns from 681 px (tab:), 12 from 981 px (desk:). */
+  --breakpoint-tab: 681px;
+  --breakpoint-desk: 981px;
+
+  --ease-handle: var(--tm-ease-handle);
+  --ease-link: var(--tm-ease-link);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--tm-ground);
+    color: var(--tm-ink);
+    font-family: var(--tm-f-body);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+  :focus-visible {
+    outline: 2px solid var(--tm-cone);
+    outline-offset: 3px;
+  }
 }

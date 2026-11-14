@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="922" height="602" viewBox="78 233 922 602">
+  <title>Tradesmark tm logomark, redrawn</title>
+  <desc>Clean vector redraw of assets/brand/logomark.png (v1.1 sheet), coordinates read off the 1080 px raster. Shape unchanged; edges straightened. Bar raised 5 U (22 U to the m) and stem top raised 7 U, locked by Michael 2026-10-18.</desc>
+  <g id="logomark" fill="#ff2800">
+    <path id="t-bar" d="M78 315H1000V408H78Z"/>
+    <path id="t-stem" d="M195 233H283V705L318 742H400V835H250L165 750V475Z"/>
+    <path id="m" d="M388 430H490V490L553 430H675L738 490L800 430H920L995 503V835H880V548L852 523H790L750 563V835H635V548L607 523H553L505 570V835H388Z"/>
+  </g>
+</svg>

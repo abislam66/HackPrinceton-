@@ -40,6 +40,10 @@ Full detail and the contracts are in `technical-architecture.md`. Read it before
 
 Tradesmark's own documents are in `docs/context/`: the product brief, the system board, and their model-building method. Start with `docs/context/README.md`. Use them to understand the product and for the rules that carry over (no pricing on the page, client images never shown, the model never built by hand, shots only on sides with real reference). **Where they differ from the scope above, the scope above wins.** They describe the full product and refer to scripts we do not have.
 
+### Design
+
+Every screen uses the Tradesmark design system. **Read `DESIGN.md` before writing any UI.** The short version: brand colors only (`bg-plaster`, `text-asphalt`, `border-rule`; never `zinc`, `gray`, `white`, `black` or a raw hex), headings through `<Heading>`, text through the `tm-*` classes, shared components from `src/components/`, square corners, no shadows, spacing on the 4 px scale. See it running at `/styleguide`.
+
 ## 1. The board (pinned GitHub issue)
 
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (needs only `gh`, logged in). Set `BOARD_ISSUE` if it is not issue #1.
