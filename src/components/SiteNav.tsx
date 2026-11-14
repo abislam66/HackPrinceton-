@@ -4,11 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
+  { href: "/pipeline", label: "Pipeline", match: (path: string) => path.startsWith("/pipeline") },
   { href: "/", label: "Clients", match: (path: string) => path === "/" || path.startsWith("/clients") },
   { href: "/activity", label: "Activity", match: (path: string) => path.startsWith("/activity") },
 ];
 
-/** The internal app's two sections. The current one is underlined, not only colored. */
+/** The internal app's sections. The current one is underlined, not only colored. */
 export function SiteNav() {
   const pathname = usePathname() ?? "";
   return (
