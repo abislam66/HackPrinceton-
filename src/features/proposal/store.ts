@@ -31,20 +31,21 @@ export async function getProposal(clientId: string): Promise<Proposal | null> {
 /**
  * Saves a proposal. Upserts to Supabase when configured. Without Supabase, or if the upsert
  * fails, writes the fallback file instead. Throws only if the Supabase write and the file both fail.
+ * Returns where it was saved; "none" means no Supabase and a read-only filesystem.
  */
-export async function saveProposal(proposal: Proposal): Promise<void> {
+export async function saveProposal(proposal: Proposal): Promise<"supabase" | "file" | "none"> {
   const parsed = proposalSchema.parse(proposal);
   if (isSupabaseConfigured()) {
     try {
       await upsertStoredProposal(parsed);
-      return;
+      return "supabase";
     } catch (error) {
       if (!(await writeFallbackProposal(parsed))) throw error;
       console.error(`saveProposal(${parsed.clientId}): Supabase write failed, wrote the fallback file.`, error);
-      return;
+      return "file";
     }
   }
-  await writeFallbackProposal(parsed);
+  return (await writeFallbackProposal(parsed)) ? "file" : "none";
 }
 
 /** The last good proposal committed or written for this client, or null. */
