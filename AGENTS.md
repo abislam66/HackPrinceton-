@@ -35,4 +35,20 @@ Fill this in at kickoff so every agent knows whose files are whose.
 
 | Area | Owner (GitHub login) | Folders |
 |---|---|---|
-| | | |
+| Site search: rule-based location search (feature 1) | | `src/features/site-search/`, `src/app/api/site-search/` |
+| Policy score: agentic county score (feature 2) | | `src/features/policy-score/`, `src/app/api/policy-score/` |
+| Frontend: pages, layout, shared UI | | `src/app/` (except `api/`), `src/components/`, `public/` |
+| Database and data: schema, migrations, ingestion | | `supabase/`, `scripts/`, `src/types/database.ts` |
+| Shared setup: Supabase clients, config, deps | team lead | `src/lib/`, `package.json`, root config files |
+
+Changes to `src/types/database.ts`, a migration, or a feature's `schema.ts` are contract changes: post on the board when they land.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
