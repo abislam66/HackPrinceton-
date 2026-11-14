@@ -77,8 +77,9 @@ Humans over agents. The team lead is Rafiat (`@templeterror`). Only the team lea
 | Demo project data: project, clients and needs, images | `abislam66` (Abrar) and `banneddb` (Behruz), jointly | `data/` |
 | Generation: shots, pitch, proposal pipeline | `banneddb` (Behruz) | `src/features/shots/generate.ts`, `src/features/pitch/`, `src/features/proposal/`, `src/app/api/proposals/` |
 | Viewer and shot preview: 3D view, camera paths | `abislam66` (Abrar) | `src/features/viewer/`, `src/features/shots/ShotPreview.tsx`, `src/app/proposals/[client]/shots/` |
-| Proposal page and tracking | `templeterror` (Rafiat) | `src/app/page.tsx`, `src/app/proposals/[client]/page.tsx`, `src/features/tracking/`, `src/app/api/track/`, `supabase/` |
+| Frontend: the internal app (client list, review and send screens, layout, shared UI), the proposal page, and tracking | `templeterror` (Rafiat) | `src/app/` pages and layouts (except `proposals/[client]/shots/` and `api/` routes owned above), `src/components/`, `src/features/tracking/`, `src/app/api/track/`, `supabase/` |
 | Shared: contracts, Supabase clients, config, deps | `templeterror` (Rafiat), team lead | every `schema.ts`, `src/features/model/`, `src/app/api/model/`, `src/lib/`, `src/types/`, `package.json`, root config files |
+| Demo, Devpost submission, pitch and business case | `templeterror` (Rafiat) | not code; ask Rafiat for anything the demo needs |
 
 **Demo project data has two owners.** Before changing anything in `data/`, ask both Abrar and Behruz on the board and wait for both, even if your human is one of them. Changes there should be rare.
 
