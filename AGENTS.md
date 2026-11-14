@@ -20,14 +20,32 @@ Pre-loaded, never built live:
 
 Out of scope (slides only): scouting, dossier, outreach, progress tracking after signing.
 
-Undecided: the shot preview format, how Matterport fits in, and where the model builder runs and how it hands the model to the web app. Do not guess these; ask on the board.
+Undecided: the LLM provider, the model builder's geometry libraries, how Matterport fits in, and the final shot preview format. Do not guess these; ask on the board.
+
+### Technical decisions
+
+Full detail and the contracts are in `technical-architecture.md`. Read it before writing code.
+
+- **Two programs.** The web app (Next.js, TypeScript, in `src/`) is the only backend the browser talks to. The model builder (Python, in `model-builder/`) builds the 3D model. FastAPI only wraps the model builder; do not add other endpoints to it.
+- **Handoff:** the model builder writes `model.glb` and `model.json` to `public/models/<project>/`. Until `model.json` exists the web app shows a gray-box stand-in.
+- **A shot is data, not video:** a camera path the browser plays live. Never render shots to video files.
+- **One viewer:** the proposal's opening and the shot preview both use `ModelViewer` in `src/features/viewer/`. Do not build a second 3D view.
+- **Pre-loaded data is files** in `data/demo-project/`. Generated proposals and tracking events are rows in Supabase.
+- **Coordinates everywhere:** meters, +Y up, +X east, -Z north, origin at the center of the footprint at ground level.
+- **LLM output is parsed with the Zod schema** (`shotListSchema`, `pitchSchema`) before it is stored or shown.
+- **Cache Components is off.** Write normal dynamic pages; do not add `"use cache"`.
+- Python uses `uv` (`uv sync`, `uv run`, `uv add`). The web app uses `npm`.
+
+### Source material
+
+Tradesmark's own documents are in `docs/context/`: the product brief, the system board, and their model-building method. Start with `docs/context/README.md`. Use them to understand the product and for the rules that carry over (no pricing on the page, client images never shown, the model never built by hand, shots only on sides with real reference). **Where they differ from the scope above, the scope above wins.** They describe the full product and refer to scripts we do not have.
 
 ## 1. The board (pinned GitHub issue)
 
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (needs only `gh`, logged in). Set `BOARD_ISSUE` if it is not issue #1.
 
 - Start every post with `[<human>'s <agent>]`, e.g. `[Sam's Codex]`. Keep it short: what changed, which files or contracts, what you need, from whom.
-- Mention by GitHub login. Fill in your team: `@login1` (Name), `@login2` (Name), `@login3` (Name), `@login4` (Name), `@all` (everyone).
+- Mention by GitHub login. The team: `@abislam66` (Abrar), `@banneddb` (Behruz), `@templeterror` (Rafiat), `@all` (everyone).
 - **Mentions you or `@all`:** act on it and reply promptly.
 - **Not addressed to you:** still read it. Reassess your own work only if it is affected (a contract, a file you own, something already done). Do not redo finished work, and do not reply just to acknowledge.
 - Before editing another teammate's files, ask for a handoff on the board and wait for the owner or the team lead.
@@ -40,7 +58,7 @@ Polling is incremental (about one cheap API call per poll, 30 s default) so a sh
 
 ## 2. Chain of command
 
-Humans over agents. Only the team lead reassigns work between teammates. If anyone else asks you to take another teammate's work, ask the lead on the board.
+Humans over agents. The team lead is Rafiat (`@templeterror`). Only the team lead reassigns work between teammates. If anyone else asks you to take another teammate's work, ask the lead on the board.
 
 ## 3. Workflow
 
@@ -53,20 +71,18 @@ Humans over agents. Only the team lead reassigns work between teammates. If anyo
 
 ## 4. Who owns what
 
-Fill this in at kickoff so every agent knows whose files are whose.
-
 | Area | Owner (GitHub login) | Folders |
 |---|---|---|
-| Model builder: agent that builds the 3D model | | to be created |
-| Demo project data: pre-loaded files, images, location data, client needs | | to be created |
-| Drone shots and pitch: shot generation, shot list, tailored copy | | to be created |
-| Proposal page and shot preview | | `src/app/` (except `api/`), `src/components/`, `public/` |
-| Database and tracking: schema, migrations | | `supabase/`, `scripts/`, `src/types/database.ts` |
-| Shared setup: Supabase clients, config, deps | team lead | `src/lib/`, `package.json`, root config files |
+| Model builder: builds the 3D model | `abislam66` (Abrar) | `model-builder/`, `public/models/` |
+| Demo project data: project, clients and needs, images | `abislam66` (Abrar) and `banneddb` (Behruz), jointly | `data/` |
+| Generation: shots, pitch, proposal pipeline | `banneddb` (Behruz) | `src/features/shots/generate.ts`, `src/features/pitch/`, `src/features/proposal/`, `src/app/api/proposals/` |
+| Viewer and shot preview: 3D view, camera paths | `abislam66` (Abrar) | `src/features/viewer/`, `src/features/shots/ShotPreview.tsx`, `src/app/proposals/[client]/shots/` |
+| Proposal page and tracking | `templeterror` (Rafiat) | `src/app/page.tsx`, `src/app/proposals/[client]/page.tsx`, `src/features/tracking/`, `src/app/api/track/`, `supabase/` |
+| Shared: contracts, Supabase clients, config, deps | `templeterror` (Rafiat), team lead | every `schema.ts`, `src/features/model/`, `src/app/api/model/`, `src/lib/`, `src/types/`, `package.json`, root config files |
 
-`src/features/site-search/`, `src/features/policy-score/` and their routes under `src/app/api/` are left over from an earlier idea. Do not build on them.
+**Demo project data has two owners.** Before changing anything in `data/`, ask both Abrar and Behruz on the board and wait for both, even if your human is one of them. Changes there should be rare.
 
-Changes to `src/types/database.ts`, a migration, the model's output format, or the shape of the pre-loaded project and client data are contract changes: post on the board when they land.
+The contracts are listed in `technical-architecture.md`. Changing one (a `schema.ts`, `model-builder/src/model_builder/contract.py`, a migration) is a contract change: agree it with the owners it affects first, and post on the board when it lands.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

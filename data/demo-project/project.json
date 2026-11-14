@@ -1,0 +1,10 @@
+{
+  "slug": "demo-project",
+  "name": "Sample Project",
+  "address": "Sample address, replace with the demo project's",
+  "location": { "lat": 40.3431, "lng": -74.6551 },
+  "buildingType": "Sample building type",
+  "scopeType": "Sample scope type",
+  "timeline": "Sample timeline",
+  "summary": "Sample data. Replace this file with the real pre-loaded demo project."
+}

@@ -30,39 +30,58 @@ Scouting, the dossier stage, outreach, and progress tracking after a client sign
 
 ### Still open
 
-- The exact format of the shot preview.
+- The LLM provider for shot and pitch generation.
+- The geometry libraries inside the model builder.
 - How the Matterport resource fits in (details to come).
-- Where the model builder runs and how it hands the model to the web app.
+- The final format of the shot preview.
 
 ## Stack
 
-Next.js 16 (App Router, Node runtime) · TypeScript · Tailwind CSS · Supabase Postgres · Zod
+- **Web app:** Next.js 16 (App Router), TypeScript, Tailwind CSS, Zod
+- **3D in the browser:** three.js through React Three Fiber and drei
+- **Model builder:** Python, managed with uv, with a FastAPI service around it
+- **Database:** Supabase Postgres
+
+The decisions behind this and the contracts between the parts are in [technical-architecture.md](technical-architecture.md).
 
 ## Layout
 
 ```
+data/demo-project/        pre-loaded project, clients and needs, images
+model-builder/            Python: builds the 3D model (command line + FastAPI service)
+public/models/            model builder output
 src/
   app/                    pages and API routes
-  features/               one folder per feature
-  lib/supabase/           server.ts and client.ts Supabase clients
-  types/database.ts       generated Supabase types
-supabase/                 migrations and seed data
-scripts/                  one-off jobs
+    proposals/[client]/           proposal page
+    proposals/[client]/shots/     shot preview
+  features/
+    project/  model/  viewer/  shots/  pitch/  proposal/  tracking/
+  lib/supabase/           Supabase clients
+supabase/migrations/      proposals and tracking tables
 resources/                links and reference material
 tools/board               agent message board (see AGENTS.md)
 ```
 
-`src/features/site-search/`, `src/features/policy-score/` and their API routes are left over from an earlier idea and will be replaced by folders for the areas in `AGENTS.md`.
-
 ## Getting started
+
+Web app:
 
 ```bash
 npm install
-cp .env.example .env.local   # fill in Supabase keys
+cp .env.example .env.local   # Supabase keys are optional to start
 npm run dev                  # http://localhost:3000
 ```
 
-Checks before pushing: `npm run lint && npm run typecheck`.
+Model builder (needs [uv](https://docs.astral.sh/uv/)):
+
+```bash
+cd model-builder
+uv sync
+uv run model-builder build demo-project   # build once from the command line
+uv run model-builder serve                # or run the service the web app calls
+```
+
+Checks before pushing: `npm run lint && npm run typecheck`, and `uv run pytest` in `model-builder/`.
 
 ## Team rules
 

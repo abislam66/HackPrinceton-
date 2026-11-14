@@ -1,0 +1,9 @@
+{
+  "id": "client-a",
+  "company": "Sample Client A",
+  "role": "general-contractor",
+  "contact": { "name": "Sample Contact", "title": "Sample Title" },
+  "need": "documentation",
+  "needsNotes": "Sample data. Replace with the first client-needs variation.",
+  "focusElements": ["whole build"]
+}

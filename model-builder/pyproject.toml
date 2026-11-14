@@ -1,0 +1,23 @@
+[project]
+name = "model-builder"
+version = "0.1.0"
+description = "Builds the 3D model of the demo project and writes a GLB plus model.json for the web app."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2.7",
+]
+
+[project.scripts]
+model-builder = "model_builder.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/model_builder"]

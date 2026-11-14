@@ -1,0 +1,9 @@
+{
+  "id": "client-b",
+  "company": "Sample Client B",
+  "role": "trade",
+  "contact": { "name": "Sample Contact", "title": "Sample Title" },
+  "need": "sales-and-bids",
+  "needsNotes": "Sample data. Replace with the second client-needs variation.",
+  "focusElements": ["curtain wall"]
+}
