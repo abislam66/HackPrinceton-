@@ -1,0 +1,46 @@
+{
+  "sample": true,
+  "scouting": [
+    { "id": "sample-b", "name": "Sample project B", "city": "Sample city", "value": 184000000, "stage": "Permitted", "kind": "Building permit", "score": 61 },
+    { "id": "sample-c", "name": "Sample project C", "city": "Sample city", "value": 96000000, "stage": "Bid awarded", "kind": "Bid award", "score": 48 },
+    { "id": "demo", "isDemoProject": true, "city": "Sample city", "value": 412000000, "stage": "Groundbreaking", "kind": "Building permit", "score": 92 },
+    { "id": "sample-d", "name": "Sample project D", "city": "Sample city", "value": 238000000, "stage": "Under construction", "kind": "Press", "score": 55 },
+    { "id": "sample-e", "name": "Sample project E", "city": "Sample city", "value": 71000000, "stage": "Permitted", "kind": "Building permit", "score": 39 },
+    { "id": "sample-f", "name": "Sample project F", "city": "Sample city", "value": 305000000, "stage": "Bid awarded", "kind": "Bid award", "score": 74 },
+    { "id": "sample-g", "name": "Sample project G", "city": "Sample city", "value": 128000000, "stage": "Groundbreaking", "kind": "Press", "score": 58 },
+    { "id": "sample-h", "name": "Sample project H", "city": "Sample city", "value": 54000000, "stage": "Under construction", "kind": "Building permit", "score": 22 }
+  ],
+  "sources": [
+    {
+      "id": "permit",
+      "kind": "Building permit",
+      "publisher": "Sample permit office",
+      "date": "Mar 2026",
+      "text": "New building permit for the sample address. Proposed use: Sample building type. Work type: Sample scope type. Applicant: Sample Client A, general contractor. Replace with the demo project's real permit record."
+    },
+    {
+      "id": "bid",
+      "kind": "Bid award",
+      "publisher": "Sample procurement office",
+      "date": "Feb 2026",
+      "text": "Contract awarded for the curtain wall and glazing package. Awardee: Sample Client B. Schedule: Sample timeline. Replace with the demo project's real bid award."
+    },
+    {
+      "id": "press",
+      "kind": "Press",
+      "publisher": "Sample paper",
+      "date": "Apr 2026",
+      "text": "Sample press excerpt. Replace with a passage from real coverage of the demo project that says what is being built and why."
+    }
+  ],
+  "analysis": [
+    { "field": "buildingType", "sourceId": "permit", "quote": "Proposed use: Sample building type." },
+    { "field": "scopeType", "sourceId": "permit", "quote": "Work type: Sample scope type." },
+    { "field": "timeline", "sourceId": "bid", "quote": "Schedule: Sample timeline." },
+    { "field": "summary", "sourceId": "press", "quote": "says what is being built and why" }
+  ],
+  "dossier": [
+    { "clientId": "client-a", "sourceId": "permit", "quote": "Applicant: Sample Client A, general contractor." },
+    { "clientId": "client-b", "sourceId": "bid", "quote": "Awardee: Sample Client B." }
+  ]
+}
