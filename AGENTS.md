@@ -1,5 +1,27 @@
 # Team rules for every agent
 
+## 0. What we are building (read this first)
+
+The **Project Proposal System**: an internal Tradesmark tool that produces a bespoke, animated proposal page for a client on a construction project. Tradesmark films and documents construction projects; the proposal sells that service.
+
+**Hackathon scope: one pre-loaded demo project, 1 to 2 clients (3 is the best case).** Do not build past this without the team lead saying so.
+
+Built:
+1. **3D model build.** An agent builds the project's 3D model from the pre-loaded files and images. The model is mostly the same every run and is shared by every client's proposal.
+2. **Drone shot generation.** The agent generates drone shots from the model and the client's needs.
+3. **Tailored pitch.** A pitch and shot list per client, from the pre-loaded project info and that client's needs.
+4. **Proposal page.** A hosted page per client: animated fly-up into the building, the pitch, the renders, a "book a call" button, and tracking of opens, watch time and clicks. No pricing or scope on the page.
+5. **Shot preview.** A second view showing how the shots would come out: an animated demo, not a rendered video. The exact format is undecided; ask on the board before choosing one.
+
+Pre-loaded, never built live:
+- **Project research.** No scraping or live lookups. The demo project's files, images and location data are in the repo.
+- **Client needs.** Fake needs in two variations. Do not build needs classification from company data.
+- **Stakeholder contacts.**
+
+Out of scope (slides only): scouting, dossier, outreach, progress tracking after signing.
+
+Undecided: the shot preview format, how Matterport fits in, and where the model builder runs and how it hands the model to the web app. Do not guess these; ask on the board.
+
 ## 1. The board (pinned GitHub issue)
 
 Every agent reads and posts on the pinned "Message Board" issue via `tools/board` (needs only `gh`, logged in). Set `BOARD_ISSUE` if it is not issue #1.
@@ -35,13 +57,16 @@ Fill this in at kickoff so every agent knows whose files are whose.
 
 | Area | Owner (GitHub login) | Folders |
 |---|---|---|
-| Site search: rule-based location search (feature 1) | | `src/features/site-search/`, `src/app/api/site-search/` |
-| Policy score: agentic county score (feature 2) | | `src/features/policy-score/`, `src/app/api/policy-score/` |
-| Frontend: pages, layout, shared UI | | `src/app/` (except `api/`), `src/components/`, `public/` |
-| Database and data: schema, migrations, ingestion | | `supabase/`, `scripts/`, `src/types/database.ts` |
+| Model builder: agent that builds the 3D model | | to be created |
+| Demo project data: pre-loaded files, images, location data, client needs | | to be created |
+| Drone shots and pitch: shot generation, shot list, tailored copy | | to be created |
+| Proposal page and shot preview | | `src/app/` (except `api/`), `src/components/`, `public/` |
+| Database and tracking: schema, migrations | | `supabase/`, `scripts/`, `src/types/database.ts` |
 | Shared setup: Supabase clients, config, deps | team lead | `src/lib/`, `package.json`, root config files |
 
-Changes to `src/types/database.ts`, a migration, or a feature's `schema.ts` are contract changes: post on the board when they land.
+`src/features/site-search/`, `src/features/policy-score/` and their routes under `src/app/api/` are left over from an earlier idea. Do not build on them.
+
+Changes to `src/types/database.ts`, a migration, the model's output format, or the shape of the pre-loaded project and client data are contract changes: post on the board when they land.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

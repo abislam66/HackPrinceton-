@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Data Center Site Search",
-  description: "Find optimal data center locations by capacity, environmental impact, and community distance.",
+  title: "Project Proposal System",
+  description: "Bespoke, animated proposals for construction project stakeholders.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
