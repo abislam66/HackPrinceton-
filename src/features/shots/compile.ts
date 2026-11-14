@@ -1,38 +1,15 @@
-import { z } from "zod";
-import { buildingSides, type ModelInfo, type ModelMetadata } from "@/features/model/schema";
-import { shotListSchema, type CameraKeyframe, type CameraPath, type Shot } from "@/features/shots/schema";
+import type { buildingSides, ModelInfo, ModelMetadata } from "@/features/model/schema";
+import type { ShotIntent } from "./intent";
+import { shotListSchema, type CameraKeyframe, type CameraPath, type Shot } from "./schema";
 
 /*
  * Shot compiler: turns an LLM-chosen shot intent into a camera path.
  * The LLM never writes coordinates. This module is pure (no I/O) so it can be tested directly.
- *
- * Lives here, not in src/features/shots/, until the team lead approves new files there.
  */
 
 type Box = ModelMetadata["boundingBox"];
 type Vec3 = [number, number, number];
 type Side = (typeof buildingSides)[number];
-
-export const shotMoves = ["rise", "orbit", "push-in", "track", "reveal", "ground-hero"] as const;
-export type ShotMove = (typeof shotMoves)[number];
-
-/** What the LLM picks for each shot. Internal to generation, not a contract. */
-export const shotIntentSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().min(1),
-  platform: z.enum(["drone", "ground"]),
-  lens: z.string().min(1),
-  timeOfDay: z.string().min(1),
-  constructionPhase: z.string().min(1),
-  side: z.enum(buildingSides),
-  move: z.enum(shotMoves),
-  /** Multiple of the building's largest dimension. */
-  distance: z.number().min(1.2).max(4),
-  /** Multiple of the building's height. */
-  height: z.number().min(0).max(1.6),
-  durationSec: z.number().min(4).max(10),
-});
-export type ShotIntent = z.infer<typeof shotIntentSchema>;
 
 /** Clearance the camera keeps from the building, in meters. */
 const POSITION_CLEARANCE = 2;
