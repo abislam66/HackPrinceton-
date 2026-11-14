@@ -94,13 +94,13 @@ const globalStore = globalThis as typeof globalThis & { __tmProposals?: Map<stri
 const memory: Map<string, Proposal> = (globalStore.__tmProposals ??= new Map());
 
 async function storedProposal(clientId: string): Promise<Proposal | null> {
-  if (isSupabaseConfigured()) {
-    try {
-      const fromDb = await getProposal(clientId);
-      if (fromDb) return fromDb;
-    } catch (error) {
-      console.error("[proposals] getProposal failed, falling back to memory:", error);
-    }
+  // Always ask the proposal store first. Today it only answers with Supabase configured; once it
+  // also keeps fallback files (the pipeline fallback work), those are picked up here with no change.
+  try {
+    const fromStore = await getProposal(clientId);
+    if (fromStore) return fromStore;
+  } catch (error) {
+    console.error("[proposals] getProposal failed, falling back to memory:", error);
   }
   return memory.get(clientId) ?? null;
 }
@@ -131,13 +131,14 @@ export async function setProposalStatus(
   const loaded = await loadProposal(client, model);
   if (!loaded) return null;
   const next = proposalSchema.parse({ ...loaded.proposal, status });
-  memory.set(client.id, next);
-  if (isSupabaseConfigured()) {
-    try {
-      await saveProposal(next);
-    } catch (error) {
-      console.error("[proposals] saveProposal failed, kept in memory:", error);
-    }
+  try {
+    await saveProposal(next);
+    // The store has it, so drop any older memory copy rather than keep two versions.
+    memory.delete(client.id);
+  } catch (error) {
+    // The store cannot save (no Supabase and no file store yet, or a failed write): keep it in memory.
+    memory.set(client.id, next);
+    if (isSupabaseConfigured()) console.error("[proposals] saveProposal failed, kept in memory:", error);
   }
   return next;
 }
