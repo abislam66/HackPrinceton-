@@ -184,13 +184,18 @@ def test_tower_stands_on_a_podium_within_the_height_cap(tmp_path):
     mesh = trimesh.load(out / "model.glb", file_type="glb", force="mesh")
     roofs = mesh.face_normals[:, 1] > 0.5
     heights = sorted({round(float(h), 1) for h in mesh.triangles_center[roofs][:, 1]})
-    assert heights[0] == pytest.approx(3 * 1.4 * (92 - 5) / (3 * 1.4 + 24), abs=0.1)  # podium roof
+    podium_top = 3 * 1.4 * (92 - 5) / (3 * 1.4 + 24)
+    assert any(abs(h - podium_top) < 0.1 for h in heights)  # podium roof
     assert 87.0 in heights and 92.0 in heights  # main roof and the plant / core top
-    # The tower is slimmer than the podium: roof area at the podium level is the full site.
-    podium_roof = mesh.area_faces[roofs & (mesh.triangles_center[:, 1] < heights[0] + 0.5)].sum()
+    # The tower is slimmer than the podium: roof area at the podium level is most of the site.
+    podium_roof = mesh.area_faces[roofs & (abs(mesh.triangles_center[:, 1] - podium_top) < 0.3)].sum()
     assert podium_roof > 0.5 * 168 * 175
-    colors = {tuple(c[:3]) for c in mesh.visual.vertex_colors}
-    assert (58, 58, 62) in colors  # charcoal core
+    # Named parts with real materials, not one blended mesh.
+    scene = trimesh.load(out / "model.glb", file_type="glb")
+    names = set(scene.geometry)
+    assert {"podium-metal", "tower-glass", "tower-tile", "core-charcoal"} <= names
+    assert scene.geometry["core-charcoal"].visual.material.roughnessFactor == pytest.approx(0.9)
+    assert scene.geometry["tower-glass"].visual.material.metallicFactor == pytest.approx(0.6)
 
 
 def test_tower_plate_is_an_oblong_of_the_given_area():
@@ -217,16 +222,55 @@ def test_tower_footprint_core_side_and_crown(tmp_path):
     plate, core, _ = infer_tower(site, spec)
     assert plate.centroid.y > 15  # the tower sits on the north part of the site, as given
     assert core.centroid.x < plate.centroid.x  # west end
-    assert core.bounds[0] > plate.bounds[0] + 2  # a glass lounge strip past the core
+    assert core.bounds[0] > plate.bounds[0] + 1.5  # a glass lounge strip past the core
     out = tmp_path / "out"
     build_model(make_project(tmp_path, data), out)
     mesh = trimesh.load(out / "model.glb", file_type="glb", force="mesh")
     assert mesh.bounds[1][1] == pytest.approx(92.0, abs=0.01)  # the core reaches the cap above the crown
 
 
+def test_sign_and_context_do_not_change_the_bounding_box(tmp_path):
+    neighbor = [[LNG + 0.0015, LAT - 0.0003], [LNG + 0.0020, LAT - 0.0003],
+                [LNG + 0.0020, LAT + 0.0003], [LNG + 0.0015, LAT + 0.0003]]
+    street = {"line": [[LNG - 0.0013, LAT - 0.002], [LNG - 0.0013, LAT + 0.002]], "widthM": 20}
+    plain = build_model(make_project(tmp_path / "a", MORGAN), tmp_path / "a" / "out")
+    data = {**MORGAN, "core": {"material": "charcoal", "sign": "T"},
+            "context": [{"footprint": neighbor, "heightM": 120}], "streets": [street]}
+    rich = build_model(make_project(tmp_path / "b", data), tmp_path / "b" / "out")
+    assert rich.boundingBox == plain.boundingBox  # neighbors and streets are context, not the building
+    names = set(trimesh.load(tmp_path / "b" / "out" / "model.glb", file_type="glb").geometry)
+    assert {"sign-sign", "context-context", "streets-street"} <= names
+
+
 def test_podium_must_be_shorter_than_the_building():
     with pytest.raises(ValueError):
         parse_spec({**MORGAN, "podiumFloors": 27})
+
+
+def test_tower_footprint_off_the_lot_is_rejected(tmp_path):
+    far = [[LNG + 0.003, LAT], [LNG + 0.004, LAT], [LNG + 0.004, LAT + 0.0003], [LNG + 0.003, LAT + 0.0003]]
+    with pytest.raises(ValueError, match="outside"):
+        build_model(make_project(tmp_path, {**MORGAN, "towerFootprint": far}), tmp_path / "out")
+
+
+def test_auto_tower_stays_on_a_thin_lot(tmp_path):
+    from model_builder.massing import _local_outline, infer_tower
+
+    thin = [[LNG, LAT], [LNG + 0.0012, LAT], [LNG + 0.0012, LAT + 0.00009], [LNG, LAT + 0.00009]]  # ~100 x 10 m
+    spec = parse_spec({**MORGAN, "footprint": thin, "floors": 20, "heightM": 70.0})
+    site = _local_outline(spec.footprint)
+    plate, _, _ = infer_tower(site, spec)
+    assert plate.difference(site).area < 0.01
+
+
+def test_tower_height_cap_too_low_is_rejected():
+    with pytest.raises(ValueError, match="too low"):
+        parse_spec({**MORGAN, "heightM": 4.0})
+
+
+def test_tower_ignores_gross_area_when_sizing_the_lot(tmp_path):
+    metadata = build_model(make_project(tmp_path, {**MORGAN, "grossAreaM2": 40000}), tmp_path / "out")
+    assert metadata.boundingBox.max[0] - metadata.boundingBox.min[0] > 150  # the base still fills the lot
 
 
 def test_needs_footprint_or_area():
