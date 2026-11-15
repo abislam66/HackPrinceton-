@@ -1,6 +1,6 @@
 import "server-only";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
+import type { BetaRunnableTool, BetaToolRunContext } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import { z } from "zod";
 import { DELIVERABLES, MILESTONES } from "@/features/demo/progress";
 import { runDossier } from "@/features/dossier/dossier";
@@ -47,8 +47,11 @@ export const PIPELINE_TOOLS_PROMPT = `You can run Tradesmark's project pipeline 
 Only state facts the tools returned. Mention sources by publisher when you give facts.`;
 
 export type PipelineToolOptions = {
-  /** Progress lines from long tools, for a "working" feed in the chat. */
-  onProgress?: (progress: Progress & { tool: string }) => void;
+  /**
+   * Progress lines from long tools, for a "working" feed in the chat. `toolUseId` is the call they belong to, so two
+   * calls of the same tool in one reply keep their lines apart.
+   */
+  onProgress?: (progress: Progress & { tool: string; toolUseId?: string }) => void;
 };
 
 function json(value: unknown): string {
@@ -115,7 +118,8 @@ function messageSummary(message: OutreachMessage) {
 }
 
 export function createPipelineTools(options: PipelineToolOptions = {}): BetaRunnableTool[] {
-  const progressFor = (tool: string) => (p: Progress) => options.onProgress?.({ ...p, tool });
+  const progressFor = (tool: string, context?: BetaToolRunContext) => (p: Progress) =>
+    options.onProgress?.({ ...p, tool, toolUseId: context?.toolUse.id });
 
   return [
     betaZodTool({
@@ -130,7 +134,7 @@ export function createPipelineTools(options: PipelineToolOptions = {}): BetaRunn
           const result = await runScout({
             regions: regions ?? [...regionIds],
             signal: deadline(context?.signal, SCOUT_DEADLINE_MS),
-            progress: progressFor("scout_projects"),
+            progress: progressFor("scout_projects", context),
           });
           await writeRecord("scout", "latest", result);
           return json(scoutSummary(result, "live"));
@@ -165,7 +169,7 @@ export function createPipelineTools(options: PipelineToolOptions = {}): BetaRunn
         try {
           const dossier = await runDossier(target, {
             signal: deadline(context?.signal, DOSSIER_DEADLINE_MS),
-            progress: progressFor("research_dossier"),
+            progress: progressFor("research_dossier", context),
           });
           await writeRecord("dossiers", projectId, dossier);
           return json(dossierSummary(dossier, "live"));

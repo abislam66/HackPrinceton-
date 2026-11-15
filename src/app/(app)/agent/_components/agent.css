@@ -1,0 +1,748 @@
+/* The Agent page (Handoff, picked from /proto/agent; see docs/agent-page-audit.md). Every class is prefixed agent-. */
+
+.agent-page {
+  container: agent / inline-size;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.agent-cols {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+}
+.agent-convo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.agent-thread {
+  flex: 1;
+}
+/* Text keeps a readable measure; the column itself flexes. */
+.agent-measure {
+  max-width: 68ch;
+}
+.agent-desc {
+  overflow-wrap: anywhere;
+}
+
+/* Narrow: the rail is a toggle above the thread that opens inline. */
+.agent-rail {
+  display: none;
+  order: -1;
+}
+.agent-rail[data-open] {
+  display: flex;
+  max-height: min(560px, 70dvh);
+  flex-direction: column;
+}
+.agent-rail-toggle {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  order: -2;
+  padding: 0 12px 0 8px;
+  border: 1px solid var(--app-line);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+@container agent (min-width: 1100px) {
+  .agent-cols {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .agent-rail,
+  .agent-rail[data-open] {
+    position: sticky;
+    top: 32px;
+    display: flex;
+    order: 0;
+    width: 360px;
+    height: calc(100dvh - 64px);
+    max-height: none;
+    flex: none;
+    flex-direction: column;
+  }
+  .agent-rail-toggle {
+    display: none;
+  }
+  .agent-convo {
+    min-height: calc(100dvh - 140px);
+  }
+}
+
+/* ------------------------------------------------------------------ thread */
+
+.agent-prompt {
+  position: relative;
+  isolation: isolate;
+  padding: 2px 0 2px 16px;
+  border-left: 2px solid var(--tm-concrete);
+}
+.agent-prompt::before {
+  content: "";
+  position: absolute;
+  inset: -4px -8px -4px 0;
+  z-index: -1;
+  background: var(--app-status-running-fill);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+.agent-prompt[data-lit]::before {
+  opacity: 0.7;
+}
+.agent-prompt-text {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+}
+.agent-more {
+  min-height: 32px;
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--app-hairline);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.agent-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 16px;
+  line-height: 26px;
+  overflow-wrap: anywhere;
+}
+.agent-reply ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 20px;
+  list-style: disc;
+}
+.agent-reply li::marker {
+  color: var(--app-muted);
+}
+
+/* The run reference: a small row that points into the rail. */
+.agent-ref {
+  position: relative;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--app-line);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 150ms ease-out;
+}
+/* 44 px hit area around a 32 px row. */
+.agent-ref::after {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+.agent-ref[data-lit] {
+  border-color: var(--tm-asphalt);
+}
+@media (hover: hover) and (pointer: fine) {
+  .agent-ref:hover {
+    border-color: var(--tm-asphalt);
+  }
+}
+.agent-ref-icon {
+  flex: none;
+}
+
+.agent-fail-ink {
+  color: var(--app-status-fail-ink);
+}
+.agent-break {
+  overflow-wrap: anywhere;
+}
+
+/* Inline alert: icon, message, Retry. */
+.agent-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--app-line);
+  border-left: 2px solid var(--app-status-fail-ink);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+}
+.agent-alert[data-kind="stopped"] {
+  border-left-color: var(--tm-concrete);
+}
+
+/* ------------------------------------------------------------------ composer */
+
+.agent-dock {
+  padding-bottom: 32px;
+}
+.agent-dock--docked {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-top: 8px;
+  padding-bottom: 24px;
+  background: var(--tm-ground);
+}
+.agent-composer {
+  max-width: 68ch;
+  border: 1px solid var(--app-field-line);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  transition: border-color 150ms ease-out;
+}
+.agent-composer:focus-within {
+  border-color: var(--tm-asphalt);
+}
+.agent-composer:has(.agent-input:focus-visible) {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
+.agent-input {
+  display: block;
+  width: 100%;
+  max-height: calc(10lh + 16px);
+  padding: 12px 16px 4px;
+  resize: none;
+  overflow-y: auto;
+  background: transparent;
+  color: var(--tm-asphalt);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+.agent-input::placeholder {
+  color: var(--app-muted);
+}
+.agent-input:focus {
+  outline: none;
+}
+/* The hint shows only while typing. */
+.agent-hint {
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 16px;
+  opacity: 0;
+  transition: opacity 150ms ease-out;
+}
+.agent-composer:focus-within .agent-hint {
+  opacity: 1;
+}
+
+/* Empty state: the four jobs under the composer. */
+.agent-quick {
+  display: grid;
+  max-width: 68ch;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+.agent-quick-item {
+  display: flex;
+  min-height: 44px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .agent-quick-item:hover {
+    border-color: var(--tm-asphalt);
+  }
+}
+.agent-quick-item:active {
+  transform: scale(0.99);
+  transition: transform 100ms ease-out;
+}
+.agent-quick-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+}
+.agent-quick-prompt {
+  color: var(--app-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* ------------------------------------------------------------------ runs rail */
+
+.agent-run {
+  position: relative;
+  isolation: isolate;
+}
+.agent-run + .agent-run {
+  border-top: 1px solid var(--app-divider);
+}
+.agent-run-flash {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--app-status-running-fill);
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+  pointer-events: none;
+}
+.agent-run[data-lit] .agent-run-flash {
+  opacity: 0.7;
+}
+.agent-run-head {
+  display: flex;
+  width: 100%;
+  min-height: 56px;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px 12px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-chev {
+  display: inline-flex;
+  margin-top: 3px;
+  color: var(--app-muted);
+  transition: transform 150ms ease-out;
+}
+.agent-chev[data-open] {
+  transform: rotate(90deg);
+}
+.agent-run-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px 36px;
+}
+.agent-steps {
+  display: flex;
+  max-height: min(360px, 45dvh);
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 13px;
+  line-height: 18px;
+}
+.agent-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.agent-step[data-state="done"] {
+  color: var(--app-muted);
+}
+.agent-step[data-state="failed"] {
+  color: var(--app-status-fail-ink);
+}
+.agent-step[data-state="current"] {
+  font-weight: 500;
+}
+.agent-step-icon {
+  flex: none;
+  margin-top: 2px;
+}
+.agent-scope {
+  font-weight: 500;
+}
+.agent-run-error {
+  display: flex;
+  gap: 8px;
+  color: var(--app-status-fail-ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* ------------------------------------------------------------------ past chats menu */
+
+.agent-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: min(400px, calc(100vw - 32px));
+  border: 1px solid var(--app-line-strong);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  transform-origin: top right;
+  transition:
+    opacity 150ms ease-out,
+    transform 150ms ease-out;
+}
+@starting-style {
+  .agent-menu {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.agent-menu-item {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-menu-item[aria-current="true"] {
+  font-weight: 600;
+}
+@media (hover: hover) and (pointer: fine) {
+  .agent-menu-item:hover {
+    background: var(--tm-stucco);
+  }
+}
+
+/* ------------------------------------------------------------------ focus and motion */
+
+.agent-rail-toggle:focus-visible,
+.agent-more:focus-visible,
+.agent-ref:focus-visible,
+.agent-quick-item:focus-visible,
+.agent-menu-item:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
+.agent-run-head:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-prompt::before,
+  .agent-ref,
+  .agent-composer,
+  .agent-hint,
+  .agent-quick-item,
+  .agent-quick-item:active,
+  .agent-run-flash,
+  .agent-chev,
+  .agent-menu {
+    transition: none;
+  }
+  .agent-quick-item:active {
+    transform: none;
+  }
+}
+
+/* The header (and its Past chats menu) paints above the sticky rail and the docked composer. */
+.agent-head {
+  position: relative;
+  z-index: 3;
+}
+.agent-reply .app-num {
+  font-size: 0.92em;
+}
+
+/* ================================================================== results */
+
+/* The dock holds the notice above the composer without taking space. */
+.agent-dock-inner {
+  position: relative;
+  max-width: 68ch;
+}
+
+/* ------------------------------------------------------------------ notice */
+
+.agent-notice {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--app-line-strong);
+  border-left: 2px solid var(--app-status-pass-ink);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  font-size: 13px;
+  line-height: 18px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  pointer-events: none;
+  transition:
+    opacity 160ms var(--app-ease-out, ease-out),
+    transform 160ms var(--app-ease-out, ease-out),
+    visibility 0s linear 160ms;
+}
+.agent-notice[data-shown] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+  transition:
+    opacity 200ms var(--app-ease-out, ease-out),
+    transform 200ms var(--app-ease-out, ease-out),
+    visibility 0s;
+}
+.agent-notice-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.agent-notice-link {
+  position: relative;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: var(--app-hairline);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease-out;
+}
+.agent-notice-link::after {
+  content: "";
+  position: absolute;
+  inset: -12px -4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .agent-notice-link:hover {
+    text-decoration-color: currentColor;
+  }
+  .agent-notice-close:hover {
+    background: var(--app-hover);
+  }
+}
+.agent-notice-close {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  color: var(--app-muted);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ result rows in the thread */
+
+.agent-rows {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--app-line);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+}
+.agent-rows > li + li {
+  border-top: 1px solid var(--app-divider);
+}
+.agent-row {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  transition: background-color 150ms ease-out;
+}
+@media (hover: hover) and (pointer: fine) {
+  .agent-row:hover {
+    background: var(--app-hover);
+  }
+  .agent-row:hover .agent-row-chev {
+    transform: translateX(2px);
+    color: var(--tm-asphalt);
+  }
+  .agent-also-link:hover {
+    color: var(--tm-asphalt);
+    text-decoration-color: currentColor;
+  }
+}
+.agent-row-icon {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--app-line);
+  border-radius: 2px;
+  background: var(--tm-ground);
+}
+.agent-row-chev {
+  flex: none;
+  color: var(--app-muted);
+  transition:
+    transform 150ms ease-out,
+    color 150ms ease-out;
+}
+
+/* ------------------------------------------------------------------ result in the rail */
+
+.agent-run-body--folded {
+  padding-top: 0;
+}
+.agent-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.agent-preview-lead {
+  font-size: 13px;
+  line-height: 19px;
+}
+.agent-clamp-2,
+.agent-clamp-3 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+.agent-clamp-2 {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.agent-clamp-3 {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+.agent-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.agent-fact {
+  display: grid;
+  grid-template-columns: minmax(0, 9ch) minmax(0, 1fr);
+  gap: 8px;
+}
+.agent-fact dt {
+  overflow: hidden;
+  color: var(--app-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-fact dd {
+  overflow-wrap: anywhere;
+}
+.agent-cands {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.agent-cand {
+  display: flex;
+  gap: 12px;
+}
+.agent-also {
+  display: flex;
+  flex-direction: column;
+}
+.agent-also-link {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition:
+    color 150ms ease-out,
+    text-decoration-color 150ms ease-out;
+}
+.agent-also-link > span:first-child {
+  flex: 0 0 auto;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Where a running run's result will land: shaped like a button, but nothing to press yet. */
+.agent-landing {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px dashed var(--app-line-strong);
+  border-radius: 2px;
+  color: var(--app-disabled-ink);
+  font-size: 13px;
+  cursor: not-allowed;
+}
+.agent-run-error[data-kind="stopped"] {
+  color: var(--app-muted);
+}
+
+/* ------------------------------------------------------------------ focus and motion (additions) */
+
+.agent-row:focus-visible,
+.agent-also-link:focus-visible,
+.agent-notice-link:focus-visible,
+.agent-notice-close:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
+.agent-row:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-notice,
+  .agent-notice[data-shown] {
+    transform: none;
+    transition:
+      opacity 120ms linear,
+      visibility 0s linear 120ms;
+  }
+  .agent-notice[data-shown] {
+    transition: opacity 120ms linear;
+  }
+  .agent-row,
+  .agent-row-chev,
+  .agent-also-link,
+  .agent-notice-link {
+    transition: none;
+  }
+  .agent-row:hover .agent-row-chev {
+    transform: none;
+  }
+}
