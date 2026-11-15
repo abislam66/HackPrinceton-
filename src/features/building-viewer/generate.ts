@@ -4,6 +4,15 @@ import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
 import { fetchContext, geocodeAddress, type ContextItem } from "./geo";
 import {
+  fallbackModelJson,
+  MODEL_JSON_RULES,
+  parseModelJsonBlock,
+  retryPrompt,
+  slugFrom,
+  validateModelJson,
+  type ModelJsonStatus,
+} from "./model-json";
+import {
   assemble,
   checkSubjectSafety,
   extractSubjectBlock,
@@ -26,6 +35,8 @@ export const MAX_OUTPUT_TOKENS = 16000;
 /** Hard stop for the model call; the route's maxDuration is the outer limit. */
 export const MODEL_TIMEOUT_MS = 270_000;
 export const WEB_SEARCH_MAX_USES = 3;
+/** The model.json retry is small and must not push the run past the route's 300 s. */
+export const RETRY_TIMEOUT_MS = 20_000;
 
 export class StepError extends Error {
   constructor(public readonly step: ViewerStep | "model_call", message: string) {
@@ -87,7 +98,11 @@ export async function generateViewer(input: ViewerInput, photo: { bytes: Uint8Ar
     photo_status: photo ? "attached" : "none",
   };
   const prompt = fillTemplate(template, values);
-  const text = await callModel(apiKey, `${MODEL_RULES}\n\n${prompt}\n\nLOCKED SCAFFOLD (copy it; change only the SUBJECT block and the title):\n${scaffold}`, photo);
+  const text = await callModel(
+    apiKey,
+    `${MODEL_RULES}\n\n${prompt}\n\n${MODEL_JSON_RULES}\n\nLOCKED SCAFFOLD (copy it; change only the SUBJECT block and the title):\n${scaffold}`,
+    photo,
+  );
   const parsed = parseReply(text);
   logStep("model", "ok", t2);
   emit({ type: "step", step: "model", status: "done" });
@@ -101,6 +116,27 @@ export async function generateViewer(input: ViewerInput, photo: { bytes: Uint8Ar
   const drift = hasScaffoldDrift(parsed.html, scaffold);
   const html = assemble(scaffold, subject, title);
   logStep("assemble", drift ? "spliced (model changed locked code)" : "ok", t3);
+
+  // model.json in the model builder's schema: Claude's facts, one retry with the errors, then SUBJECT dims.
+  const t4 = Date.now();
+  const projectSlug = input.projectSlug || slugFrom(input.buildingName || input.address);
+  const first = parseModelJsonBlock(text);
+  let model = validateModelJson(first, projectSlug);
+  let modelJsonStatus: ModelJsonStatus = "generated";
+  if (!model.ok) {
+    const retryText = await callModelJsonRetry(apiKey, retryPrompt(subject, model.errors, photo !== null), photo);
+    const second = retryText === null ? null : validateModelJson(parseModelJsonBlock(retryText), projectSlug);
+    if (second?.ok) {
+      model = second;
+      modelJsonStatus = "generated on retry";
+    } else {
+      const sides = (first as { knownSides?: unknown } | null)?.knownSides;
+      const fallback = fallbackModelJson(subject, projectSlug, photo ? sides : []);
+      model = fallback ? { ok: true, model: fallback } : model;
+      modelJsonStatus = fallback ? "built from SUBJECT dims" : "not available";
+    }
+  }
+  logStep("model_json", modelJsonStatus, t4);
   emit({ type: "step", step: "assemble", status: "done" });
 
   return {
@@ -110,7 +146,36 @@ export async function generateViewer(input: ViewerInput, photo: { bytes: Uint8Ar
     geocode_status: geo.status,
     context_status: context.status,
     drift,
+    model_json: model.ok ? model.model : null,
+    model_json_status: modelJsonStatus,
   };
+}
+
+/**
+ * The one retry for an invalid model.json: a short call with the SUBJECT block and the errors, no web search.
+ * Returns null if the call fails, so the caller falls back to SUBJECT dims instead of failing the whole run.
+ */
+async function callModelJsonRetry(apiKey: string, instructions: string, photo: { bytes: Uint8Array; mediaType: PhotoMediaType } | null): Promise<string | null> {
+  const client = new Anthropic({ apiKey, timeout: RETRY_TIMEOUT_MS, maxRetries: 0 });
+  const content: Anthropic.ContentBlockParam[] = [{ type: "text", text: instructions }];
+  if (photo) {
+    content.push({
+      type: "image",
+      source: { type: "base64", media_type: photo.mediaType, data: Buffer.from(photo.bytes).toString("base64") },
+    });
+  }
+  try {
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 1500,
+      output_config: { effort: "low" },
+      messages: [{ role: "user", content }],
+    });
+    return response.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
+  } catch (error) {
+    console.error(`building-viewer model_json retry failed: ${(error as Error).name}`);
+    return null;
+  }
 }
 
 async function callModel(apiKey: string, instructions: string, photo: { bytes: Uint8Array; mediaType: PhotoMediaType } | null): Promise<string> {

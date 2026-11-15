@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     buildingName: text(form, "buildingName"),
     knownFacts: text(form, "knownFacts"),
     notes: text(form, "notes"),
+    projectSlug: text(form, "projectSlug") || undefined,
   });
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Check the form.", step: "validate" }, { status: 400 });
