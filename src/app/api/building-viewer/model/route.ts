@@ -19,7 +19,8 @@ const MAX_GLB_BYTES = 4 * 1024 * 1024;
  * Generated projects allow every side for shots (inferred sides included); the generate route's reply says which
  * sides the photo backs. The demo project keeps its built model and is refused.
  *
- * 200 { model, storage }; 400/401/404/503 { error, step }.
+ * 200 { model, storage } (storage is "supabase", or "file"/"memory" without Supabase keys); 400/401/404/502/503 { error, step }.
+ * 502 means the save to Supabase failed (step "save").
  */
 export async function POST(request: Request) {
   const access = accessCodeOk(request.headers.get("x-access-code"), process.env.BUILDING_VIEWER_ACCESS_CODE);
@@ -57,7 +58,13 @@ export async function POST(request: Request) {
   if (!checked.ok) return NextResponse.json({ error: checked.errors.join("; "), step: "validate" }, { status: 400 });
 
   const model = { ...checked.model, version: await nextGeneratedVersion(slug) };
-  const storage = await saveGeneratedModel(slug, glb, model);
+  let storage;
+  try {
+    storage = await saveGeneratedModel(slug, glb, model);
+  } catch (error) {
+    console.error(`building-viewer model save failed project=${slug}`, error instanceof Error ? error.message : error);
+    return NextResponse.json({ error: "Couldn't save the model. Try again.", step: "save" }, { status: 502 });
+  }
   console.info(`building-viewer model saved project=${slug} bytes=${glb.length} storage=${storage}`);
   return NextResponse.json({ model, storage });
 }
