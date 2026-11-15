@@ -1,3 +1,4 @@
+import { ScoutedProjectModel } from "@/components/app/model/ScoutedProjectModel";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { MediaList, MediaRow } from "@/components/ui/MediaRow";
@@ -16,7 +17,11 @@ function StageTag({ status }: { status: StakeholderStatus }) {
   return opens > 0 ? <Tag tone="pass">{`Opened · ${opens}`}</Tag> : <Tag>Sent · not opened</Tag>;
 }
 
-export default async function ProjectStakeholdersPage() {
+export default async function ProjectStakeholdersPage({ params }: PageProps<"/projects/[project]">) {
+  const { project: slug } = await params;
+  // A project added from scouting has no stakeholders yet; its first tab is its model.
+  if (slug !== PROJECT_SLUG) return <ScoutedProjectModel slug={slug} />;
+
   const stakeholders = await loadStakeholders();
   const sent = stakeholders.filter((s) => s.stage === "sent").length;
   const base = `/projects/${PROJECT_SLUG}`;
