@@ -1,5 +1,5 @@
 import "server-only";
-import { loadModelInfo } from "@/features/model/load";
+import { loadStakeholderModel } from "@/features/workspace/model";
 import { generatePitch } from "@/features/pitch/generate";
 import { loadClient, loadProject } from "@/features/project/load";
 import { generateShots } from "@/features/shots/generate";
@@ -26,7 +26,7 @@ export async function generateProposal(clientId: string): Promise<GenerateResult
   if (!client) return { status: "unknown-client" };
 
   const live = (async () => {
-    const [project, model] = await Promise.all([loadProject(), loadModelInfo()]);
+    const [project, model] = await Promise.all([loadProject(), loadStakeholderModel(clientId)]);
     const shots = await generateShots({ project, client, model });
     const pitch = await generatePitch({ project, client, shots });
     const proposal: Proposal = { clientId, projectSlug: project.slug, status: "draft", pitch, shots };
