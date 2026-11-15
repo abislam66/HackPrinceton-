@@ -2,8 +2,11 @@
 
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import type { KeyboardEvent, ReactNode } from "react";
+import { createContext, useContext, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
+
+/** Whether the rows' trailing slot has a fixed width, so a row with nothing trailing still keeps the slot. */
+const FixedTrailing = createContext(false);
 
 export type MediaListProps = {
   children: ReactNode;
@@ -11,6 +14,11 @@ export type MediaListProps = {
   as?: "ul" | "ol";
   /** Names the list for screen readers when nothing visible does. */
   label?: string;
+  /**
+   * Fixes every row's trailing slot to this many px, its content starting at the slot's left edge, so tags of
+   * different lengths line up down the list. Set it to the widest status the list can show.
+   */
+  trailingWidth?: number;
   className?: string;
 };
 
@@ -18,10 +26,17 @@ export type MediaListProps = {
  * A list of `MediaRow`s with dividers between them. ↑ and ↓ (and Home, End) move focus between rows that are
  * targets. Put it in a flush `Panel`.
  */
-export function MediaList({ children, as: List = "ul", label, className }: MediaListProps) {
+export function MediaList({ children, as: List = "ul", label, trailingWidth, className }: MediaListProps) {
+  const style = trailingWidth === undefined ? undefined : ({ "--app-row-end-width": `${trailingWidth}px` } as CSSProperties);
   return (
-    <List aria-label={label} className={cx("app-rows", className)} onKeyDown={moveFocus}>
-      {children}
+    <List
+      aria-label={label}
+      className={cx("app-rows", className)}
+      data-trailing={trailingWidth === undefined ? undefined : "fixed"}
+      style={style}
+      onKeyDown={moveFocus}
+    >
+      <FixedTrailing.Provider value={trailingWidth !== undefined}>{children}</FixedTrailing.Provider>
     </List>
   );
 }
@@ -29,8 +44,10 @@ export function MediaList({ children, as: List = "ul", label, className }: Media
 export type MediaRowProps = {
   /** The leading visual, drawn from real data: a `CameraPathPlan`, an `ElevationGlyph` or an `Avatar`. */
   media?: ReactNode;
-  /** The first line, 14 px/600. Truncates. */
+  /** The first line, 14 px/600. Also the row's tooltip, so a clamped title can still be read in full. */
   title: ReactNode;
+  /** How many lines the title takes before it truncates: 1 (default), or 2 for long names in a 72 px shot row. */
+  titleLines?: 1 | 2;
   /** The second line, 12 px muted. Truncates. */
   meta?: ReactNode;
   /** Trailing content: a figure, a `Tag`, a count. Never a control: the whole row is the target. */
@@ -48,24 +65,40 @@ export type MediaRowProps = {
 
 /**
  * One two-line row, led by a visual. The whole row is the target: a `Link` with `href`, a `button aria-pressed` with
- * `onClick` or `selected`, or plain (sample rows that don't open). Must sit in a `MediaList`.
+ * `onClick` or `selected`. With none of them it is static (a sample that doesn't open, a deliverable): no hover and
+ * no chevron. Beside rows that open, a static row is muted and keeps the chevron's column, so trailing content
+ * lines up; in a list where nothing opens, it keeps its ink and the column goes. Must sit in a `MediaList`.
  */
-export function MediaRow({ media, title, meta, children, size = 64, href, onClick, selected, className }: MediaRowProps) {
+export function MediaRow({
+  media,
+  title,
+  titleLines = 1,
+  meta,
+  children,
+  size = 64,
+  href,
+  onClick,
+  selected,
+  className,
+}: MediaRowProps) {
+  const fixedTrailing = useContext(FixedTrailing);
   const tooltip = typeof title === "string" ? (typeof meta === "string" ? `${title}\n${meta}` : title) : undefined;
   const body = (
     <>
       {media}
       <span className="app-row-text">
-        <span className="app-row-title">{title}</span>
+        <span className="app-row-title" data-lines={titleLines === 2 ? 2 : undefined}>
+          {title}
+        </span>
         {meta ? <span className="app-row-meta">{meta}</span> : null}
       </span>
-      {children ? <span className="app-row-end">{children}</span> : null}
+      {children || fixedTrailing ? <span className="app-row-end">{children}</span> : null}
     </>
   );
   const shared = { className: cx("app-row", className), "data-size": size, title: tooltip };
-  const chevron = (show: boolean) => (
+  const chevron = (
     <span className="app-row-chev" aria-hidden="true">
-      {show ? <ChevronRight size={16} strokeWidth={1.5} /> : null}
+      <ChevronRight size={16} strokeWidth={1.5} />
     </span>
   );
 
@@ -74,7 +107,7 @@ export function MediaRow({ media, title, meta, children, size = 64, href, onClic
     row = (
       <Link href={href} data-row="" aria-current={selected ? "true" : undefined} {...shared}>
         {body}
-        {chevron(true)}
+        {chevron}
       </Link>
     );
   } else if (onClick !== undefined || selected !== undefined) {
@@ -84,11 +117,11 @@ export function MediaRow({ media, title, meta, children, size = 64, href, onClic
       </button>
     );
   } else {
-    // Keeps the chevron's column, so it lines up under link rows in the same list.
+    // The empty chevron column shows only beside link rows (controls.css), so trailing content lines up with theirs.
     row = (
-      <div {...shared}>
+      <div data-static="" {...shared}>
         {body}
-        {chevron(false)}
+        <span className="app-row-chev" aria-hidden="true" />
       </div>
     );
   }

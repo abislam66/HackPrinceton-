@@ -3,11 +3,10 @@ import { Button } from "@/components/ui/Button";
 import { MediaList, MediaRow } from "@/components/ui/MediaRow";
 import { Panel } from "@/components/ui/Panel";
 import { Tag } from "@/components/ui/Tag";
-import { SOURCES } from "@/features/demo/building";
+import { DOSSIER_PEEK, SOURCES } from "@/features/demo/building";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { loadStakeholders, type StakeholderStatus } from "@/features/workspace/status";
 import { NEED_LABEL, ROLE_LABEL } from "@/lib/labels";
-import { DOSSIER_PEEK } from "./facts";
 
 /** The stage as a status: not built is neutral, ready is ready, opened is pass, sent but not opened is neutral. */
 function StageTag({ status }: { status: StakeholderStatus }) {
@@ -25,7 +24,8 @@ export default async function ProjectStakeholdersPage() {
   return (
     <div className="grid items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_320px]">
       <Panel title="Proposals" count={`${sent} of ${stakeholders.length} sent`} flush>
-        <MediaList>
+        {/* One slot width for every status, so the tags line up down the list. */}
+        <MediaList trailingWidth={128}>
           {stakeholders.map((s) => (
             <MediaRow
               key={s.client.id}
@@ -34,10 +34,7 @@ export default async function ProjectStakeholdersPage() {
               title={s.client.company}
               meta={`${ROLE_LABEL[s.client.role]} · Needs: ${NEED_LABEL[s.client.need]}`}
             >
-              {/* One width for every status, so the tags line up down the list. */}
-              <span className="flex w-32">
-                <StageTag status={s} />
-              </span>
+              <StageTag status={s} />
             </MediaRow>
           ))}
         </MediaList>

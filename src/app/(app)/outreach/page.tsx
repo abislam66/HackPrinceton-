@@ -38,8 +38,9 @@ function StatusTag({ opened }: { opened: boolean }) {
 
 function SentTab({ sent, projectName }: { sent: StakeholderStatus[]; projectName: string }) {
   return (
+    // Compact, so the seven columns sit on one line from 1024 px wide with the sidebar collapsed.
     <Panel flush className="overflow-x-auto">
-      <Table>
+      <Table density="compact">
         <THead>
           <tr>
             <TH>Stakeholder</TH>
@@ -63,7 +64,7 @@ function SentTab({ sent, projectName }: { sent: StakeholderStatus[]; projectName
                 </Link>
               </TD>
               <TD className="text-muted">{projectName}</TD>
-              <TD className="app-num text-[13px] whitespace-nowrap">{s.sentAt ? formatShortDate(s.sentAt) : "–"}</TD>
+              <TD mono>{s.sentAt ? formatShortDate(s.sentAt) : "–"}</TD>
               <TD num>{s.engagement.opens}</TD>
               <TD num>{formatWatch(s.engagement.watchSeconds)}</TD>
               <TD className="text-muted">{lastActivity(s)}</TD>
@@ -76,7 +77,7 @@ function SentTab({ sent, projectName }: { sent: StakeholderStatus[]; projectName
             <TR key={row.id}>
               <TD className="font-semibold">{row.stakeholder}</TD>
               <TD className="text-muted">{row.project}</TD>
-              <TD className="app-num text-[13px] whitespace-nowrap">{row.sent}</TD>
+              <TD mono>{row.sent}</TD>
               <TD num>{row.opens}</TD>
               <TD num>{formatWatch(row.watchSeconds)}</TD>
               <TD className="text-muted">{row.lastActivity}</TD>

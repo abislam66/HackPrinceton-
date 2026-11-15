@@ -138,8 +138,8 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
         {collapsed ? (
           <IconButton type="submit" icon={<RotateCcw />} label="Reset demo" tooltipSide="right" />
         ) : (
-          // Muted at rest like the inactive nav rows; a utility outranks the tertiary's own hover colour, so it is restated.
-          <Button type="submit" variant="tertiary" className="text-muted hover:text-ink">
+          // Quiet: muted at rest like the inactive nav rows, Asphalt on hover.
+          <Button type="submit" variant="quiet">
             Reset demo
           </Button>
         )}
