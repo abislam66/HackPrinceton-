@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ModelInfo } from "@/features/model/schema";
 import { ModelViewer } from "@/features/viewer/ModelViewer";
+import type { Obstacle } from "./compile";
 import { cutAt, MAX_REEL_SECONDS, planReel } from "./reel";
 import type { Shot } from "./schema";
 
@@ -12,6 +13,8 @@ type Props = {
   /** Captions by shot id (the pitch's shotCaptions); shown with each shot when given. */
   captions?: Record<string, string>;
   maxSeconds?: number;
+  /** Neighboring buildings (from loadShotObstacles on the server), so transitions fly over them. */
+  obstacles?: Obstacle[];
   /** Start over after the last shot. When false the camera circles the model after the reel. */
   loop?: boolean;
   /** Passed to ModelViewer. Off by default: grabbing the model would stop the reel. */
@@ -28,11 +31,15 @@ export function ShotReel({
   shots,
   captions,
   maxSeconds = MAX_REEL_SECONDS,
+  obstacles,
   loop = true,
   interactive = false,
   className,
 }: Props) {
-  const reel = useMemo(() => planReel(shots, model.boundingBox, maxSeconds), [shots, model.boundingBox, maxSeconds]);
+  const reel = useMemo(
+    () => planReel(shots, model.boundingBox, { maxSeconds, obstacles }),
+    [shots, model.boundingBox, maxSeconds, obstacles],
+  );
   const [index, setIndex] = useState(0);
 
   // Follow the reel's clock for the caption. The viewer plays the path on its own clock; both

@@ -11,6 +11,8 @@ import type { CameraPath } from "./schema";
 type Vec3 = [number, number, number];
 export type CameraPose = { position: Vec3; target: Vec3; fov: number };
 
+/** Lowest camera height, in meters (the same floor the shot compiler enforces). */
+const MIN_CAMERA_Y = 1;
 /** Longest ease-in and ease-out at the ends of a path, in seconds. */
 const MAX_RAMP_SECONDS = 1.5;
 
@@ -34,8 +36,11 @@ export function poseAt(path: CameraPath, t: number): CameraPose {
     const p3 = i + 2 < frames.length ? get(i + 2) : reflect(p1, p2);
     return centripetal(p0, p1, p2, p3, s);
   };
+  const position = pick((n) => frames[n].position);
+  // The spline can overshoot a little near eye-level keyframes; never below the 1 m floor.
+  position[1] = Math.max(position[1], MIN_CAMERA_Y);
   return {
-    position: pick((n) => frames[n].position),
+    position,
     target: pick((n) => frames[n].target),
     fov: fovOf(i) + (fovOf(i + 1) - fovOf(i)) * smooth(s),
   };
