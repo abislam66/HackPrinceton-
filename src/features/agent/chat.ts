@@ -1,10 +1,13 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
+import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import { z } from "zod";
 import { APP_TOOLS_PROMPT, createAppTools } from "@/features/agent-tools/app-tools";
 import { createPipelineTools, PIPELINE_TOOLS_PROMPT } from "@/features/agent-tools/tools";
 import { applyScenario, MAX_CHANGE_CHARS } from "@/features/proposal/scenario";
+import { getScoutedProject } from "@/features/scout/projects";
+import { destinationsFor, type Destination } from "./destinations";
 
 /*
  * The Agent tab's model call. The chat model orchestrates Rafiat's live pipeline tools (scouting,
@@ -43,10 +46,19 @@ export const agentRequestSchema = z.object({
 });
 export type AgentMessage = z.infer<typeof agentMessageSchema>;
 
-/** What the chat shows while the agent works, then its answer. One JSON object per line. */
+/**
+ * What the chat shows while the agent works, then its answer. One JSON object per line.
+ * - `tool`: the model called a tool. `toolUseId` names the call; every later event about it carries the same id.
+ * - `progress`: a line from a long tool (scout, dossier), with the research runtime's `scope` and `kind` when it has them.
+ * - `result`: the call returned. `ok` with the pages its results live on (only what the tool returned), or not `ok`
+ *   with the error, when the tool answered "Error: …" or threw. Each call ends on its own, before the reply.
+ * - `reply` / `error`: the last line.
+ */
 export type AgentEvent =
-  | { type: "tool"; tool: string }
-  | { type: "progress"; tool: string; message: string }
+  | { type: "tool"; tool: string; toolUseId: string }
+  | { type: "progress"; tool: string; toolUseId?: string; message: string; scope?: string; kind?: string }
+  | { type: "result"; tool: string; toolUseId: string; ok: true; destinations: Destination[] }
+  | { type: "result"; tool: string; toolUseId: string; ok: false; error: string }
   | { type: "reply"; text: string }
   | { type: "error"; error: string };
 
@@ -90,6 +102,49 @@ const regenerateProposalTool = betaZodTool({
   },
 });
 
+/** Tools whose results link to a project's dossier, which lives on the project page once it was added from scouting. */
+const DOSSIER_TOOLS = new Set(["research_dossier", "get_dossier"]);
+
+/** The tool's text answer, from a string or content blocks. */
+function resultText(content: Awaited<ReturnType<BetaRunnableTool["run"]>>): string {
+  if (typeof content === "string") return content;
+  return content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("\n");
+}
+
+/**
+ * Wraps a tool so its outcome streams as a `result` event: where its results live when it worked, or its error. The
+ * model still gets exactly what the tool returned (or what it threw).
+ */
+export function reportingTool(tool: BetaRunnableTool, emit: (event: AgentEvent) => void): BetaRunnableTool {
+  return {
+    ...tool,
+    run: async (args, context) => {
+      const base = { type: "result", tool: tool.name, toolUseId: context?.toolUse.id ?? "" } as const;
+      let content: Awaited<ReturnType<BetaRunnableTool["run"]>>;
+      try {
+        content = await tool.run(args, context);
+      } catch (error) {
+        emit({ ...base, ok: false, error: error instanceof Error ? error.message : String(error) });
+        throw error;
+      }
+      const text = resultText(content);
+      if (/^\s*Error:/.test(text)) {
+        emit({ ...base, ok: false, error: text.replace(/^\s*Error:\s*/, "") });
+        return content;
+      }
+      const input = (args ?? {}) as { projectId?: unknown };
+      const addedProjects = new Set<string>();
+      if (DOSSIER_TOOLS.has(tool.name) && typeof input.projectId === "string") {
+        // Best effort: without it the dossier links to Discover, which also opens for an added project.
+        const added = await getScoutedProject(input.projectId).catch(() => null);
+        if (added) addedProjects.add(input.projectId);
+      }
+      emit({ ...base, ok: true, destinations: destinationsFor(tool.name, args, text, { addedProjects }) });
+      return content;
+    },
+  };
+}
+
 /**
  * Runs the thread through the model and its pipeline tools, calling `emit` as tools start and
  * report progress. Returns the final answer. Throws AgentError on a refusal or an API failure.
@@ -106,11 +161,12 @@ export async function agentReply(messages: AgentMessage[], emit: (event: AgentEv
     system: `${SYSTEM}\n\n${PIPELINE_TOOLS_PROMPT}\n\n${APP_TOOLS_PROMPT}\n\n${SCENARIO_PROMPT}`,
     tools: [
       ...createPipelineTools({
-        onProgress: (p) => emit({ type: "progress", tool: p.tool, message: p.message }),
+        onProgress: ({ tool, toolUseId, message, scope, kind }) =>
+          emit({ type: "progress", tool, toolUseId, message, scope, kind }),
       }),
       regenerateProposalTool,
       ...createAppTools(),
-    ],
+    ].map((tool) => reportingTool(tool, emit)),
     messages,
   });
 
@@ -119,7 +175,7 @@ export async function agentReply(messages: AgentMessage[], emit: (event: AgentEv
     for await (const message of runner) {
       last = message;
       for (const block of message.content) {
-        if (block.type === "tool_use") emit({ type: "tool", tool: block.name });
+        if (block.type === "tool_use") emit({ type: "tool", tool: block.name, toolUseId: block.id });
       }
     }
   } catch (error) {

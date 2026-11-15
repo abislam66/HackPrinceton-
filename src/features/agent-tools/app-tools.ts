@@ -39,7 +39,7 @@ export const APP_TOOLS_PROMPT = `You can also run the rest of the internal app:
 - Proposals (get_stakeholder_status, generate_proposal, review_proposal): generate_proposal builds one stakeholder's shots and pitch live (about 25 seconds) and saves them as a draft. review_proposal approves it, marks it sent, or reopens it as a draft. Marking a proposal sent does not email anyone; emails go through outreach.
 - Tracking (get_stakeholder_status): opens, watch time and clicks on each proposal page, which ones look like high intent, and the latest events. These are real events from the proposal pages.
 - Outreach edits (edit_outreach_draft): changes the subject or body of a draft in the user's words without re-drafting. Show the result.
-Link pages as plain paths: /projects, /projects/<id>, /projects/<id>/model, /projects/<id>/stakeholders/<clientId>, /proposals/<clientId>.`;
+Link pages as plain paths: /projects, /projects/<id> (a scouted project's page opens on its 3D model), /projects/<id>/dossier, /projects/<id>/stakeholders/<clientId>, /proposals/<clientId>.`;
 
 function json(value: unknown): string {
   return JSON.stringify(value);
@@ -189,7 +189,7 @@ export function createAppTools(): BetaRunnableTool[] {
           projectId,
           usedDossier: Boolean(dossier),
           takes: "up to 5 minutes",
-          page: `/projects/${projectId}/model`,
+          page: `/projects/${projectId}`,
         });
       },
     }),
@@ -209,7 +209,7 @@ export function createAppTools(): BetaRunnableTool[] {
           notes: model.reply,
           geocode: model.geocodeStatus,
           nearbyBuildings: model.contextStatus,
-          page: `/projects/${projectId}/model`,
+          page: `/projects/${projectId}`,
         });
       },
     }),
