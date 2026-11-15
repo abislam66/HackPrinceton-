@@ -23,7 +23,7 @@ Enable the Google Geocoding API on the key, and restrict the key to that API.
 
 ## Limits to know
 
-- The rate limit (5 per client per hour) and the map cache (24 h per coordinate) live in memory. A serverless host can run several instances, so the limit is a soft cap per instance until a shared store (for example Supabase) is added.
+- The rate limit (5 per client per hour) and the map cache (24 h per coordinate) live in the app's store (`src/lib/store/json-store.ts`). With `SUPABASE_SECRET_KEY` set, every instance shares them; without it they are per instance.
 - The access code is one shared value, not a user login. Rotate it if it leaks.
 
 ## Smoke test after deploy
