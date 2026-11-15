@@ -1,8 +1,8 @@
 import { Color, DoubleSide, EdgesGeometry, LineBasicMaterial, LineSegments, Mesh, MeshLambertMaterial, Vector3, Vector4, type Material, type Object3D } from "three";
-import { toonParams, type ToonParams } from "@/features/model/scene";
+import { CONTEXT_TOON, STREET_TOON, toonParams, type ToonParams } from "@/features/model/scene";
 
 /*
- * The building viewer's house look for generated models in ModelViewer: two-tone toon shading split at brightness 0.18,
+ * The building viewer's house look for every built model in ModelViewer (generated ones and the model builder's): two-tone toon shading split at brightness 0.18,
  * curtain-wall floor lines, mullions and bands, and dark outlines on edges steeper than 25 degrees. A port of the
  * locked toonMaterial and outline pass in building-viewer/scaffold.html; keep the two in step.
  *
@@ -77,10 +77,33 @@ float lines(float c, float period, float w) { return (w <= 0.0) ? 0.0 : step(fra
   return material;
 }
 
-/** Toon parameters for a material: its own extras, or a light/shade pair from its colour. */
-function paramsFor(material: Material): ToonParams {
+/**
+ * The model builder's materials (model-builder massing.py; the demo project's model.glb), by name, in the house
+ * palette. Its GLB carries plain dark PBR colours and no toon extras, so the look comes from the part's name.
+ */
+export const BUILT_PART_TOONS: Record<string, ToonParams> = {
+  context: CONTEXT_TOON,
+  street: STREET_TOON,
+  glass: toonParams({
+    type: "curtain", light: "#7E9CAB", shade: "#4A6070", line: "#2A3442", band: "#1b1d33",
+    floor_h: 3.3, line_w: 0.08, mull: 1.5, mull_w: 0.06, major_n: 4, band_w: 0.25,
+  }),
+  tile: toonParams({ type: "toon", light: "#F4F1EA", shade: "#A59C93" }),
+  charcoal: toonParams({ type: "toon", light: "#3A3F4A", shade: "#1b1d33" }),
+  roof: toonParams({ type: "toon", light: "#D9D3C7", shade: "#A59C93" }),
+  metal: toonParams({ type: "toon", light: "#9A9EA3", shade: "#5E636B" }),
+  sign: toonParams({ type: "toon", light: "#F4F1EA", shade: "#D9D3C7" }),
+};
+
+/**
+ * Toon parameters for a material: its own extras (a generated model), else its name's (a built model), else a
+ * light/shade pair from its colour.
+ */
+export function paramsFor(material: Material): ToonParams {
   const own = material.userData?.toon as ToonParams | undefined;
   if (own && typeof own.light === "string" && typeof own.shade === "string") return { ...toonParams({ type: "toon", light: own.light, shade: own.shade }), ...own };
+  const named = BUILT_PART_TOONS[material.name];
+  if (named) return named;
   const color = (material as Material & { color?: Color }).color ?? new Color("#cccccc");
   return toonParams({ type: "toon", light: `#${color.getHexString()}`, shade: `#${color.clone().multiplyScalar(0.62).getHexString()}` });
 }

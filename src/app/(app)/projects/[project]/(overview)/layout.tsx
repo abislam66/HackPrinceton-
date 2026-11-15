@@ -49,7 +49,7 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
           description={scouted ? `${scoutPlace(scouted)} · ${scouted.buildingType}` : shortAddress(project.address)}
           facts={scouted ? scoutFacts(scouted, { fit: false }) : KEY_FACTS}
           tabs={
-            <ProjectTabs base={base} kind={scouted ? "scouted" : "demo"} counts={{ stakeholders: clients.length }} />
+            <ProjectTabs base={base} counts={{ stakeholders: clients.length }} />
           }
           actions={
             <>

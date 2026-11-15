@@ -5,7 +5,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 vi.mock("server-only", () => ({}));
 
 import { glbBoundingBox, readGlbJson } from "./glb-bounds";
-import { buildScene, sceneSchema, type BuildingScene, type SceneNeighbour } from "./scene";
+import { buildScene, obstacleBoxes, sceneSchema, SUBJECT_CLEARANCE_M, type BuildingScene, type SceneNeighbour } from "./scene";
 import { exportGlb } from "./scene-glb";
 
 /** A tower on a podium with a finned crown, like the scenes Claude returns. */
@@ -76,6 +76,35 @@ describe("buildScene", () => {
     const fins = root.getObjectByName("subject")!.children.filter((c) => c.name.startsWith("fins-2-"));
     expect(fins).toHaveLength(9);
     expect(fins[8].position.x - fins[0].position.x).toBeCloseTo(24, 5);
+  });
+});
+
+describe("obstacleBoxes", () => {
+  const half = { x: 20, z: 15 };
+  const overlapsSubject = (o: { min: number[]; max: number[] }) =>
+    o.min[0] < half.x + SUBJECT_CLEARANCE_M && o.max[0] > -half.x - SUBJECT_CLEARANCE_M && o.min[2] < half.z + SUBJECT_CLEARANCE_M && o.max[2] > -half.z - SUBJECT_CLEARANCE_M;
+
+  it("keeps a plain rectangle as one box", () => {
+    const boxes = obstacleBoxes("block", [[40, -10], [70, -10], [70, 10], [40, 10]], 20, half);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]).toEqual({ name: "block", min: [40, 0, -10], max: [70, 20, 10] });
+  });
+
+  it("fits an L-shaped neighbour with several boxes covering less ground than its bounding box", () => {
+    const l: [number, number][] = [[40, -60], [100, -60], [100, -40], [60, -40], [60, 20], [40, 20]];
+    const boxes = obstacleBoxes("L", l, 12, half);
+    expect(boxes.length).toBeGreaterThan(1);
+    const area = boxes.reduce((sum, b) => sum + (b.max[0] - b.min[0]) * (b.max[2] - b.min[2]), 0);
+    expect(area).toBeLessThan(60 * 80 * 0.6); // the bounding box is 60 x 80
+    expect(boxes.every((b) => b.max[1] === 12)).toBe(true);
+  });
+
+  it("never reaches over the subject, even when the neighbour's outline wraps around it", () => {
+    // A neighbour whose bounding box covers the whole subject (the Blayr case).
+    const wrap: [number, number][] = [[-60, -40], [60, -40], [60, 40], [-60, 40], [-60, 30], [50, 30], [50, -30], [-60, -30]];
+    const boxes = obstacleBoxes("wrap", wrap, 12, half);
+    expect(boxes.length).toBeGreaterThan(0);
+    expect(boxes.filter(overlapsSubject)).toEqual([]);
   });
 });
 

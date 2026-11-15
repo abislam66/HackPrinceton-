@@ -2,7 +2,6 @@ import "server-only";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaRunnableTool, BetaToolRunContext } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
 import { z } from "zod";
-import { DELIVERABLES, MILESTONES } from "@/features/demo/progress";
 import { runDossier } from "@/features/dossier/dossier";
 import { loadDossier } from "@/features/dossier/load";
 import type { Dossier } from "@/features/dossier/schema";
@@ -19,7 +18,7 @@ import { writeRecord } from "@/lib/store/json-store";
 
 /*
  * The live pipeline as tools for the general chat agent (the Agent tab). The agent orchestrates;
- * these tools do the work: scouting, dossiers, outreach, and the (faked) progress tracking.
+ * these tools do the work: scouting, dossiers and outreach.
  * They share run guards and storage with the API routes, so a run started from chat shows up on
  * the screens, and two runs of the same thing never overlap.
  *
@@ -43,7 +42,6 @@ export const PIPELINE_TOOLS_PROMPT = `You can run Tradesmark's project pipeline 
 - Scouting (scout_projects, get_scout_results): real construction projects in five Northeast regions only (New York, Philadelphia and the Main Line, Connecticut, Greater Boston, New Jersey). A live scout takes 1-2 minutes; check get_scout_results first when the user only wants the current list.
 - Dossiers (research_dossier, get_dossier): live public-source research on one project. Morgan Hall North is "demo-project"; other projects use their scout id. A live dossier takes 1-3 minutes.
 - Stakeholders and outreach (list_stakeholders, draft_outreach, send_outreach, list_outreach): emails linking each stakeholder's proposal page. Draft first and show the user the subject and body. Call send_outreach only after the user explicitly asks to send that email. During the hackathon every email is delivered to the team's own inbox, never to the stakeholder; say so when you send.
-- Progress (get_progress): sample data showing what tracking looks like after a stakeholder signs. Say it is sample data.
 Only state facts the tools returned. Mention sources by publisher when you give facts.`;
 
 export type PipelineToolOptions = {
@@ -275,14 +273,6 @@ export function createPipelineTools(options: PipelineToolOptions = {}): BetaRunn
           return errorText(error);
         }
       },
-    }),
-
-    betaZodTool({
-      name: "get_progress",
-      description:
-        "Returns progress tracking after a stakeholder signs: milestones and deliverables. This is sample data showing what tracking would look like; nothing in it has happened.",
-      inputSchema: z.object({}),
-      run: async () => json({ sample: true, milestones: MILESTONES, deliverables: DELIVERABLES }),
     }),
   ];
 }

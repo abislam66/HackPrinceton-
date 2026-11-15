@@ -27,7 +27,6 @@ describe("appRoute", () => {
     "/projects",
     "/projects/demo-project",
     "/projects/demo-project/dossier",
-    "/projects/demo-project/progress",
     "/projects/demo-project/stakeholders/client-a",
     "/discover",
     "/discover/8-carlisle",
@@ -98,8 +97,8 @@ describe("destinationsFor", () => {
     expect(destinationsFor("get_project_model", { projectId: "x" }, json({ projectId: "x", status: "none" }))).toEqual([]);
   });
 
-  it("links progress to the demo project's progress tab", () => {
-    expect(destinationsFor("get_progress", {}, json({ sample: true }))[0].href).toBe("/projects/demo-project/progress");
+  it("no longer links a progress page (the Progress tab is gone)", () => {
+    expect(destinationsFor("get_progress", {}, json({ sample: true }))).toEqual([]);
   });
 
   it("takes app tools' page paths from a list, named by each item", () => {
@@ -134,7 +133,6 @@ describe("destinationsFor", () => {
     const all = [
       ...destinationsFor("get_scout_results", {}, json(scout)),
       ...destinationsFor("get_dossier", {}, json(dossier)),
-      ...destinationsFor("get_progress", {}, "{}"),
     ];
     for (const d of all) expect(destinationSchema.safeParse(d).success).toBe(true);
   });

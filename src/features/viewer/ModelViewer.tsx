@@ -47,8 +47,9 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
   const center = boxCenter(box);
   const span = fitDistance(box, VIEW_FOV);
   const views = useMemo(() => presetViews(box), [box]);
-  // A generated building (with its neighbours) gets the building viewer's look; the demo's built model keeps this stage.
-  const house = Boolean(model.generated && model.url);
+  // Every built model (the model builder's or a generated one) gets the building viewer's look. The gray-box
+  // stand-in, shown before any model exists, keeps the dark studio stage.
+  const house = Boolean(model.url);
 
   const takeControl = () => setUserControl(true);
   const goTo = (name: string) => {
@@ -86,9 +87,7 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
               {/* Fill from the north-west, so the side away from the sun still reads */}
               <directionalLight position={[center[0] - span, span * 0.8, center[2] - span]} intensity={0.9} />
               <Ground box={box} span={span} />
-              <Suspense fallback={<Massing box={box} />}>
-                {model.url ? <BuiltModel url={model.url} /> : <Massing box={box} />}
-              </Suspense>
+              <Massing box={box} />
               <ContactShadows position={[0, 0.02, 0]} scale={span * 1.6} far={box.max[1]} blur={2.5} opacity={0.55} resolution={1024} />
             </>
           )}
@@ -154,13 +153,8 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
   );
 }
 
-function BuiltModel({ url }: { url: string }) {
-  const { scene } = useGLTF(url);
-  return <primitive object={scene} />;
-}
-
 /**
- * A generated model in the building viewer's look: toon materials and outlines on the GLB, lit by the house sun alone
+ * A built model in the building viewer's look: toon materials and outlines on the GLB, lit by the house sun alone
  * (the toon split needs the shaded side to be dark).
  */
 function HouseModel({ url }: { url: string }) {

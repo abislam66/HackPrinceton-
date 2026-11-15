@@ -1,13 +1,11 @@
 "use client";
 
-import { Bot, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, RotateCcw, Send, type LucideIcon } from "lucide-react";
+import { Bot, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, Send, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { Logomark, Wordmark } from "@/components/ui/Logo";
-import { resetDemo } from "@/features/workspace/actions";
 import { cx } from "@/lib/cx";
 import { SIDEBAR_COOKIE } from "./sidebar-cookie";
 
@@ -131,7 +129,9 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
         })}
       </nav>
 
-      {/* Expanded, the 8 px inset plus the button's 12 px padding puts "Reset demo" on the 20 px line of the logo and icons. */}
+      {/* Reset demo is hidden. To bring it back, uncomment the form below and its imports (Button, RotateCcw, resetDemo). */}
+      {/*
+      Expanded, the 8 px inset plus the button's 12 px padding puts "Reset demo" on the 20 px line of the logo and icons.
       <form
         className={cx("mt-auto flex py-5", collapsed ? "justify-center" : "px-2")}
         action={async () => {
@@ -147,6 +147,7 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
           </Button>
         )}
       </form>
+      */}
     </aside>
   );
 }

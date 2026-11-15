@@ -210,6 +210,70 @@ function toonStandIn(name: string, params: ToonParams): MeshStandardMaterial {
 
 const round = (n: number) => Math.round(n * 1000) / 1000;
 
+/** Clear ground kept around the subject's footprint: no neighbour box reaches into it. */
+export const SUBJECT_CLEARANCE_M = 2;
+/** Grid cells per side when fitting boxes to a neighbour's outline. */
+const OBSTACLE_GRID = 12;
+const MIN_CELL_M = 3;
+
+function insidePolygon(poly: [number, number][], x: number, z: number): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i];
+    const [xj, zj] = poly[j];
+    if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * A neighbour as boxes for the shot compiler, which tests sight lines against axis-aligned boxes. One box around an
+ * L-shaped or angled building covers empty ground (and can reach over the subject itself, hiding a whole face), so
+ * the outline is rasterised on a grid and the filled cells merged into rectangles. Cells within SUBJECT_CLEARANCE_M
+ * of the subject's footprint are left out.
+ */
+export function obstacleBoxes(name: string, outline: [number, number][], height: number, half: { x: number; z: number }): Obstacle[] {
+  const xs = outline.map((p) => p[0]);
+  const zs = outline.map((p) => p[1]);
+  const [x0, x1, z0, z1] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
+  const cell = Math.max(MIN_CELL_M, Math.max(x1 - x0, z1 - z0) / OBSTACLE_GRID);
+  const cols = Math.max(1, Math.ceil((x1 - x0) / cell));
+  const rows = Math.max(1, Math.ceil((z1 - z0) / cell));
+  const keep = (ix: number, iz: number) => {
+    const cx = x0 + (ix + 0.5) * cell;
+    const cz = z0 + (iz + 0.5) * cell;
+    if (!insidePolygon(outline, cx, cz)) return false;
+    const clear = SUBJECT_CLEARANCE_M + cell / 2;
+    return !(Math.abs(cx) < half.x + clear && Math.abs(cz) < half.z + clear);
+  };
+  // Runs of filled cells per row, then rows with the same run stacked into one rectangle.
+  type Rect = { a: number; b: number; r0: number; r1: number };
+  const done: Rect[] = [];
+  let open: Rect[] = [];
+  for (let iz = 0; iz < rows; iz++) {
+    const runs: [number, number][] = [];
+    for (let ix = 0; ix < cols; ix++) {
+      if (!keep(ix, iz)) continue;
+      if (runs.length && runs[runs.length - 1][1] === ix - 1) runs[runs.length - 1][1] = ix;
+      else runs.push([ix, ix]);
+    }
+    const next: Rect[] = [];
+    for (const [a, b] of runs) {
+      const same = open.find((r) => r.a === a && r.b === b);
+      if (same) next.push({ ...same, r1: iz });
+      else next.push({ a, b, r0: iz, r1: iz });
+    }
+    for (const r of open) if (!next.some((n) => n.a === r.a && n.b === r.b && n.r0 === r.r0)) done.push(r);
+    open = next;
+  }
+  done.push(...open);
+  return done.map((r) => ({
+    name,
+    min: [round(x0 + r.a * cell), 0, round(z0 + r.r0 * cell)],
+    max: [round(Math.min(x1, x0 + (r.b + 1) * cell)), round(height), round(Math.min(z1, z0 + (r.r1 + 1) * cell))],
+  }));
+}
+
 /**
  * Builds the subject from the scene and adds the neighbours, then moves everything so the subject's footprint is
  * centred on the origin with its base at y = 0. Pure: no DOM, so it runs on the server.
@@ -266,11 +330,11 @@ export function buildScene(scene: BuildingScene, neighbours: SceneNeighbour[] = 
     mesh.name = `context-${i}`;
     mesh.position.set(x, n.footprint && n.footprint.length >= 3 ? 0 : n.h / 2, z);
     context.add(mesh);
-    obstacles.push({
-      name: n.source,
-      min: [round(x - n.w / 2), 0, round(z - n.d / 2)],
-      max: [round(x + n.w / 2), round(n.h), round(z + n.d / 2)],
-    });
+    const outline: [number, number][] =
+      n.footprint && n.footprint.length >= 3
+        ? n.footprint.map(([px, pz]) => [px - cx, pz - cz])
+        : [[x - n.w / 2, z - n.d / 2], [x + n.w / 2, z - n.d / 2], [x + n.w / 2, z + n.d / 2], [x - n.w / 2, z + n.d / 2]];
+    obstacles.push(...obstacleBoxes(n.source, outline, n.h, half));
   });
   if (context.children.length) root.add(context);
 

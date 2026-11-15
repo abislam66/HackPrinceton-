@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Group, Mesh, BoxGeometry, LineSegments, MeshStandardMaterial } from "three";
 import { toonParams } from "@/features/model/scene";
-import { applyHouseLook, toonMaterial, vec } from "./house-look";
+import { applyHouseLook, BUILT_PART_TOONS, paramsFor, toonMaterial, vec } from "./house-look";
 
 describe("house look", () => {
   it("passes hex colours to the shader as raw channels, like the scaffold (no sRGB-to-linear conversion)", () => {
@@ -28,6 +28,17 @@ describe("house look", () => {
     expect(meshes.map((m) => m.children.filter((c) => c instanceof LineSegments).length)).toEqual([1, 0, 1]);
     expect(meshes[0].material).not.toBe(glass);
     expect((meshes[2].material as { userData: { houseLook?: boolean } }).userData.houseLook).toBe(true);
+  });
+
+  it("styles the model builder's parts by name, and lets a generated model's own extras win", () => {
+    const builtGlass = new MeshStandardMaterial({ name: "glass", color: "#121c29" }); // the demo GLB's dark PBR glass
+    expect(paramsFor(builtGlass)).toBe(BUILT_PART_TOONS.glass);
+    expect(paramsFor(builtGlass).type).toBe("curtain");
+    expect(paramsFor(new MeshStandardMaterial({ name: "street" })).nolines).toBe(true);
+    const generated = new MeshStandardMaterial({ name: "glass" });
+    generated.userData.toon = toonParams({ type: "toon", light: "#111111", shade: "#000000" });
+    expect(paramsFor(generated).light).toBe("#111111");
+    expect(paramsFor(new MeshStandardMaterial({ name: "unknown", color: "#ff0000" })).light).toBe("#ff0000");
   });
 
   it("builds one toon material per source material", () => {

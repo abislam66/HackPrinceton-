@@ -6,23 +6,14 @@ import { Tabs } from "@/components/ui/Tabs";
 export type ProjectTabCounts = {
   stakeholders?: number;
   dossier?: number;
-  progress?: number;
 };
 
 /**
  * The project's sections, Segmented, with the active tab read from the route. A count shows only where one is given.
- * The demo project has Stakeholders / Dossier / Progress. A project added from scouting has Stakeholders / Model /
- * Dossier: its own generated viewer, and no progress yet.
+ * Every project has Stakeholders / Model / Dossier: the demo project's model is the model builder's, a scouted one's
+ * is generated.
  */
-export function ProjectTabs({
-  base,
-  counts = {},
-  kind = "demo",
-}: {
-  base: string;
-  counts?: ProjectTabCounts;
-  kind?: "demo" | "scouted";
-}) {
+export function ProjectTabs({ base, counts = {} }: { base: string; counts?: ProjectTabCounts }) {
   const pathname = usePathname();
   const dossier = {
     label: "Dossier",
@@ -31,13 +22,7 @@ export function ProjectTabs({
     count: counts.dossier,
   };
   const stakeholders = { label: "Stakeholders", href: base, active: pathname === base, count: counts.stakeholders };
-  const items =
-    kind === "scouted"
-      ? [stakeholders, { label: "Model", href: `${base}/model`, active: pathname.startsWith(`${base}/model`) }, dossier]
-      : [
-          stakeholders,
-          dossier,
-          { label: "Progress", href: `${base}/progress`, active: pathname.startsWith(`${base}/progress`), count: counts.progress },
-        ];
+  const model = { label: "Model", href: `${base}/model`, active: pathname.startsWith(`${base}/model`) };
+  const items = [stakeholders, model, dossier];
   return <Tabs items={items} label="Project sections" />;
 }
