@@ -4,6 +4,10 @@
  * convention is +x east and +z toward the viewer; here z = -north so it matches model-builder).
  */
 
+import { createHash } from "node:crypto";
+import { z } from "zod";
+import { readRecord, writeRecord } from "@/lib/store/json-store";
+
 export const CONTEXT_RADIUS_M = 150;
 export const MAX_CONTEXT = 40;
 export const OVERPASS_TIMEOUT_S = 15;
@@ -125,8 +129,13 @@ export function toContext(elements: OsmElement[], origin: LatLng): ContextItem[]
     .map(({ x, z, w, d, h, source, height_status }) => ({ x, z, w, d, h, source, height_status }));
 }
 
-type CacheEntry = { at: number; items: ContextItem[] };
-const contextCache = new Map<string, CacheEntry>();
+const CACHE_COLLECTION = "viewer-geo";
+const cacheEntrySchema = z.object({
+  at: z.number(),
+  items: z.array(
+    z.object({ x: z.number(), z: z.number(), w: z.number(), d: z.number(), h: z.number(), source: z.string(), height_status: z.string() }),
+  ),
+});
 
 /** Cache key rounded to about 11 m, so nearby geocodes share one Overpass answer. */
 export function cacheKey(origin: LatLng): string {
@@ -135,11 +144,12 @@ export function cacheKey(origin: LatLng): string {
 
 /**
  * Buildings within CONTEXT_RADIUS_M of the point. Never throws: a failure returns [] with
- * "not retrieved". Results are cached for 24 h per coordinate (in this server instance).
+ * "not retrieved". Results are cached for 24 h per coordinate in the shared store; a store
+ * failure only skips the cache.
  */
 export async function fetchContext(origin: LatLng, now = Date.now()): Promise<{ items: ContextItem[]; status: "retrieved" | "not retrieved" }> {
-  const key = cacheKey(origin);
-  const hit = contextCache.get(key);
+  const key = createHash("sha256").update(cacheKey(origin)).digest("hex").slice(0, 40);
+  const hit = await readRecord(CACHE_COLLECTION, key, cacheEntrySchema).catch(() => null);
   if (hit && now - hit.at < CACHE_TTL_MS) return { items: hit.items, status: "retrieved" };
   const query = `[out:json][timeout:${OVERPASS_TIMEOUT_S}];way(around:${CONTEXT_RADIUS_M},${origin.lat},${origin.lng})["building"];out tags geom;`;
   try {
@@ -153,7 +163,7 @@ export async function fetchContext(origin: LatLng, now = Date.now()): Promise<{ 
     if (!res.ok) return { items: [], status: "not retrieved" };
     const data = (await res.json()) as { elements?: OsmElement[] };
     const items = toContext(data.elements ?? [], origin);
-    contextCache.set(key, { at: now, items });
+    await writeRecord(CACHE_COLLECTION, key, { at: now, items }).catch(() => undefined);
     return { items, status: "retrieved" };
   } catch {
     return { items: [], status: "not retrieved" };

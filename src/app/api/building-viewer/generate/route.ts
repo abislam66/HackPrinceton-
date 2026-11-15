@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   }
 
   // Count a run only once the access code and the input have passed, so a rejected request is free.
-  const limit = takeGeneration(clientKey(request.headers));
+  const limit = await takeGeneration(clientKey(request.headers));
   if (!limit.ok) {
     return NextResponse.json(
       { error: "You've made 5 viewers in the last hour. Try again later.", step: "rate_limit" },

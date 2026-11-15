@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/store/json-store", () => import("@/lib/store/test-store"));
+
 import { accessCodeOk, takeGeneration, RATE_LIMIT, RATE_WINDOW_MS } from "./guard";
 import { heightOf, toContext, DEFAULT_HEIGHT_M } from "./geo";
 import {
@@ -136,12 +140,12 @@ describe("access and rate limit", () => {
     expect(accessCodeOk("abc", "abc")).toBe("ok");
   });
 
-  it("allows five generations an hour per client, then asks to wait", () => {
+  it("allows five generations an hour per client, then asks to wait", async () => {
     const key = `test-${Math.random()}`;
     const now = 1_000_000;
-    for (let i = 0; i < RATE_LIMIT; i++) expect(takeGeneration(key, now).ok).toBe(true);
-    const blocked = takeGeneration(key, now + 1000);
+    for (let i = 0; i < RATE_LIMIT; i++) expect((await takeGeneration(key, now)).ok).toBe(true);
+    const blocked = await takeGeneration(key, now + 1000);
     expect(blocked.ok).toBe(false);
-    expect(takeGeneration(key, now + RATE_WINDOW_MS + 1).ok).toBe(true);
+    expect((await takeGeneration(key, now + RATE_WINDOW_MS + 1)).ok).toBe(true);
   });
 });

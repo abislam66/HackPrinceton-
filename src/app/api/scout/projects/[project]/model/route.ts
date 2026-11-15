@@ -20,7 +20,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/scout/proje
   const project = await getScoutedProject(id);
   if (!project) return NextResponse.json({ error: `Unknown project: ${id}` }, { status: 404 });
 
-  const limit = takeGeneration(clientKey(request.headers));
+  const limit = await takeGeneration(clientKey(request.headers));
   if (!limit.ok) {
     return NextResponse.json(
       { error: "That's 5 models in the last hour. Try again later." },
