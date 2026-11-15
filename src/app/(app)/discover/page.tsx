@@ -1,6 +1,6 @@
 import { MEASUREMENTS, WHY_IT_FITS, shortAddress } from "@/features/demo/building";
-import { loadClients, loadProject } from "@/features/project/load";
-import { PROJECT_SLUG } from "@/features/project/schema";
+import { loadProject } from "@/features/project/load";
+import { loadProjectClients } from "@/features/project-agent/store";
 import { loadScoutResult } from "@/features/scout/load";
 import { replayFrom } from "@/lib/agent/replay-param";
 import { ScoutBoard } from "./_components/ScoutBoard";
@@ -10,18 +10,16 @@ import { ScoutBoard } from "./_components/ScoutBoard";
  * `?replay=1` makes "Run scout" replay the last recorded run instead of searching live.
  */
 export default async function DiscoverPage({ searchParams }: PageProps<"/discover">) {
-  const [project, clients, scout, query] = await Promise.all([
-    loadProject(),
-    loadClients(),
-    loadScoutResult(),
-    searchParams,
-  ]);
+  // The pre-loaded project's stakeholders include any the project agent added; projects opened from its drafts are
+  // copies, listed under Projects.
+  const [project, scout, query] = await Promise.all([loadProject(), loadScoutResult(), searchParams]);
+  const clients = (await loadProjectClients(project.slug)) ?? [];
 
   return (
     <div className="@container flex flex-col p-8">
       <ScoutBoard
         demo={{
-          href: `/projects/${PROJECT_SLUG}`,
+          href: `/projects/${project.slug}`,
           name: project.name,
           location: shortAddress(project.address),
           why: WHY_IT_FITS,

@@ -107,10 +107,12 @@ export type UseProposalBuild = {
 };
 
 export function useProposalBuild({
+  projectSlug,
   clientId,
   company,
   basePath,
 }: {
+  projectSlug: string;
   clientId: string;
   company: string;
   /** The workspace path without a query, e.g. /projects/demo-project/stakeholders/client-a */
@@ -184,7 +186,8 @@ export function useProposalBuild({
       dispatch({ type: "step", id: "pitch", patch: { status: "queued", startedAt: null, endedAt: null, note: null } });
       log(`Shots and pitch: generating for ${company}`);
       try {
-        const res = await fetch(`/api/proposals/${encodeURIComponent(clientId)}/generate`, { method: "POST", signal });
+        const url = `/api/proposals/${encodeURIComponent(clientId)}/generate?project=${encodeURIComponent(projectSlug)}`;
+        const res = await fetch(url, { method: "POST", signal });
         if (!res.ok) throw new Error(`Generation failed (${res.status}): ${await readError(res)}`);
         const source = res.headers.get("x-proposal-source");
         const body = (await res.json()) as { shots?: unknown[] };
@@ -208,7 +211,7 @@ export function useProposalBuild({
         return false;
       }
     },
-    [clientId, company, log],
+    [clientId, company, log, projectSlug],
   );
 
   const run = useCallback(
@@ -223,7 +226,7 @@ export function useProposalBuild({
         if (!(await runGenerate(signal))) return;
         if (kind === "full") {
           log("Saving: marking the proposal built");
-          const result = await markBuiltAction(clientId);
+          const result = await markBuiltAction(projectSlug, clientId);
           if (signal.aborted) return;
           if (!result.ok) {
             log(`Error: ${result.error}`);
@@ -243,7 +246,7 @@ export function useProposalBuild({
         if (!signal.aborted) dispatch({ type: "fail", error: message(error) });
       }
     },
-    [basePath, clientId, log, router, runGenerate, runModel],
+    [basePath, clientId, log, projectSlug, router, runGenerate, runModel],
   );
 
   const start = useCallback(() => {

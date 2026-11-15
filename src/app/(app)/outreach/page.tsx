@@ -11,7 +11,7 @@ import { Tag } from "@/components/ui/Tag";
 import { formatShortDate, formatWatch, relativeTime } from "@/features/demo/format";
 import { getOutreachOverview } from "@/features/outreach/actions";
 import type { OutreachMessage, OutreachOverview, OutreachReply } from "@/features/outreach/schema";
-import { loadProject } from "@/features/project/load";
+import { listProjects } from "@/features/project-agent/store";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { loadStakeholders, type StakeholderStatus } from "@/features/workspace/status";
 import { NEED_LABEL, ROLE_LABEL } from "@/lib/labels";
@@ -21,8 +21,13 @@ type Tab = "sent" | "replies" | "drafts";
 
 const GMAIL_SETUP = "Set the Gmail keys in .env.local to send real email. See docs/live-pipeline.md, Gmail setup.";
 
-function workspaceHref(clientId: string, tab?: string) {
-  return `/projects/${PROJECT_SLUG}/stakeholders/${clientId}${tab ? `?tab=${tab}` : ""}`;
+function workspaceHref(s: { projectSlug: string; client: { id: string } }, tab?: string) {
+  return `/projects/${s.projectSlug}/stakeholders/${s.client.id}${tab ? `?tab=${tab}` : ""}`;
+}
+
+/** Emails are stored per client of the demo project, so the lookup key carries the project too. */
+function messageKey(projectSlug: string, clientId: string): string {
+  return `${projectSlug}/${clientId}`;
 }
 
 /** A sent stakeholder with the email that went to them, when one did. */
@@ -51,7 +56,7 @@ function senderName(from: string): string {
   return name || from.replace(/[<>]/g, "");
 }
 
-function SentTab({ rows, projectName }: { rows: SentRow[]; projectName: string }) {
+function SentTab({ rows, projectNames }: { rows: SentRow[]; projectNames: Map<string, string> }) {
   if (rows.length === 0) {
     return (
       <Panel flush>
@@ -87,16 +92,16 @@ function SentTab({ rows, projectName }: { rows: SentRow[]; projectName: string }
           {rows.map(({ status: s, message }) => {
             const sentAt = message?.sentAt ?? s.sentAt;
             return (
-              <TR key={s.client.id}>
+              <TR key={`${s.projectSlug}/${s.client.id}`}>
                 <TD>
                   <Link
-                    href={workspaceHref(s.client.id, "engagement")}
+                    href={workspaceHref(s, "engagement")}
                     className="font-semibold underline-offset-4 hover:underline"
                   >
                     {s.client.company}
                   </Link>
                 </TD>
-                <TD className="text-muted">{projectName}</TD>
+                <TD className="text-muted">{projectNames.get(s.projectSlug) ?? s.projectSlug}</TD>
                 <TD mono>{sentAt ? formatShortDate(sentAt) : "–"}</TD>
                 <TD className="text-muted">
                   {message?.status === "sent" ? `Gmail · ${message.deliveredTo ?? "team inbox"}` : "Not emailed"}
@@ -142,7 +147,7 @@ function RepliesTab({ replies, gmailConfigured }: { replies: ReplyRow[]; gmailCo
               <p className="flex flex-wrap items-baseline gap-x-3">
                 <span className="text-sm leading-[18px] font-semibold">{senderName(r.from)}</span>
                 <Link
-                  href={workspaceHref(r.clientId, "engagement")}
+                  href={workspaceHref({ projectSlug: PROJECT_SLUG, client: { id: r.clientId } }, "engagement")}
                   className="text-xs leading-4 text-muted underline-offset-4 hover:underline"
                 >
                   Re: {r.company}
@@ -172,8 +177,8 @@ function DraftsTab({ drafts, messages }: { drafts: StakeholderStatus[]; messages
           title="No drafts"
           description="Proposals that are built but not sent yet show up here."
           action={
-            <Button href={`/projects/${PROJECT_SLUG}`} variant="primary">
-              Open stakeholders
+            <Button href="/projects" variant="primary">
+              Open projects
             </Button>
           }
         />
@@ -185,13 +190,13 @@ function DraftsTab({ drafts, messages }: { drafts: StakeholderStatus[]; messages
       <MediaList trailingWidth={112}>
         {drafts.map((s) => (
           <MediaRow
-            key={s.client.id}
-            href={workspaceHref(s.client.id)}
+            key={`${s.projectSlug}/${s.client.id}`}
+            href={workspaceHref(s)}
             media={<Avatar name={s.client.company} />}
             title={s.client.company}
             meta={`${ROLE_LABEL[s.client.role]} · Needs: ${NEED_LABEL[s.client.need]}`}
           >
-            <DraftTag message={messages.get(s.client.id)} />
+            <DraftTag message={messages.get(messageKey(s.projectSlug, s.client.id))} />
           </MediaRow>
         ))}
       </MediaList>
@@ -222,15 +227,18 @@ function GmailLine({ overview }: { overview: OutreachOverview | null }) {
 export default async function OutreachPage({ searchParams }: PageProps<"/outreach">) {
   const { tab: rawTab } = await searchParams;
   const tab: Tab = rawTab === "replies" || rawTab === "drafts" ? rawTab : "sent";
-  const [project, stakeholders, overview] = await Promise.all([loadProject(), loadStakeholders(), overviewOrNull()]);
+  // Every project's stakeholders: the demo project and the ones the project agent opened.
+  const [projects, overview] = await Promise.all([listProjects(), overviewOrNull()]);
+  const projectNames = new Map(projects.map((p) => [p.id, p.name]));
+  const stakeholders = (await Promise.all(projects.map((p) => loadStakeholders(p.id)))).flat();
 
-  const messages = new Map((overview?.messages ?? []).map((m) => [m.clientId, m]));
+  const messages = new Map((overview?.messages ?? []).map((m) => [messageKey(PROJECT_SLUG, m.clientId), m]));
   // Sent: the proposal was sent, or its email went out (the Agent tab can send without the workspace).
   const sent: SentRow[] = stakeholders
-    .filter((s) => s.stage === "sent" || messages.get(s.client.id)?.status === "sent")
-    .map((s) => ({ status: s, message: messages.get(s.client.id) ?? null }));
-  const sentIds = new Set(sent.map((r) => r.status.client.id));
-  const drafts = stakeholders.filter((s) => s.stage === "ready" && !sentIds.has(s.client.id));
+    .filter((s) => s.stage === "sent" || messages.get(messageKey(s.projectSlug, s.client.id))?.status === "sent")
+    .map((s) => ({ status: s, message: messages.get(messageKey(s.projectSlug, s.client.id)) ?? null }));
+  const sentIds = new Set(sent.map((r) => messageKey(r.status.projectSlug, r.status.client.id)));
+  const drafts = stakeholders.filter((s) => s.stage === "ready" && !sentIds.has(messageKey(s.projectSlug, s.client.id)));
   const replies: ReplyRow[] = (overview?.messages ?? [])
     .flatMap((m) =>
       m.replies.map((r) => ({ ...r, company: m.intendedFor.company, subject: m.subject, clientId: m.clientId })),
@@ -275,7 +283,7 @@ export default async function OutreachPage({ searchParams }: PageProps<"/outreac
         />
 
         {tab === "sent" ? (
-          <SentTab rows={sent} projectName={project.name} />
+          <SentTab rows={sent} projectNames={projectNames} />
         ) : tab === "replies" ? (
           <RepliesTab replies={replies} gmailConfigured={Boolean(overview?.gmail.configured)} />
         ) : (

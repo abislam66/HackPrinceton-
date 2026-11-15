@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
 import type { OutreachMessage, OutreachOverview } from "@/features/outreach/schema";
-import type { Client } from "@/features/project/schema";
+import { type Client, PROJECT_SLUG } from "@/features/project/schema";
 import { sendProposal } from "@/features/workspace/actions";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  projectSlug: string;
   client: Pick<Client, "id" | "company" | "contact">;
   projectName: string;
   basePath: string;
@@ -25,6 +26,8 @@ type Gmail = OutreachOverview["gmail"];
 
 type DraftState =
   | { phase: "loading" }
+  // No email for this project: sending only marks the proposal sent.
+  | { phase: "mark-only" }
   | { phase: "ready"; message: OutreachMessage; gmail: Gmail }
   | { phase: "error"; error: string };
 
@@ -57,8 +60,9 @@ async function loadDraft(clientId: string, fresh: boolean): Promise<{ message: O
  * Sends a built proposal. Opening it writes the email live (Sonnet, from the stakeholder's brief and pitch, about
  * ten seconds) or reopens the stored draft; the operator edits it and sends. With Gmail set up the email goes through
  * Gmail to the allowlisted team inbox, never to the stakeholder; without it, sending only marks the proposal sent.
+ * Email covers the demo project's stakeholders only: for a project the agent opened, sending marks it sent.
  */
-export function SendDialog({ open, onClose, client, projectName, basePath }: Props) {
+export function SendDialog({ open, onClose, projectSlug, client, projectName, basePath }: Props) {
   const router = useRouter();
   const formId = useId();
   const [draft, setDraft] = useState<DraftState>({ phase: "loading" });
@@ -70,8 +74,12 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
 
   const load = useCallback(
     async (fresh: boolean) => {
-      setDraft({ phase: "loading" });
       setError(null);
+      if (projectSlug !== PROJECT_SLUG) {
+        setDraft({ phase: "mark-only" });
+        return;
+      }
+      setDraft({ phase: "loading" });
       try {
         const { message, gmail } = await loadDraft(client.id, fresh);
         setDraft({ phase: "ready", message, gmail });
@@ -81,7 +89,7 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
         setDraft({ phase: "error", error: e instanceof Error ? e.message : "Couldn't write the email." });
       }
     },
-    [client.id],
+    [projectSlug, client.id],
   );
 
   useEffect(() => {
@@ -91,11 +99,12 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
   }, [open, load]);
 
   const ready = draft.phase === "ready" ? draft : null;
+  const markOnly = draft.phase === "mark-only";
   const alreadyEmailed = ready?.message.status === "sent";
   const emails = Boolean(ready?.gmail.configured) && !alreadyEmailed;
 
   const send = () => {
-    if (!ready) return;
+    if (!ready && !markOnly) return;
     setError(null);
     startTransition(async () => {
       if (emails) {
@@ -110,7 +119,7 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
           return;
         }
       }
-      const marked = await sendProposal(client.id);
+      const marked = await sendProposal(projectSlug, client.id);
       if (!marked.ok) {
         setError(emails ? `The email went out, but the proposal wasn't marked sent: ${marked.error}` : marked.error);
         return;
@@ -121,7 +130,9 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
     });
   };
 
-  const footerNote = !ready
+  const footerNote = markOnly
+    ? "This project's proposals aren't emailed, so this only marks the proposal as sent."
+    : !ready
     ? "Writing the email from the stakeholder's brief and pitch…"
     : alreadyEmailed
       ? "This email already went out. Sending marks the proposal as sent."
@@ -146,7 +157,7 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
               variant="primary"
               type="submit"
               form={formId}
-              disabled={!ready}
+              disabled={!ready && !markOnly}
               pending={pending}
               pendingLabel="Sending…"
             >
@@ -177,7 +188,7 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
           </div>
         </div>
 
-        {draft.phase === "error" ? (
+        {markOnly ? null : draft.phase === "error" ? (
           <div role="alert" className="mb-5 flex flex-col items-start gap-3">
             <p className="text-[13px] leading-5 text-status-fail-ink">{draft.error}</p>
             <Button onClick={() => void load(false)}>Try again</Button>

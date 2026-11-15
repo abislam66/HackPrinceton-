@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation";
+import { draftView } from "@/components/project-agent/draft-view";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { loadProject } from "@/features/project/load";
-import { PROJECT_SLUG } from "@/features/project/schema";
+import { listDrafts, loadProjectFacts } from "@/features/project-agent/store";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { loadStakeholder } from "@/features/workspace/status";
 import { NEED_LABEL } from "@/lib/labels";
 import { StakeholderActions } from "./_components/StakeholderActions";
 import { Workspace, type WorkspaceTab } from "./_components/Workspace";
 
-const TABS: WorkspaceTab[] = ["shots", "engagement"];
+const TABS: WorkspaceTab[] = ["shots", "engagement", "agent"];
 
 /** 4 Stakeholder workspace: build, review and send one stakeholder's proposal. */
 export default async function StakeholderPage({
@@ -16,18 +16,20 @@ export default async function StakeholderPage({
   searchParams,
 }: PageProps<"/projects/[project]/stakeholders/[client]">) {
   const { project: projectSlug, client: clientId } = await params;
-  if (projectSlug !== PROJECT_SLUG) notFound();
 
-  const [status, project, model, query] = await Promise.all([
-    loadStakeholder(clientId),
-    loadProject(),
+  const [project, status, model, query, drafts] = await Promise.all([
+    loadProjectFacts(projectSlug),
+    loadStakeholder(projectSlug, clientId),
     loadStakeholderModel(clientId),
     searchParams,
+    listDrafts(projectSlug),
   ]);
-  if (!status) notFound();
+  if (!project || !status) notFound();
 
   const { client, stage, proposal, engagement, events, sentAt } = status;
-  const basePath = `/projects/${PROJECT_SLUG}/stakeholders/${client.id}`;
+  const projectPath = `/projects/${projectSlug}`;
+  const pending = drafts.filter((d) => d.status === "pending" && d.clientId === client.id).map(draftView);
+  const basePath = `${projectPath}/stakeholders/${client.id}`;
 
   const requested = typeof query.tab === "string" ? (query.tab as WorkspaceTab) : null;
   const fallbackTab: WorkspaceTab = stage === "sent" ? "engagement" : "shots";
@@ -39,7 +41,7 @@ export default async function StakeholderPage({
       <PageHeader
         breadcrumbs={[
           { label: "Projects", href: "/projects" },
-          { label: project.name, href: `/projects/${PROJECT_SLUG}` },
+          { label: project.name, href: projectPath },
           { label: client.company },
         ]}
         title={client.company}
@@ -48,6 +50,7 @@ export default async function StakeholderPage({
           stage === "not-built" ? undefined : (
             <StakeholderActions
               stage={stage}
+              projectSlug={projectSlug}
               client={{ id: client.id, company: client.company, contact: client.contact }}
               projectName={project.name}
               basePath={basePath}
@@ -58,6 +61,7 @@ export default async function StakeholderPage({
         }
       />
       <Workspace
+        projectSlug={projectSlug}
         basePath={basePath}
         stage={stage}
         tab={tab}
@@ -67,6 +71,7 @@ export default async function StakeholderPage({
         engagement={engagement}
         events={events}
         sentAt={sentAt}
+        drafts={pending}
       />
     </div>
   );

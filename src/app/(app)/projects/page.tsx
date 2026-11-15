@@ -6,8 +6,7 @@ import { Panel } from "@/components/ui/Panel";
 import { Tag } from "@/components/ui/Tag";
 import { WHY_IT_FITS, shortAddress } from "@/features/demo/building";
 import { SAMPLE_PROJECTS } from "@/features/demo/projects";
-import { loadProject } from "@/features/project/load";
-import { PROJECT_SLUG } from "@/features/project/schema";
+import { listProjects, loadProjectFacts } from "@/features/project-agent/store";
 import { loadProjectModel } from "@/features/scout/model";
 import { listScoutedProjects } from "@/features/scout/projects";
 import { loadStakeholders } from "@/features/workspace/status";
@@ -21,26 +20,42 @@ type ProjectRow = {
   stakeholders: number;
   sent: number;
   status: ReactNode;
-  /** Only the loaded project opens. */
+  /** Loaded projects open; the samples don't. */
   href?: string;
 };
 
-export default async function ProjectsPage() {
-  const [project, stakeholders, scouted] = await Promise.all([loadProject(), loadStakeholders(), listScoutedProjects()]);
+/** A loaded project as a row: the demo project, or one the project agent opened from a draft. */
+async function projectRow(
+  project: Awaited<ReturnType<typeof listProjects>>[number],
+  names: Map<string, string>,
+): Promise<ProjectRow | null> {
+  const [facts, stakeholders] = await Promise.all([loadProjectFacts(project.id), loadStakeholders(project.id)]);
+  if (!facts) return null;
   const sent = stakeholders.filter((s) => s.stage === "sent").length;
-  const models = await Promise.all(scouted.map((p) => loadProjectModel(p.id)));
+  const basedOn = project.basedOn ? `Based on ${names.get(project.basedOn) ?? project.basedOn}` : null;
+  return {
+    id: project.id,
+    name: project.name,
+    location: [shortAddress(facts.address), basedOn].filter(Boolean).join(" · "),
+    // Projects opened from a draft share the base project's building.
+    floors: floorsFromText(WHY_IT_FITS),
+    stakeholders: stakeholders.length,
+    sent,
+    status: sent > 0 ? <Tag tone="ready">In outreach</Tag> : <Tag>Building</Tag>,
+    href: `/projects/${project.id}`,
+  };
+}
+
+export default async function ProjectsPage() {
+  const [projects, scouted] = await Promise.all([listProjects(), listScoutedProjects()]);
+  const names = new Map(projects.map((p) => [p.id, p.name]));
+  const [loaded, models] = await Promise.all([
+    Promise.all(projects.map((p) => projectRow(p, names))).then((rows) => rows.filter((r): r is ProjectRow => r !== null)),
+    Promise.all(scouted.map((p) => loadProjectModel(p.id))),
+  ]);
 
   const rows: ProjectRow[] = [
-    {
-      id: PROJECT_SLUG,
-      name: project.name,
-      location: shortAddress(project.address),
-      floors: floorsFromText(WHY_IT_FITS),
-      stakeholders: stakeholders.length,
-      sent,
-      status: sent > 0 ? <Tag tone="ready">In outreach</Tag> : <Tag>Building</Tag>,
-      href: `/projects/${PROJECT_SLUG}`,
-    },
+    ...loaded,
     // Added from scouting: no stakeholders yet, so the status is whether its model is ready.
     ...scouted.map((p, i) => ({
       id: p.id,
