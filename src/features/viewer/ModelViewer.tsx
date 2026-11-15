@@ -30,6 +30,10 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
   const [goal, setGoal] = useState<Goal | null>(null);
   const [pathDone, setPathDone] = useState(false);
   const dial = useRef<HTMLDivElement>(null);
+  // Set the dial's rotation directly every frame, without re-rendering React.
+  const turnDial = (heading: number) => {
+    if (dial.current) dial.current.style.transform = `rotate(${-heading}rad)`;
+  };
   const box = model.boundingBox;
   const center = boxCenter(box);
   const span = fitDistance(box, VIEW_FOV);
@@ -57,7 +61,7 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
             {model.url ? <BuiltModel url={model.url} /> : <Massing box={box} />}
           </Suspense>
           <ContactShadows position={[0, 0.02, 0]} scale={span * 1.6} far={box.max[1]} blur={2.5} opacity={0.55} resolution={1024} />
-          {interactive && <CompassDriver dial={dial} />}
+          {interactive && <CompassDriver onHeading={turnDial} />}
           {interactive && (
             <OrbitControls
               makeDefault
@@ -163,15 +167,13 @@ function Ground({ box, span }: { box: Box; span: number }) {
 }
 
 /** Turns the compass dial so its N always points to model north (-Z) as seen from the camera. */
-function CompassDriver({ dial }: { dial: RefObject<HTMLDivElement | null> }) {
+function CompassDriver({ onHeading }: { onHeading: (radians: number) => void }) {
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const scratch = useMemo(() => new Vector3(), []);
   useFrame(({ camera }) => {
-    if (!dial.current) return;
     const target = controls?.target ?? scratch.set(0, 0, 0);
-    // Heading of the camera's view on the ground; north on screen is up when looking north.
-    const heading = Math.atan2(target.x - camera.position.x, -(target.z - camera.position.z));
-    dial.current.style.transform = `rotate(${-heading}rad)`;
+    // Heading of the camera's view on the ground; 0 when looking north.
+    onHeading(Math.atan2(target.x - camera.position.x, -(target.z - camera.position.z)));
   });
   return null;
 }
