@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { accessCodeOk, clientKey, takeGeneration } from "@/features/building-viewer/guard";
 import { generateViewer, StepError } from "@/features/building-viewer/generate";
 import { detectPhotoType, MAX_PHOTO_BYTES, viewerFormSchema, type ViewerEvent, type PhotoMediaType } from "@/features/building-viewer/schema";
+import { saveGeneratedBuilding } from "@/features/model/generated";
+import { loadProjectFacts } from "@/features/project-agent/store";
+import { PROJECT_SLUG } from "@/features/project/schema";
+import { getScoutedProject } from "@/features/scout/projects";
 
 // The model call with web search can run for minutes. The repo's agent route uses 300 s on this host.
 export const maxDuration = 300;
@@ -11,7 +15,10 @@ export const maxDuration = 300;
  * and the access code in the x-access-code header.
  *
  * Refusals before any work return JSON { error, step }. Once the run starts, the response is NDJSON:
- * one ViewerEvent per line, ending with a "result" or an "error" line. Nothing is stored.
+ * one ViewerEvent per line, ending with a "result" or an "error" line.
+ *
+ * With a projectSlug naming a project (not the demo, which keeps its built model), the generated GLB is saved as
+ * that project's model, so its Shots tab and proposal show it (`model_saved`). Otherwise nothing is stored.
  */
 export async function POST(request: Request) {
   const access = accessCodeOk(request.headers.get("x-access-code"), process.env.BUILDING_VIEWER_ACCESS_CODE);
@@ -68,7 +75,17 @@ export async function POST(request: Request) {
     async start(controller) {
       const emit = (event: ViewerEvent) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       try {
-        const result = await generateViewer(parsed.data, photo, emit);
+        const generated = await generateViewer(parsed.data, photo, emit);
+        const { result } = generated;
+        const slug = parsed.data.projectSlug;
+        if (slug && slug !== PROJECT_SLUG && ((await loadProjectFacts(slug)) || (await getScoutedProject(slug)))) {
+          try {
+            await saveGeneratedBuilding(slug, generated);
+            result.model_saved = true;
+          } catch (error) {
+            console.error(`building-viewer model save failed project=${slug}`, error instanceof Error ? error.message : error);
+          }
+        }
         emit(result);
       } catch (error) {
         const step = error instanceof StepError ? error.step : "model";

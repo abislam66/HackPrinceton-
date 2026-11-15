@@ -27,24 +27,32 @@ export function detectPhotoType(bytes: Uint8Array): PhotoMediaType | null {
   return null;
 }
 
+/** The last NDJSON line of a successful run. */
+export type ViewerResult = {
+  type: "result";
+  /** The viewer page: the locked scaffold with the generated GLB embedded. */
+  html: string;
+  reply: string;
+  geocode_status: string;
+  context_status: string;
+  /** Always false: the model returns data, not page code, so it can't change the scaffold. Kept for stored records. */
+  drift: boolean;
+  /** model.json in the model builder's schema, measured from the built building. */
+  model_json: ModelMetadata | null;
+  /** "generated", or "generated on retry" when the first scene failed validation. */
+  model_json_status: string;
+  /** The project this viewer belongs to: the form's projectSlug, else made from the name or address. */
+  project_slug: string;
+  /** Which sides the photo backs and which are inferred. Shots may frame all of them; the reply says so. */
+  sides: { photo: ModelMetadata["knownSides"]; inferred: ModelMetadata["knownSides"] };
+  /** True when the GLB was saved on the project, so its Projects pages show it. */
+  model_saved: boolean;
+};
+
 /** One NDJSON line the generate route streams back to the page. */
 export type ViewerEvent =
   | { type: "step"; step: ViewerStep; status: "start" | "done" | "skipped"; detail?: string }
-  | {
-      type: "result";
-      html: string;
-      reply: string;
-      geocode_status: string;
-      context_status: string;
-      drift: boolean;
-      /** model.json in the model builder's schema, or null when even the SUBJECT-dims fallback failed. */
-      model_json: ModelMetadata | null;
-      model_json_status: string;
-      /** The project this viewer belongs to: the form's projectSlug, else made from the name or address. */
-      project_slug: string;
-      /** Which sides the photo backs and which are inferred. Shots may frame all of them; the reply says so. */
-      sides: { photo: ModelMetadata["knownSides"]; inferred: ModelMetadata["knownSides"] };
-    }
+  | ViewerResult
   | { type: "error"; error: string; step: string };
 
 export type ViewerStep = "geocode" | "context" | "model" | "assemble";

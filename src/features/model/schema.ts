@@ -23,6 +23,9 @@ export const modelMetadataSchema = z.object({
 });
 export type ModelMetadata = z.infer<typeof modelMetadataSchema>;
 
+/** A neighbouring building as a box, in the model's frame. Shots must not pass through one. */
+export type ModelObstacle = { name: string; min: [number, number, number]; max: [number, number, number] };
+
 /** What the viewer needs: where the GLB is (if built yet) and how big the building is. */
 export type ModelInfo = {
   url: string | null;
@@ -30,6 +33,8 @@ export type ModelInfo = {
   knownSides: ModelMetadata["knownSides"];
   /** A model the building viewer generated for a project other than the demo. Its neighbors are not the demo's. */
   generated?: boolean;
+  /** A generated model's own neighbours (they are in its GLB). Unset for the demo, whose neighbours are in data/. */
+  obstacles?: ModelObstacle[];
 };
 
 /** Stand-in size used until the model builder has written a model. */

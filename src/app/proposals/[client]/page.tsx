@@ -28,8 +28,8 @@ export default async function ProposalPage({ params, searchParams }: PageProps<"
     getProposal(clientId, projectSlug),
   ]);
   if (!project) notFound();
-  // The demo's neighbors belong to Morgan Hall, not to a generated building (same rule as generateShots).
-  const obstacles = model.generated ? [] : await loadShotObstacles(model.boundingBox);
+  // The demo's neighbors belong to Morgan Hall; a generated building brings its own (same rule as generateShots).
+  const obstacles = model.generated ? (model.obstacles ?? []) : await loadShotObstacles(model.boundingBox);
 
   const data = buildProposalData({ client, project, model, proposal, obstacles });
   return (

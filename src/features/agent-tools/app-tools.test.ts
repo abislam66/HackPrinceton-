@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/server", () => ({
-  after: () => {
-    throw new Error("outside a request");
-  },
-}));
 
 const getProposal = vi.fn();
 const saveProposal = vi.fn();
-const generateViewer = vi.fn();
-const saveProjectModel = vi.fn();
+const startProjectModel = vi.fn();
+const loadModelRun = vi.fn();
+const loadProjectModel = vi.fn();
+const addScoutedProject = vi.fn();
 const editOutreachDraft = vi.fn();
 const markSent = vi.fn();
 
@@ -19,15 +16,14 @@ vi.mock("@/features/proposal/store", () => ({
   saveProposal: (...a: unknown[]) => saveProposal(...a),
 }));
 vi.mock("@/features/proposal/generate", () => ({ generateProposal: vi.fn() }));
-vi.mock("@/features/building-viewer/generate", () => ({ generateViewer: (...a: unknown[]) => generateViewer(...a) }));
-vi.mock("@/features/building-viewer/guard", () => ({ takeGeneration: async () => ({ ok: true }) }));
+// The model run itself (generation, run records, the lock, the rate limit) is tested in scout/model.test.ts.
 vi.mock("@/features/scout/model", () => ({
-  loadProjectModel: vi.fn(async () => null),
-  saveProjectModel: (...a: unknown[]) => saveProjectModel(...a),
-  viewerInputFor: () => ({ address: "1 Main St, Boston, MA", buildingName: "", knownFacts: "", notes: "" }),
+  loadProjectModel: (...a: unknown[]) => loadProjectModel(...a),
+  loadModelRun: (...a: unknown[]) => loadModelRun(...a),
+  startProjectModel: (...a: unknown[]) => startProjectModel(...a),
 }));
 vi.mock("@/features/scout/projects", () => ({
-  addScoutedProject: vi.fn(),
+  addScoutedProject: (...a: unknown[]) => addScoutedProject(...a),
   listScoutedProjects: vi.fn(async () => []),
   getScoutedProject: vi.fn(async (id: string) => (id === "the-tower" ? { id, candidate: {}, addedAt: "" } : null)),
 }));
@@ -54,8 +50,12 @@ async function tool(name: string) {
 
 describe("app tools", () => {
   beforeEach(() => {
-    for (const fn of [getProposal, saveProposal, generateViewer, saveProjectModel, editOutreachDraft, markSent]) fn.mockReset();
+    for (const fn of [getProposal, saveProposal, startProjectModel, loadModelRun, loadProjectModel, addScoutedProject, editOutreachDraft, markSent]) {
+      fn.mockReset();
+    }
     saveProposal.mockResolvedValue("file");
+    loadModelRun.mockResolvedValue(null);
+    loadProjectModel.mockResolvedValue(null);
   });
 
   it("exposes every app tool once", async () => {
@@ -85,22 +85,77 @@ describe("app tools", () => {
     await expect((await tool("review_proposal")).run({ clientId: "client-a", action: "approve" })).resolves.toMatch(/generate_proposal first/);
   });
 
-  it("starts a scouted project's model in the background and refuses a second run meanwhile", async () => {
-    let finish: (value: unknown) => void = () => {};
-    generateViewer.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+  it("starts a scouted project's model through the shared run, and refuses a second run meanwhile", async () => {
     const generate = await tool("generate_project_model");
+    startProjectModel.mockResolvedValueOnce({ status: "started" }).mockResolvedValueOnce({ status: "running" });
     await expect(generate.run({ projectId: "the-tower" })).resolves.toContain('"status":"started"');
+    expect(startProjectModel).toHaveBeenCalledWith(expect.objectContaining({ id: "the-tower" }), "agent-chat");
     await expect(generate.run({ projectId: "the-tower" })).resolves.toMatch(/already being generated/);
-    await expect((await tool("get_project_model")).run({ projectId: "the-tower" })).resolves.toContain("generating");
-    finish({ html: "<html></html>", reply: "ok", geocode_status: "retrieved", context_status: "retrieved", drift: false });
-    await vi.waitFor(() => expect(saveProjectModel).toHaveBeenCalledOnce());
+  });
+
+  it("says how long to wait when the model rate limit is used up", async () => {
+    startProjectModel.mockResolvedValueOnce({ status: "rate-limited", retryAfterS: 601 });
+    await expect((await tool("generate_project_model")).run({ projectId: "the-tower" })).resolves.toMatch(/^Error: .*in 11 minutes/);
   });
 
   it("does not generate a model for the demo project or an unknown one", async () => {
     const generate = await tool("generate_project_model");
     await expect(generate.run({ projectId: "demo-project" })).resolves.toMatch(/model builder/);
     await expect(generate.run({ projectId: "nope" })).resolves.toMatch(/^Error/);
-    expect(generateViewer).not.toHaveBeenCalled();
+    expect(startProjectModel).not.toHaveBeenCalled();
+  });
+
+  it("reports a model run from its record: generating, failed, or ready", async () => {
+    const status = await tool("get_project_model");
+    loadModelRun.mockResolvedValueOnce({ projectId: "the-tower", status: "generating", startedAt: "2026-11-15T12:00:00.000Z" });
+    loadProjectModel.mockResolvedValueOnce({ generatedAt: "2026-11-14T12:00:00.000Z", reply: "old" });
+    // A run in progress wins over an older saved model.
+    expect(JSON.parse(String(await status.run({ projectId: "the-tower" })))).toEqual({
+      projectId: "the-tower",
+      status: "generating",
+      startedAt: "2026-11-15T12:00:00.000Z",
+    });
+
+    loadModelRun.mockResolvedValueOnce({ projectId: "the-tower", status: "failed", startedAt: "x", error: "The run stopped." });
+    expect(JSON.parse(String(await status.run({ projectId: "the-tower" })))).toEqual({ projectId: "the-tower", status: "failed", error: "The run stopped." });
+
+    expect(JSON.parse(String(await status.run({ projectId: "the-tower" })))).toEqual({ projectId: "the-tower", status: "none" });
+
+    loadModelRun.mockResolvedValueOnce({ projectId: "the-tower", status: "ready", startedAt: "x" });
+    loadProjectModel.mockResolvedValueOnce({
+      generatedAt: "2026-11-15T12:04:00.000Z",
+      reply: "Built.",
+      geocodeStatus: "retrieved",
+      contextStatus: "retrieved",
+    });
+    expect(JSON.parse(String(await status.run({ projectId: "the-tower" })))).toMatchObject({ status: "ready", notes: "Built." });
+  });
+
+  it("starts the model of a project it adds from scouting, but not of one already added", async () => {
+    const add = await tool("add_project_from_scout");
+    const project = { id: "the-tower", candidate: { name: "The Tower" }, addedAt: "" };
+    addScoutedProject.mockResolvedValueOnce({ status: "added", project });
+    startProjectModel.mockResolvedValueOnce({ status: "started" });
+    expect(JSON.parse(String(await add.run({ candidateId: "the-tower" })))).toMatchObject({
+      status: "added",
+      id: "the-tower",
+      model: "generating (about 2 to 4 minutes)",
+    });
+    expect(startProjectModel).toHaveBeenCalledWith(project, "agent-chat");
+
+    addScoutedProject.mockResolvedValueOnce({ status: "exists", project });
+    const again = JSON.parse(String(await add.run({ candidateId: "the-tower" })));
+    expect(again).toMatchObject({ status: "already a project", id: "the-tower" });
+    expect(again).not.toHaveProperty("model");
+    expect(startProjectModel).toHaveBeenCalledOnce();
+  });
+
+  it("tells the agent when adding a project could not start its model", async () => {
+    addScoutedProject.mockResolvedValueOnce({ status: "added", project: { id: "the-tower", candidate: { name: "T" }, addedAt: "" } });
+    startProjectModel.mockResolvedValueOnce({ status: "rate-limited", retryAfterS: 120 });
+    const out = JSON.parse(String(await (await tool("add_project_from_scout")).run({ candidateId: "the-tower" })));
+    expect(out.status).toBe("added");
+    expect(out.model).toMatch(/^not started: .*in 2 minutes/);
   });
 
   it("will not edit an email that was already sent", async () => {

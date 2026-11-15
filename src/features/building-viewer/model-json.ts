@@ -2,35 +2,11 @@ import { buildingSides, modelMetadataSchema, type ModelMetadata } from "@/featur
 
 /*
  * model.json for a generated building, in exactly the model builder's schema (features/model/schema.ts), so the
- * shot compiler and the viewer can use it like demo-project's. Claude returns the two facts only it knows (the
- * bounding box and the sides the photo shows); the server sets the rest. Pure functions, tested without a network.
- *
- * The schema has no field for named parts or notes: parts exist only as node names inside a GLB. So nothing about
- * parts is asked for or stored here.
+ * shot compiler and the viewer can use it like demo-project's. The server measures the bounding box from the
+ * building it built and sets the rest. Pure functions, tested without a network.
  */
 
 export const MODEL_FILE = "model.glb";
-
-export const MODEL_JSON_RULES = `ALSO return the 3D model's metadata inside <model_json></model_json>, after </reply>, as JSON with exactly these keys:
-{"boundingBox": {"min": [x, y, z], "max": [x, y, z]}, "knownSides": ["north" | "east" | "south" | "west", ...]}
-- Use the same dimensions you used for SUBJECT, in metres. Axes: +Y up, +X east, -Z north. Origin: the centre of the building's footprint at ground level, so min[1] is 0 and max[1] is the building's full height.
-- The box covers the subject building only, not SUBJECT.context.
-- knownSides lists only the sides the attached photo clearly shows. With no photo, return []. Never list a side you cannot see.
-- No other keys, no comments.`;
-
-export type ModelJsonStatus = "generated" | "generated on retry" | "built from SUBJECT dims" | "not available";
-
-/** The JSON inside <model_json>, or null when the tag is missing or the JSON does not parse. */
-export function parseModelJsonBlock(text: string): unknown {
-  const body = /<model_json>([\s\S]*?)<\/model_json>/.exec(text)?.[1];
-  if (!body) return null;
-  const json = body.trim().replace(/^```(?:json)?\s*\n/, "").replace(/\n```\s*$/, "");
-  try {
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
 
 /** Sides in the schema's order, without duplicates or unknown names. */
 function cleanSides(value: unknown): ModelMetadata["knownSides"] {
@@ -70,48 +46,6 @@ export function validateModelJson(
   if (Math.max(max[0] - min[0], max[2] - min[2]) > 1000) errors.push("boundingBox: footprint over 1000 m");
   if (errors.length) return { ok: false, errors };
   return { ok: true, model: { ...parsed.data, knownSides: cleanSides(parsed.data.knownSides) } };
-}
-
-/** SUBJECT.dims as written in the subject block: `dims: { width: 30, depth: 20, height: 90 }`. */
-export function dimsFromSubject(subject: string): { width: number; depth: number; height: number } | null {
-  const block = /dims\s*:\s*\{([^}]*)\}/.exec(subject)?.[1];
-  if (!block) return null;
-  const read = (key: string) => {
-    const n = Number(new RegExp(`${key}\\s*:\\s*(-?\\d+(?:\\.\\d+)?)`).exec(block)?.[1]);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  };
-  const width = read("width"), depth = read("depth"), height = read("height");
-  return width && depth && height ? { width, depth, height } : null;
-}
-
-/** The last resort: a box from SUBJECT.dims centred on the origin. Null when the subject has no readable dims. */
-export function fallbackModelJson(subject: string, projectSlug: string, sides: unknown): ModelMetadata | null {
-  const dims = dimsFromSubject(subject);
-  if (!dims) return null;
-  const result = validateModelJson(
-    {
-      boundingBox: {
-        min: [-dims.width / 2, 0, -dims.depth / 2],
-        max: [dims.width / 2, dims.height, dims.depth / 2],
-      },
-      knownSides: cleanSides(sides),
-    },
-    projectSlug,
-  );
-  return result.ok ? result.model : null;
-}
-
-/** The prompt for the one retry: the subject Claude wrote, what failed, and the rules again. No web search. */
-export function retryPrompt(subject: string, errors: string[], photoAttached: boolean): string {
-  return `You wrote this SUBJECT block for a 3D building viewer:
-
-${subject}
-
-Your <model_json> for it failed validation:
-${errors.map((e) => `- ${e}`).join("\n")}
-
-Return a corrected one. ${photoAttached ? "The photo is attached again." : "No photo was attached, so knownSides must be []."}
-${MODEL_JSON_RULES.replace("ALSO return", "Return").replace(", after </reply>,", "")}`;
 }
 
 /** A project slug from a name or address: lowercase words joined by hyphens, at most 60 characters. */

@@ -1,10 +1,8 @@
 import "server-only";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { BetaRunnableTool } from "@anthropic-ai/sdk/lib/tools/BetaRunnableTool";
-import { after } from "next/server";
+import { headers } from "next/headers";
 import { z } from "zod";
-import { generateViewer } from "@/features/building-viewer/generate";
-import { takeGeneration } from "@/features/building-viewer/guard";
 import { loadDossier } from "@/features/dossier/load";
 import { editOutreachDraft } from "@/features/outreach/actions";
 import { listProjects } from "@/features/project-agent/store";
@@ -13,11 +11,10 @@ import { generateProposal } from "@/features/proposal/generate";
 import { canTransition } from "@/features/proposal/status";
 import { getProposal, saveProposal } from "@/features/proposal/store";
 import type { Proposal } from "@/features/proposal/schema";
-import { loadProjectModel, saveProjectModel, viewerInputFor } from "@/features/scout/model";
-import { addScoutedProject, getScoutedProject, listScoutedProjects } from "@/features/scout/projects";
+import { loadModelRun, loadProjectModel, startProjectModel, type StartOutcome } from "@/features/scout/model";
+import { addScoutedProject, getScoutedProject, listScoutedProjects, type ScoutedProject } from "@/features/scout/projects";
 import { markBuilt, markSent } from "@/features/workspace/state";
 import { loadStakeholder, loadStakeholders, type StakeholderStatus } from "@/features/workspace/status";
-import { claimRun, isRunning } from "@/lib/agent/run";
 
 /*
  * The rest of the internal app as tools for the Agent tab, next to the live pipeline tools (./tools.ts): the
@@ -74,13 +71,44 @@ function stakeholderSummary(s: StakeholderStatus, eventLimit: number) {
   };
 }
 
-/** Keeps the serverless function alive for a run that outlives the chat reply. Falls back to plain fire-and-forget. */
-function keepAlive(work: Promise<unknown>): void {
-  try {
-    after(() => work);
-  } catch {
-    // Outside a request (tests): the promise still runs.
+/** A model run's start, in words for the chat. */
+function describeStart(outcome: StartOutcome): string {
+  switch (outcome.status) {
+    case "started":
+      return "generating (about 2 to 4 minutes)";
+    case "running":
+      return "already generating";
+    case "rate-limited":
+      return `not started: 5 models were made in the last hour; try generate_project_model in ${Math.ceil(outcome.retryAfterS / 60)} minutes`;
+    case "unavailable":
+      return "not started: the model service is unavailable right now; try generate_project_model in a minute";
   }
+}
+
+/**
+ * Starts a project's model run in a request of its own (POST /api/model/generated on this same deployment), so it
+ * gets the full time limit instead of what is left of this chat turn's. Falls back to starting it here when that
+ * request can't be made (no host header, or the deployment refuses it).
+ */
+async function startModelRun(project: ScoutedProject, regenerate: boolean): Promise<StartOutcome> {
+  try {
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    if (host) {
+      const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+      const url = `${proto}://${host}/api/model/generated?project=${encodeURIComponent(project.id)}${regenerate ? "&regenerate=1" : ""}`;
+      const res = await fetch(url, { method: "POST", cache: "no-store", signal: AbortSignal.timeout(15_000) });
+      const body = (await res.json().catch(() => ({}))) as { status?: string };
+      if (res.status === 202) return { status: "started" };
+      if (res.status === 429) return { status: "rate-limited", retryAfterS: 3600 };
+      if (res.ok && body.status === "generating") return { status: "running" };
+      if (res.status === 503) return { status: "unavailable" };
+      console.warn(`agent model ${project.id}: own-request start answered ${res.status}; starting here`);
+    }
+  } catch (error) {
+    console.warn(`agent model ${project.id}: own-request start failed (${(error as Error).name}); starting here`);
+  }
+  return startProjectModel(project, AGENT_RATE_KEY);
 }
 
 export function createAppTools(): BetaRunnableTool[] {
@@ -95,7 +123,7 @@ export function createAppTools(): BetaRunnableTool[] {
           const [projects, scouted] = await Promise.all([listProjects(), listScoutedProjects()]);
           const scoutedRows = await Promise.all(
             scouted.map(async (p) => {
-              const [dossier, model] = await Promise.all([loadDossier(p.id), loadProjectModel(p.id)]);
+              const [dossier, model, run] = await Promise.all([loadDossier(p.id), loadProjectModel(p.id), loadModelRun(p.id)]);
               return {
                 id: p.id,
                 name: p.candidate.name,
@@ -104,7 +132,7 @@ export function createAppTools(): BetaRunnableTool[] {
                 stage: p.candidate.stage,
                 addedAt: p.addedAt,
                 hasDossier: Boolean(dossier),
-                model: model ? `ready (${model.generatedAt})` : isRunning(`model:${p.id}`) ? "generating" : "none",
+                model: run?.status === "generating" ? "generating" : model ? `ready (${model.generatedAt})` : run?.status === "failed" ? `failed: ${run.error}` : "none",
                 page: `/projects/${p.id}`,
               };
             }),
@@ -137,11 +165,14 @@ export function createAppTools(): BetaRunnableTool[] {
           if (outcome.status === "unknown-candidate") {
             return `Error: no scouted candidate "${candidateId}". Use an id from get_scout_results.`;
           }
+          // A new project starts its 3D model by itself, as it does from Discover.
+          const model = outcome.status === "added" ? describeStart(await startModelRun(outcome.project, false)) : undefined;
           return json({
             status: outcome.status === "added" ? "added" : "already a project",
             id: outcome.project.id,
             name: outcome.project.candidate.name,
             page: `/projects/${outcome.project.id}`,
+            ...(model ? { model } : {}),
           });
         } catch (error) {
           return errorText(error);
@@ -160,30 +191,10 @@ export function createAppTools(): BetaRunnableTool[] {
         }
         const project = await getScoutedProject(projectId);
         if (!project) return `Error: "${projectId}" is not a project added from scouting. Use list_projects, or add_project_from_scout first.`;
-        const limit = await takeGeneration(AGENT_RATE_KEY);
-        if (!limit.ok) return `Error: 5 models were generated in the last hour. Try again in ${Math.ceil(limit.retryAfterS / 60)} minutes.`;
-        const release = claimRun(`model:${projectId}`);
-        if (!release) return `A model for ${projectId} is already being generated. Check get_project_model in a few minutes.`;
-
+        const outcome = await startModelRun(project, true);
+        if (outcome.status === "rate-limited" || outcome.status === "unavailable") return `Error: ${describeStart(outcome)}.`;
+        if (outcome.status === "running") return `A model for ${projectId} is already being generated. Check get_project_model in a few minutes.`;
         const dossier = await loadDossier(projectId);
-        const input = viewerInputFor(project, dossier?.data ?? null);
-        // The run outlives this reply, so its steps are not streamed to the chat.
-        const work = generateViewer(input, null, () => {})
-          .then((result) =>
-            saveProjectModel({
-              projectId,
-              html: result.html,
-              reply: result.reply,
-              geocodeStatus: result.geocode_status,
-              contextStatus: result.context_status,
-              drift: result.drift,
-              generatedAt: new Date().toISOString(),
-            }),
-          )
-          .catch((error) => console.error(`agent model ${projectId} failed: ${(error as Error).message}`))
-          .finally(release);
-        keepAlive(work);
-
         return json({
           status: "started",
           projectId,
@@ -199,9 +210,9 @@ export function createAppTools(): BetaRunnableTool[] {
       description: "Says whether a scouted project's 3D model is ready, still generating, or missing, with what the generator said about the building.",
       inputSchema: z.object({ projectId: SLUG }),
       run: async ({ projectId }) => {
-        if (isRunning(`model:${projectId}`)) return json({ projectId, status: "generating" });
-        const model = await loadProjectModel(projectId);
-        if (!model) return json({ projectId, status: "none" });
+        const [run, model] = await Promise.all([loadModelRun(projectId), loadProjectModel(projectId)]);
+        if (run?.status === "generating") return json({ projectId, status: "generating", startedAt: run.startedAt });
+        if (!model) return json({ projectId, status: run?.status === "failed" ? "failed" : "none", ...(run?.error ? { error: run.error } : {}) });
         return json({
           projectId,
           status: "ready",

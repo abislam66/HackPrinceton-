@@ -1,9 +1,11 @@
 import "server-only";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import { readRecord, storeBackend, writeRecord } from "@/lib/store/json-store";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { modelMetadataSchema, type ModelMetadata } from "./schema";
+import type { Obstacle } from "./scene";
+import { buildingSides, modelMetadataSchema, type ModelMetadata } from "./schema";
 
 /*
  * Generated models (the building viewer's GLB plus its model.json), one per project. Same layout as a built model:
@@ -58,6 +60,42 @@ export async function loadGeneratedGlb(slug: string): Promise<Uint8Array | null>
 /** The next version number for a project's generated model, so the viewer URL changes on every save. */
 export async function nextGeneratedVersion(slug: string): Promise<number> {
   return ((await loadGeneratedMeta(slug))?.version ?? 0) + 1;
+}
+
+/*
+ * The neighbours a generated model shows, as boxes for the shot compiler, so shots don't fly through them. Kept
+ * beside model.json (whose schema is the model builder's contract and has no field for them), in the shared store.
+ */
+const OBSTACLES = "generated-obstacles";
+const vec3 = z.tuple([z.number(), z.number(), z.number()]);
+const obstaclesSchema = z.object({ obstacles: z.array(z.object({ name: z.string(), min: vec3, max: vec3 })) });
+
+export async function loadGeneratedObstacles(slug: string): Promise<Obstacle[]> {
+  if (!isGeneratedSlug(slug)) return [];
+  return (await readRecord(OBSTACLES, slug, obstaclesSchema).catch(() => null))?.obstacles ?? [];
+}
+
+/**
+ * Save a building the server generated: its GLB, model.json (a new version, so viewer URLs change) and its
+ * neighbours. Generated buildings allow shots on every side. Throws when a write fails.
+ */
+export async function saveGeneratedBuilding(
+  slug: string,
+  built: { glb: Uint8Array; boundingBox: ModelMetadata["boundingBox"]; obstacles: Obstacle[] },
+): Promise<{ meta: ModelMetadata; storage: "supabase" | "file" | "memory" }> {
+  if (!isGeneratedSlug(slug)) throw new Error(`Bad project id: ${slug}`);
+  const meta: ModelMetadata = {
+    projectSlug: slug,
+    file: GLB_FILE,
+    version: await nextGeneratedVersion(slug),
+    units: "meters",
+    boundingBox: built.boundingBox,
+    knownSides: [...buildingSides],
+  };
+  const storage = await saveGeneratedModel(slug, built.glb, meta);
+  // After the model: a failed upload leaves the old model with its own neighbours, not the new ones.
+  await writeRecord(OBSTACLES, slug, { obstacles: built.obstacles });
+  return { meta, storage };
 }
 
 // Supabase: the records table for model.json, the models bucket for the GLB.

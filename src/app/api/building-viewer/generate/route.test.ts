@@ -3,6 +3,35 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/store/json-store", () => import("@/lib/store/test-store"));
 
+const { saveGeneratedBuilding, projectFacts, scouted } = vi.hoisted(() => ({
+  saveGeneratedBuilding: vi.fn(),
+  projectFacts: new Set<string>(),
+  scouted: new Set<string>(),
+}));
+
+/** What generateViewer returns: the result line plus the built model the route may save. */
+function generated() {
+  return {
+    result: {
+      type: "result",
+      html: "<!DOCTYPE html>",
+      reply: "ok",
+      geocode_status: "retrieved",
+      context_status: "retrieved",
+      drift: false,
+      model_json: null,
+      model_json_status: "generated",
+      project_slug: "x",
+      sides: { photo: [], inferred: ["north", "east", "south", "west"] },
+      model_saved: false,
+    },
+    glb: new Uint8Array([1, 2, 3]),
+    boundingBox: { min: [-10, 0, -10], max: [10, 50, 10] },
+    obstacles: [],
+    scene: {},
+  };
+}
+
 // The generator itself is mocked: these tests check the route's order of checks, never a paid call.
 vi.mock("@/features/building-viewer/generate", () => ({
   StepError: class StepError extends Error {
@@ -10,15 +39,11 @@ vi.mock("@/features/building-viewer/generate", () => ({
       super(message);
     }
   },
-  generateViewer: vi.fn(async () => ({
-    type: "result",
-    html: "<!DOCTYPE html>",
-    reply: "ok",
-    geocode_status: "retrieved",
-    context_status: "retrieved",
-    drift: false,
-  })),
+  generateViewer: vi.fn(async () => generated()),
 }));
+vi.mock("@/features/model/generated", () => ({ saveGeneratedBuilding: (...a: unknown[]) => saveGeneratedBuilding(...a) }));
+vi.mock("@/features/project-agent/store", () => ({ loadProjectFacts: async (slug: string) => (projectFacts.has(slug) ? {} : null) }));
+vi.mock("@/features/scout/projects", () => ({ getScoutedProject: async (slug: string) => (scouted.has(slug) ? { id: slug } : null) }));
 
 import { POST } from "./route";
 
@@ -55,5 +80,57 @@ describe("POST /api/building-viewer/generate rate limit", () => {
     expect(sixth.status).toBe(429);
     expect(await sixth.json()).toEqual({ error: "You've made 5 viewers in the last hour. Try again later.", step: "rate_limit" });
     expect(Number(sixth.headers.get("Retry-After"))).toBeGreaterThan(0);
+  });
+});
+
+describe("POST /api/building-viewer/generate saving the model", () => {
+  beforeEach(() => {
+    vi.stubEnv("BUILDING_VIEWER_ACCESS_CODE", CODE);
+    saveGeneratedBuilding.mockReset().mockResolvedValue({ meta: {}, storage: "memory" });
+    projectFacts.clear();
+    scouted.clear();
+  });
+  afterEach(() => vi.unstubAllEnvs());
+
+  /** The last NDJSON line of the response. */
+  async function lastLine(res: Response) {
+    const lines = (await res.text()).trim().split("\n");
+    return JSON.parse(lines[lines.length - 1]);
+  }
+
+  it("streams the result without the built model, and saves nothing without a project", async () => {
+    const res = await POST(request("198.51.100.1", GOOD));
+    const last = await lastLine(res);
+    expect(last.type).toBe("result");
+    expect(last.model_saved).toBe(false);
+    expect(last).not.toHaveProperty("glb");
+    expect(saveGeneratedBuilding).not.toHaveBeenCalled();
+  });
+
+  it("saves the GLB on a scouted project or a project with facts", async () => {
+    scouted.add("the-tower");
+    projectFacts.add("draft-project");
+    expect((await lastLine(await POST(request("198.51.100.2", { ...GOOD, projectSlug: "the-tower" })))).model_saved).toBe(true);
+    expect((await lastLine(await POST(request("198.51.100.2", { ...GOOD, projectSlug: "draft-project" })))).model_saved).toBe(true);
+    expect(saveGeneratedBuilding.mock.calls.map(([slug]) => slug)).toEqual(["the-tower", "draft-project"]);
+    expect(saveGeneratedBuilding.mock.calls[0][1]).toMatchObject({ glb: new Uint8Array([1, 2, 3]) });
+  });
+
+  it("never saves over the demo project or for an unknown project", async () => {
+    projectFacts.add("demo-project");
+    for (const projectSlug of ["demo-project", "nobody"]) {
+      expect((await lastLine(await POST(request("198.51.100.3", { ...GOOD, projectSlug })))).model_saved).toBe(false);
+    }
+    expect(saveGeneratedBuilding).not.toHaveBeenCalled();
+  });
+
+  it("still sends the result when the save fails", async () => {
+    scouted.add("the-tower");
+    saveGeneratedBuilding.mockRejectedValueOnce(new Error("bucket down"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const last = await lastLine(await POST(request("198.51.100.4", { ...GOOD, projectSlug: "the-tower" })));
+    expect(last).toMatchObject({ type: "result", model_saved: false });
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 });

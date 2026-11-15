@@ -75,8 +75,8 @@ export async function generateShots(input: {
   const [firstSide, ...otherSides] = model.knownSides;
   if (!firstSide) throw new Error("The model has no side with real reference, so no shot can be framed");
   const schema = responseSchema([firstSide, ...otherSides], count);
-  // The demo's neighbors (data/demo-project/project.json) belong to Morgan Hall, not to a generated building.
-  const obstacles = model.generated ? [] : await loadShotObstacles(model.boundingBox);
+  // The demo's neighbors (data/demo-project/project.json) belong to Morgan Hall. A generated building brings its own.
+  const obstacles = model.generated ? (model.obstacles ?? []) : await loadShotObstacles(model.boundingBox);
 
   const [minX, minY, minZ] = model.boundingBox.min;
   const [maxX, maxY, maxZ] = model.boundingBox.max;

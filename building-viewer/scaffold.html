@@ -33,6 +33,7 @@
 <script type="module">
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 /* ===================== LOCKED: renderer, sun, camera, shader ===================== */
 const canvas = document.getElementById("c");
@@ -117,41 +118,31 @@ const CONTEXT_MATERIAL = { light: "#D9D3C7", shade: "#A59C93" };
 
 /* ===================== LOCKED: ground ===================== */
 const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(230, 96).rotateX(-Math.PI / 2),
+  new THREE.CircleGeometry(260, 96).rotateX(-Math.PI / 2),   // covers the 220 m of neighbours and streets
   toonMaterial({ light: PALETTE.ground.light, shade: PALETTE.ground.shade })
 );
 ground.receiveShadow = true; ground.position.y = -0.05;
 scene.add(ground);
 
-/* ===================== SUBJECT (REPLACE THIS BLOCK PER PROJECT) =====================
-   Dimensions in metres. Y up, base on y = 0.
-   Every value must be labelled observed (from a source) or inferred (estimate).
-   Materials: at most six. Each needs a light and shade colour.
-   Set nolines: true on a material to skip its outlines.
-   context: nearby buildings, one entry each: { x, z, w, d, h, source, height_status }.
-   Placeholder: a plain 20 x 30 x 20 m block with one glass material. */
-const SUBJECT = {
-  title: "Placeholder subject",
-  dims: { width: 20, depth: 20, height: 30 },   // inferred
-  context: [],   // nearby buildings: { x, z, w, d, h, source, height_status }
-  materials: {
-    body: { type: "curtain", light: "#7E9CAB", shade: "#4A6070", line: "#2A3442", band: "#1b1d33",
-            floor_h: 4.2, line_w: 0.08, mull: 1.5, mull_w: 0.06, major_n: 4, band_w: 0.25, z0: 0 }
-  }
-};
+/* ===================== MODEL (FILLED BY THE SERVER) =====================
+   The server builds the building and its neighbours from Claude's JSON scene
+   (src/features/model/scene.ts) and embeds the GLB here, base64. Each material
+   carries its toon parameters in its glTF extras; they become toonMaterials.
+   This is the same GLB the Projects page shows. */
+const SUBJECT = { title: "__MODEL_TITLE__" };
+const MODEL_GLB = "__MODEL_GLB_BASE64__";
 
-function buildSubject() {
-  const group = new THREE.Group();
-  const { width, depth, height } = SUBJECT.dims;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), toonMaterial(SUBJECT.materials.body));
-  body.position.y = height / 2;
-  group.add(body);
-
-  (SUBJECT.context || []).forEach(b => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), toonMaterial(CONTEXT_MATERIAL));
-    m.position.set(b.x, b.h / 2, b.z);
-    m.castShadow = true; m.receiveShadow = true;
-    group.add(m);
+async function buildSubject() {
+  const bytes = Uint8Array.from(atob(MODEL_GLB), c => c.charCodeAt(0));
+  const gltf = await new GLTFLoader().parseAsync(bytes.buffer, "");
+  const group = gltf.scene;
+  const made = new Map();
+  group.traverse(o => {
+    if (!o.isMesh) return;
+    const p = o.material.userData.toon;
+    if (!p) return;
+    if (!made.has(o.material.uuid)) made.set(o.material.uuid, toonMaterial(p));
+    o.material = made.get(o.material.uuid);
   });
   return { group };
 }
@@ -160,9 +151,9 @@ function buildSubject() {
 /* ===================== LOCKED: outlines, shadows, framing, UI ===================== */
 let current = null, linesOn = true, shadowsOn = true;
 
-function show() {
+async function show() {
   if (current) scene.remove(current.group);
-  const { group } = buildSubject();
+  const { group } = await buildSubject();
   group.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = true; o.receiveShadow = true;
@@ -172,9 +163,11 @@ function show() {
     o.add(e);
   });
   scene.add(group);
-  const box = new THREE.Box3().setFromObject(group);
+  // Shadows cover the neighbours too; the camera frames the building itself.
+  const all = new THREE.Box3().setFromObject(group);
+  const box = new THREE.Box3().setFromObject(group.getObjectByName("subject") || group);
   current = { group, box };
-  fitShadow(box);
+  fitShadow(all);
   frame(box);
 }
 

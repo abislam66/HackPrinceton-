@@ -6,7 +6,6 @@ import { Field } from "@/components/ui/Field";
 import { Panel } from "@/components/ui/Panel";
 import { Tag } from "@/components/ui/Tag";
 import type { ViewerEvent, ViewerStep } from "@/features/building-viewer/schema";
-import { exportGlb, saveModel } from "./save-model";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const TOO_LONG = "This took too long. Try again.";
@@ -35,16 +34,6 @@ export type ViewerPrefill = {
 
 type ModelState = { status: "idle" | "working" | "saved" | "failed"; message?: string };
 
-/** Export the building as a GLB in a hidden sandboxed frame and save it as the project's model for the Shots tab. */
-async function exportAndSaveModel(html: string, projectSlug: string, accessCode: string): Promise<ModelState> {
-  try {
-    await saveModel(await exportGlb(html), projectSlug, accessCode);
-    return { status: "saved" };
-  } catch (caught) {
-    return { status: "failed", message: caught instanceof Error ? caught.message : "The 3D model could not be saved." };
-  }
-}
-
 /** A message already written for the person reading it, shown as is. */
 class ShownError extends Error {}
 
@@ -57,7 +46,7 @@ function failureText(step: string, message: string): string {
     geocode: "The address could not be located. Try a fuller street address.",
     context: "Nearby buildings could not be loaded. Try again in a minute.",
     model: "The viewer could not be drafted. Try again.",
-    assemble: "The model's page did not pass the checks. Try again.",
+    assemble: "The building description did not pass the checks. Try again.",
   };
   return `${message} ${hint[step] ?? ""}`.trim();
 }
@@ -215,9 +204,13 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
         } else if (event.type === "result") {
           finished = true;
           setResult(event);
-          if (prefill?.projectSlug) {
-            setModelState({ status: "working" });
-            void exportAndSaveModel(event.html, event.project_slug, accessCode).then(setModelState);
+          // The server builds the GLB and saves it on the project when the form names one.
+          if (event.model_saved) {
+            setModelState({ status: "saved" });
+          } else if (prefill?.projectSlug === "demo-project") {
+            setModelState({ status: "failed", message: "The demo project keeps the model the model builder made." });
+          } else if (prefill?.projectSlug) {
+            setModelState({ status: "failed", message: "The save failed. Generate again." });
           } else {
             setModelState({ status: "failed", message: "Open this form from a project to save its 3D model for the Shots tab." });
           }

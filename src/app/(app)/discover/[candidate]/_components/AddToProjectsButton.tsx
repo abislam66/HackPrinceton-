@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 
-/** Adds the scouted building to Projects, then opens it, where its model can be generated. */
+/**
+ * Adds the scouted building to Projects, then opens it. Adding starts its 3D model, so the button opens the Model tab
+ * to show the run; when the model didn't start (over the hourly limit), it says so and opens the project anyway.
+ */
 export function AddToProjectsButton({ candidateId }: { candidateId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -17,12 +20,13 @@ export function AddToProjectsButton({ candidateId }: { candidateId: string }) {
         const response = await fetch(`/api/scout/candidates/${encodeURIComponent(candidateId)}/project`, {
           method: "POST",
         });
-        const body = (await response.json()) as { project?: { id: string }; error?: string };
+        const body = (await response.json()) as { project?: { id: string }; model?: string; error?: string };
         if (!response.ok || !body.project) {
           setError(body.error ?? "Couldn't add it. Try again.");
           return;
         }
-        router.push(`/projects/${body.project.id}`);
+        const generating = body.model === "started" || body.model === "running";
+        router.push(`/projects/${body.project.id}${generating ? "/model" : ""}`);
         router.refresh();
       } catch {
         setError("Couldn't reach the server. Try again.");

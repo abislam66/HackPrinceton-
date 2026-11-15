@@ -2,34 +2,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { modelMetadataSchema } from "@/features/model/schema";
-import { extractSubjectBlock } from "./prompt";
-import {
-  dimsFromSubject,
-  fallbackModelJson,
-  MODEL_FILE,
-  parseModelJsonBlock,
-  retryPrompt,
-  sideSummary,
-  slugFrom,
-  validateModelJson,
-} from "./model-json";
+import { MODEL_FILE, sideSummary, slugFrom, validateModelJson } from "./model-json";
 
-const scaffold = readFileSync(path.join(process.cwd(), "building-viewer", "scaffold.html"), "utf8");
 const demoModel = JSON.parse(readFileSync(path.join(process.cwd(), "public", "models", "demo-project", "model.json"), "utf8"));
 
 const GOOD = { boundingBox: { min: [-15, 0, -20], max: [15, 70, 20] }, knownSides: ["south", "north", "south"] };
-
-describe("model.json block", () => {
-  it("reads the JSON inside <model_json>, with or without a code fence", () => {
-    expect(parseModelJsonBlock(`<reply>x</reply>\n<model_json>${JSON.stringify(GOOD)}</model_json>`)).toEqual(GOOD);
-    expect(parseModelJsonBlock("<model_json>\n```json\n{\"a\":1}\n```\n</model_json>")).toEqual({ a: 1 });
-  });
-
-  it("returns null when the tag is missing or the JSON is broken", () => {
-    expect(parseModelJsonBlock("<reply>x</reply>")).toBeNull();
-    expect(parseModelJsonBlock("<model_json>{oops</model_json>")).toBeNull();
-  });
-});
 
 describe("validation against the model builder's schema", () => {
   it("is the schema demo-project's model.json uses", () => {
@@ -51,7 +28,7 @@ describe("validation against the model builder's schema", () => {
     expect(modelMetadataSchema.parse(result.model)).toEqual(result.model);
   });
 
-  it("lists every problem so the retry can fix them", () => {
+  it("lists every problem in the box", () => {
     const bad = validateModelJson({ boundingBox: { min: [5, 2, 0], max: [1, 50, 10] }, knownSides: [] }, "p");
     expect(bad.ok).toBe(false);
     if (bad.ok) return;
@@ -60,38 +37,22 @@ describe("validation against the model builder's schema", () => {
     expect(validateModelJson({ knownSides: ["up"] }, "p").ok).toBe(false);
     expect(validateModelJson(null, "p").ok).toBe(false);
   });
-});
 
-describe("fallback from SUBJECT dims", () => {
-  const subject = extractSubjectBlock(scaffold); // the placeholder: 20 x 30 x 20 m
-
-  it("reads dims from the subject block", () => {
-    expect(dimsFromSubject(subject)).toEqual({ width: 20, depth: 20, height: 30 });
-  });
-
-  it("builds a valid box centred on the origin, keeping only real side names", () => {
-    const model = fallbackModelJson(subject, "p", ["west", "up"]);
-    expect(model?.boundingBox).toEqual({ min: [-10, 0, -10], max: [10, 30, 10] });
-    expect(model?.knownSides).toEqual(["west"]);
-    expect(modelMetadataSchema.safeParse(model).success).toBe(true);
-  });
-
-  it("gives up when the subject has no readable dims", () => {
-    expect(fallbackModelJson("const SUBJECT = {};", "p", [])).toBeNull();
+  it("refuses a building over 1000 m tall or wide", () => {
+    const tall = validateModelJson({ boundingBox: { min: [-5, 0, -5], max: [5, 1200, 5] }, knownSides: [] }, "p");
+    expect(tall.ok).toBe(false);
+    if (!tall.ok) expect(tall.errors).toContain("boundingBox: height over 1000 m");
+    const wide = validateModelJson({ boundingBox: { min: [-600, 0, -5], max: [600, 50, 5] }, knownSides: [] }, "p");
+    expect(wide.ok).toBe(false);
+    if (!wide.ok) expect(wide.errors).toContain("boundingBox: footprint over 1000 m");
   });
 });
 
-describe("retry prompt and slug", () => {
-  it("carries the errors and the photo rule", () => {
-    const text = retryPrompt("const SUBJECT = {};", ["boundingBox: min y must be 0"], false);
-    expect(text).toContain("- boundingBox: min y must be 0");
-    expect(text).toContain("knownSides must be []");
-    expect(text).not.toContain("after </reply>");
-  });
-
+describe("slug", () => {
   it("makes a project slug from a name", () => {
     expect(slugFrom("CHOP Morgan Center for Research & Innovation")).toBe("chop-morgan-center-for-research-innovation");
     expect(slugFrom("***")).toBe("generated-building");
+    expect(slugFrom("a".repeat(80)).length).toBe(60);
   });
 });
 

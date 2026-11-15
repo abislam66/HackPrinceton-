@@ -1,7 +1,7 @@
 import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { loadGeneratedMeta } from "@/features/model/generated";
+import { loadGeneratedMeta, loadGeneratedObstacles } from "@/features/model/generated";
 import { loadModelInfo } from "@/features/model/load";
 import { PLACEHOLDER_BOUNDING_BOX, buildingSides, modelMetadataSchema, type ModelInfo, type ModelMetadata } from "@/features/model/schema";
 import { PROJECT_SLUG } from "@/features/project/schema";
@@ -18,12 +18,13 @@ const CLIENT_ID = /^[a-z0-9-]+$/;
  * opened from one). A stakeholder of a scouted project with no generated model yet gets the gray-box stand-in, so its
  * shots never frame Morgan Hall North.
  */
-function generatedInfo(slug: string, meta: ModelMetadata): ModelInfo {
+async function generatedInfo(slug: string, meta: ModelMetadata): Promise<ModelInfo> {
   return {
     url: `/api/models/${slug}/glb?v=${meta.version}`,
     boundingBox: meta.boundingBox,
     knownSides: meta.knownSides,
     generated: true,
+    obstacles: await loadGeneratedObstacles(slug),
   };
 }
 
@@ -37,7 +38,8 @@ export async function loadStakeholderModel(clientId: string, projectSlug: string
     if (building?.kind === "scouted") {
       const generated = building.id === projectSlug ? null : await loadGeneratedMeta(building.id);
       if (generated) return generatedInfo(building.id, generated);
-      return { url: null, boundingBox: PLACEHOLDER_BOUNDING_BOX, knownSides: [...buildingSides] };
+      // Not the demo's building, so not the demo's neighbours either (generated: no demo obstacles, 4 to 6 shots).
+      return { url: null, boundingBox: PLACEHOLDER_BOUNDING_BOX, knownSides: [...buildingSides], generated: true };
     }
   }
   if (!CLIENT_ID.test(clientId)) return loadModelInfo();

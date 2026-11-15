@@ -28,6 +28,10 @@ export type BuildState = { kind: BuildKind; phase: BuildPhase; steps: BuildStep[
 
 const MODEL_POLL_MS = 1500;
 const MODEL_TIMEOUT_MS = 120_000;
+/** A generated building takes two to four minutes; the server marks a run dead after 310 s. */
+const GENERATED_POLL_MS = 5000;
+const GENERATED_TIMEOUT_MS = 330_000;
+const DEMO_PROJECT = "demo-project";
 
 const LABELS: Record<StepId, string> = { model: "3D model", shots: "Drone shots", pitch: "Pitch" };
 
@@ -127,8 +131,51 @@ export function useProposalBuild({
 
   const log = useCallback((text: string) => dispatch({ type: "log", at: Date.now(), text }), []);
 
+  /**
+   * Another project's model is generated from its address, not built by the model builder: wait for it (starting it
+   * if it was never made), so the shots are fitted to the building rather than the gray box.
+   */
+  const runGeneratedModel = useCallback(
+    async (signal: AbortSignal): Promise<boolean> => {
+      const startedAt = Date.now();
+      const url = `/api/model/generated?project=${encodeURIComponent(projectSlug)}`;
+      dispatch({ type: "step", id: "model", patch: { status: "running", startedAt } });
+      let note: string | null = null;
+      try {
+        let res = await fetch(url, { method: "POST", signal, cache: "no-store" });
+        let body = (await res.json().catch(() => ({}))) as { status?: string; error?: string };
+        // A project opened from a draft of the demo uses the demo's built model.
+        if (body.status === "demo") return false;
+        if (body.status === "generating") log("Model: generating the building from its address (two to four minutes)");
+        while (res.ok && body.status === "generating") {
+          if (Date.now() > startedAt + GENERATED_TIMEOUT_MS) {
+            note = "The model is still generating; shots use the gray box";
+            break;
+          }
+          await sleep(GENERATED_POLL_MS, signal);
+          res = await fetch(url, { signal, cache: "no-store" });
+          body = (await res.json().catch(() => ({}))) as { status?: string; error?: string };
+        }
+        if (body.status === "failed") note = `No 3D model (${body.error ?? "generation failed"}); shots use the gray box`;
+        else if (!res.ok) note = `Model status check failed (${res.status}); shots use the gray box`;
+        else if (body.status === "ready") log("Model: generated building ready");
+        else if (body.status === "none") note = "No 3D model yet; shots use the gray box";
+      } catch (error) {
+        if (signal.aborted) throw error;
+        note = `Could not check the 3D model: ${message(error)}`;
+      }
+      if (note) log(`Model: ${note}`);
+      dispatch({ type: "step", id: "model", patch: { status: "done", endedAt: Date.now(), note } });
+      // The page reads the model on the server; refresh so the viewer gets the generated GLB.
+      router.refresh();
+      return true;
+    },
+    [log, projectSlug, router],
+  );
+
   const runModel = useCallback(
     async (signal: AbortSignal) => {
+      if (projectSlug !== DEMO_PROJECT && (await runGeneratedModel(signal))) return;
       const startedAt = Date.now();
       dispatch({ type: "step", id: "model", patch: { status: "running", startedAt } });
       log("Model: requesting a build from the model builder");
@@ -174,7 +221,7 @@ export function useProposalBuild({
         dispatch({ type: "step", id: "model", patch: { status: "done", endedAt } });
       }
     },
-    [log],
+    [log, projectSlug, runGeneratedModel],
   );
 
   /** Returns false when generation failed (the state then holds the error). */
