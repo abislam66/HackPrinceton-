@@ -10,6 +10,9 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* The page is white, not the brand's plaster. Keeps tm-ground-plaster's ink, rule and muted tones. */
+.proposal.tm-ground-plaster { background: #ffffff; }
+
 .proposal-viewer {
   inset: 0;
   position: absolute;
