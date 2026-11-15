@@ -57,8 +57,9 @@ export async function geocodeAddress(address: string, key: string | undefined): 
     const data = (await res.json()) as { status?: string; error_message?: string; results?: { geometry?: { location?: LatLng } }[] };
     const loc = data.results?.[0]?.geometry?.location;
     if (data.status !== "OK" || !loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) {
-      // Google's message describes the problem (e.g. "This IP ... is not authorized"); strip anything key-like anyway.
-      const message = (data.error_message ?? "none").split(key).join("[key]").slice(0, 300);
+      // Google's message describes the problem (e.g. "This IP ... is not authorized"). It doesn't echo the key or the
+      // address today; strip both anyway, so the log can never carry either.
+      const message = (data.error_message ?? "none").split(key).join("[key]").split(address).join("[address]").slice(0, 300);
       logGeocodeFailure(`HTTP ${res.status}, status=${data.status ?? "missing"}, error_message=${message}`);
       return { point: null, status: "not retrieved" };
     }

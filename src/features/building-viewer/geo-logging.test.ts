@@ -37,6 +37,15 @@ describe("geocode failure logging", () => {
     expect(text).not.toContain("maps.googleapis.com");
   });
 
+  it("replaces the address too if Google's message ever echoes it", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    respond(200, { status: "ZERO_RESULTS", error_message: `No results for ${ADDRESS}.`, results: [] });
+    await geocodeAddress(ADDRESS, KEY);
+    const text = logged();
+    expect(text).toContain("No results for [address].");
+    expect(text).not.toContain("Broad St");
+  });
+
   it("logs the HTTP status when Google doesn't answer with JSON", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     respond(503, {});
