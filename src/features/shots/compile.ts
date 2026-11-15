@@ -228,7 +228,7 @@ export type CompiledShotList = {
 };
 
 /**
- * Compiles a list of intents into at most five shots with stable ids `${clientId}-shot-${n}`,
+ * Compiles a list of intents into at most `maxShots` (default five) shots with stable ids `${clientId}-shot-${n}`,
  * parsed with shotListSchema. The caller decides what to do when fewer than three survive.
  */
 export function compileShotList(
@@ -236,6 +236,7 @@ export function compileShotList(
   model: Pick<ModelInfo, "boundingBox" | "knownSides">,
   clientId: string,
   obstacles: Obstacle[] = [],
+  maxShots: number = MAX_SHOTS,
 ): CompiledShotList {
   const kept: Omit<Shot, "id">[] = [];
   const dropped: CompiledShotList["dropped"] = [];
@@ -245,7 +246,7 @@ export function compileShotList(
     else dropped.push({ name: result.name, reasons: result.reasons });
   }
   const shots = shotListSchema.parse(
-    kept.slice(0, MAX_SHOTS).map((shot, i) => ({ id: `${clientId}-shot-${i + 1}`, ...shot })),
+    kept.slice(0, maxShots).map((shot, i) => ({ id: `${clientId}-shot-${i + 1}`, ...shot })),
   );
   return { shots, dropped };
 }
