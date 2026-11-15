@@ -49,24 +49,36 @@ async function projectRow(
 export default async function ProjectsPage() {
   const [projects, scouted] = await Promise.all([listProjects(), listScoutedProjects()]);
   const names = new Map(projects.map((p) => [p.id, p.name]));
-  const [loaded, models] = await Promise.all([
+  const [loaded, models, scoutedStakeholders] = await Promise.all([
     Promise.all(projects.map((p) => projectRow(p, names))).then((rows) => rows.filter((r): r is ProjectRow => r !== null)),
     Promise.all(scouted.map((p) => loadProjectModel(p.id))),
+    Promise.all(scouted.map((p) => loadStakeholders(p.id))),
   ]);
 
   const rows: ProjectRow[] = [
     ...loaded,
-    // Added from scouting: no stakeholders yet, so the status is whether its model is ready.
-    ...scouted.map((p, i) => ({
-      id: p.id,
-      name: p.candidate.name,
-      location: `${p.candidate.city}, ${p.candidate.state}`,
-      floors: p.candidate.floors,
-      stakeholders: 0,
-      sent: 0,
-      status: models[i] ? <Tag tone="ready">Model ready</Tag> : <Tag>New</Tag>,
-      href: `/projects/${p.id}`,
-    })),
+    // Added from scouting: its stakeholders are the firms research found. Until one is sent, the status is whether its
+    // model is ready.
+    ...scouted.map((p, i) => {
+      const sent = scoutedStakeholders[i].filter((s) => s.stage === "sent").length;
+      return {
+        id: p.id,
+        name: p.candidate.name,
+        location: `${p.candidate.city}, ${p.candidate.state}`,
+        floors: p.candidate.floors,
+        stakeholders: scoutedStakeholders[i].length,
+        sent,
+        status:
+          sent > 0 ? (
+            <Tag tone="ready">In outreach</Tag>
+          ) : models[i] ? (
+            <Tag tone="ready">Model ready</Tag>
+          ) : (
+            <Tag>New</Tag>
+          ),
+        href: `/projects/${p.id}`,
+      };
+    }),
     ...SAMPLE_PROJECTS.map((p) => ({
       id: p.id,
       name: p.name,

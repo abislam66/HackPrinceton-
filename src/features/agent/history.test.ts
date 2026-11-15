@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deleteChat, loadChats, MAX_CHATS, MAX_TURNS, newChat, projectChatKey, saveChat, STORAGE_KEY, threadFor, titleFor, type Chat, type ChatTurn } from "./history";
+import { deleteChat, loadChats, MAX_CHATS, MAX_TURNS, newChat, projectChatKey, restoreRuns, saveChat, saveRuns, STORAGE_KEY, threadFor, titleFor, type Chat, type ChatTurn, type SavedRun } from "./history";
+import type { Run } from "./runs";
 
 /** A minimal in-memory Storage. */
 function memory(): Storage {
@@ -98,5 +99,73 @@ describe("per-project chat history", () => {
     expect(loadChats(s).map((c) => c.id)).toEqual(["tab"]);
     expect(loadChats(s, projectChatKey("demo-project")).map((c) => c.id)).toEqual(["p1"]);
     expect(loadChats(s, projectChatKey("demo-project-2")).map((c) => c.id)).toEqual(["p2"]);
+  });
+});
+
+describe("saved runs", () => {
+  const run = (id: string, turnId: number, status: Run["status"] = "done"): Run => ({
+    id,
+    turnId,
+    tool: "get_dossier",
+    label: "Reading a dossier",
+    status,
+    startedAt: 1,
+    endedAt: status === "running" ? undefined : 2,
+    steps: [],
+    destinations: [{ kind: "dossier", label: "D", href: "/projects/demo-project/dossier", subject: "Morgan Hall North" }],
+  });
+
+  it("round-trips runs through storage, tied to their prompt by index", () => {
+    const s = memory();
+    const turns: ChatTurn[] = [
+      { role: "user", text: "a" },
+      { role: "assistant", text: "b" },
+      { role: "user", text: "c" },
+    ];
+    const runs = saveRuns([run("r1", 10), run("r2", 30), run("gone", 99)], [10, 20, 30]);
+    expect(runs.map((r) => [r.id, r.turn])).toEqual([
+      ["r1", 0],
+      ["r2", 2],
+    ]);
+    saveChat({ ...chat("x", 1, turns), runs }, s);
+    const restored = restoreRuns(loadChats(s)[0].runs, [7, 8, 9]);
+    expect(restored.map((r) => [r.id, r.turnId])).toEqual([
+      ["r1", 7],
+      ["r2", 9],
+    ]);
+    expect(restored[0].destinations?.[0].href).toBe("/projects/demo-project/dossier");
+  });
+
+  it("shows a run cut off by a reload as stopped", () => {
+    const [saved] = saveRuns([run("r", 1, "running")], [1]);
+    expect(restoreRuns([saved], [5], 42)[0]).toMatchObject({ status: "stopped", endedAt: 42, turnId: 5 });
+  });
+
+  it("shifts runs with trimmed turns and drops the runs of turns that were cut", () => {
+    const s = memory();
+    const turns = Array.from({ length: MAX_TURNS + 2 }, (_, i) => ({ role: i % 2 ? ("assistant" as const) : ("user" as const), text: `${i}` }));
+    const runs: SavedRun[] = [0, 2, 4].map((turn) => ({ ...saveRuns([run(`r${turn}`, 1)], [1])[0], turn }));
+    saveChat({ ...chat("x", 1, turns), runs }, s);
+    expect(loadChats(s)[0].runs?.map((r) => [r.id, r.turn])).toEqual([
+      ["r2", 0],
+      ["r4", 2],
+    ]);
+  });
+
+  it("still loads chats saved before runs, and drops malformed runs and links", () => {
+    const s = memory();
+    const bad = { ...saveRuns([run("ok", 1)], [1])[0] };
+    bad.destinations = [...(bad.destinations ?? []), { kind: "dossier", label: "x", href: "https://evil.example", subject: "x" }];
+    s.setItem(
+      STORAGE_KEY,
+      JSON.stringify([
+        chat("old", 1),
+        { ...chat("new", 2), runs: [bad, { id: "broken" }] },
+      ]),
+    );
+    const [newer, older] = loadChats(s);
+    expect(older.runs).toBeUndefined();
+    expect(newer.runs?.map((r) => r.id)).toEqual(["ok"]);
+    expect(newer.runs?.[0].destinations).toHaveLength(1);
   });
 });

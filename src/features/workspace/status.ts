@@ -1,7 +1,7 @@
 import "server-only";
 import { loadClient } from "@/features/project/load";
 import { PROJECT_SLUG, type Client } from "@/features/project/schema";
-import { listProjects, loadProjectClient, loadProjectClients } from "@/features/project-agent/store";
+import { listProjectSlugs, loadProjectClient, loadProjectClients } from "@/features/project-agent/store";
 import type { Proposal } from "@/features/proposal/schema";
 import { getProposal } from "@/features/proposal/store";
 import { listEvents, type StoredEvent } from "@/features/tracking/record";
@@ -76,12 +76,13 @@ export async function loadStakeholder(projectSlug: string, clientId: string): Pr
 
 /**
  * The project a stakeholder id belongs to, for pages whose URL carries only the client (the proposal page).
- * Stakeholder ids are unique across projects: a project opened from a draft gives its copies new ids.
+ * Stakeholder ids are unique across projects: a project opened from a draft gives its copies new ids, and a scouted
+ * project's carry its id.
  */
 export async function findStakeholder(clientId: string): Promise<{ projectSlug: string; client: Client } | null> {
-  for (const project of await listProjects()) {
-    const client = await loadProjectClient(project.id, clientId);
-    if (client) return { projectSlug: project.id, client };
+  for (const projectSlug of await listProjectSlugs()) {
+    const client = await loadProjectClient(projectSlug, clientId);
+    if (client) return { projectSlug, client };
   }
   return null;
 }
