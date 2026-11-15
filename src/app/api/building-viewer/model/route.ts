@@ -8,7 +8,8 @@ import { loadProjectFacts } from "@/features/project-agent/store";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { getScoutedProject } from "@/features/scout/projects";
 
-const MAX_GLB_BYTES = 20 * 1024 * 1024;
+/** 4 MB, the models bucket's limit. A Vercel function can't take a request body over about 4.5 MB anyway. */
+const MAX_GLB_BYTES = 4 * 1024 * 1024;
 
 /**
  * POST multipart/form-data: projectSlug and glb (the GLB the page exported from the generated viewer), with the
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
 
   const file = form.get("glb");
   if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "Attach the GLB.", step: "validate" }, { status: 400 });
-  if (file.size > MAX_GLB_BYTES) return NextResponse.json({ error: "The GLB is over 20 MB.", step: "validate" }, { status: 400 });
+  if (file.size > MAX_GLB_BYTES) return NextResponse.json({ error: "The GLB is over 4 MB.", step: "validate" }, { status: 400 });
   const glb = new Uint8Array(await file.arrayBuffer());
 
   let boundingBox;
