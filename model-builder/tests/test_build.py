@@ -47,9 +47,15 @@ def test_known_sides_missing_folder_is_empty(tmp_path):
     assert known_sides(tmp_path / "nope") == []
 
 
+def gray_box_project(project):
+    """A project with no massing fields, so build_model() takes the gray-box path."""
+    (project / "project.json").write_text(json.dumps({"slug": "demo-project"}), encoding="utf-8")
+    return project
+
+
 def test_build_writes_glb_and_metadata(project, tmp_path):
     out = tmp_path / "out"
-    metadata = build_model(project, out)
+    metadata = build_model(gray_box_project(project), out)
 
     assert metadata.projectSlug == "demo-project"
     assert metadata.version == 1
@@ -86,7 +92,7 @@ def test_model_json_is_not_written_when_glb_fails(project, tmp_path, monkeypatch
 
     monkeypatch.setattr(build, "box_glb", boom)
     with pytest.raises(OSError):
-        build_model(project, tmp_path / "out")
+        build_model(gray_box_project(project), tmp_path / "out")
     assert not (tmp_path / "out" / "model.json").exists()
 
 
