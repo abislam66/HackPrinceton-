@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, RotateCcw, Send, type LucideIcon } from "lucide-react";
+import { Bot, Box, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, RotateCcw, Send, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -15,6 +15,7 @@ const NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Agent", href: "/agent", icon: Bot },
   { label: "Discover", href: "/discover", icon: Compass },
   { label: "Projects", href: "/projects", icon: FolderKanban },
+  { label: "Building viewer", href: "/building-viewer", icon: Box },
   { label: "Outreach", href: "/outreach", icon: Send },
 ];
 

@@ -9,6 +9,7 @@ Current state of the repo, for the next agent or teammate. Keep this short and c
 - Inputs: `building-viewer/scaffold.html` (locked; only the SUBJECT block and title change) and `building-viewer/house_viewer_prompt.md`.
 - Env: `ANTHROPIC_API_KEY`, `BUILDING_VIEWER_ACCESS_CODE`, `GOOGLE_MAPS_KEY`. See `.env.example` and `DEPLOY.md`.
 - Open: no background job yet (route is 300 s; check the Vercel plan). Rate limit and map cache are per instance.
+- Launch from a project: the project header's **Generate 3D viewer** opens `/building-viewer?project=<slug>`, which prefills address, name, a facts line and the first photo in `data/<project>/images/` (served read-only by `src/app/api/project-images/[project]/[file]/route.ts`). The access code is always typed by the user. A stream that ends with no result shows "This took too long. Try again."
 
 ## Conventions
 

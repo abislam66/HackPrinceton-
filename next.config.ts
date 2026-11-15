@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
       // The building viewer's locked scaffold and prompt, read at request time.
       "./building-viewer/*",
     ],
+    // Reference photos, served read-only to prefill the building viewer's photo field.
+    "/api/project-images/\\[project\\]/\\[file\\]": ["./data/*/images/*.{jpg,jpeg,png}"],
   },
   turbopack: {
     rules: {
