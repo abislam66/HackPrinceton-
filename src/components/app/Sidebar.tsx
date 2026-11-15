@@ -1,9 +1,10 @@
 "use client";
 
-import { Bot, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, Send, type LucideIcon } from "lucide-react";
+import { Bot, Compass, FolderKanban, LogOut, PanelLeftClose, PanelLeftOpen, Send, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { Logomark, Wordmark } from "@/components/ui/Logo";
 import { cx } from "@/lib/cx";
@@ -33,7 +34,7 @@ function isTyping(target: EventTarget | null): boolean {
  * The app's sidebar. Collapses to a 56 px icon rail with the button at the top or Cmd/Ctrl+B.
  * The width changes instantly: it is a frequent, keyboard-driven toggle, and animating width would reflow the page.
  */
-export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boolean }) {
+export function Sidebar({ defaultCollapsed = false, userEmail = null }: { defaultCollapsed?: boolean; userEmail?: string | null }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
@@ -129,25 +130,41 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
         })}
       </nav>
 
-      {/* Reset demo is hidden. To bring it back, uncomment the form below and its imports (Button, RotateCcw, resetDemo). */}
-      {/*
-      Expanded, the 8 px inset plus the button's 12 px padding puts "Reset demo" on the 20 px line of the logo and icons.
-      <form
-        className={cx("mt-auto flex py-5", collapsed ? "justify-center" : "px-2")}
-        action={async () => {
-          await resetDemo();
-        }}
-      >
-        {collapsed ? (
-          <IconButton type="submit" icon={<RotateCcw />} label="Reset demo" tooltipSide="right" />
-        ) : (
-          // Quiet: muted at rest like the inactive nav rows, Asphalt on hover.
-          <Button type="submit" variant="quiet">
-            Reset demo
-          </Button>
-        )}
-      </form>
-      */}
+      <div className="mt-auto flex flex-col">
+        {userEmail ? (
+          // Sign-in is on: who is signed in, and a POST form so a link can't sign anyone out.
+          <form action="/auth/signout" method="post" className={cx("flex flex-col py-5", collapsed ? "items-center" : "px-2")}>
+            {collapsed ? (
+              <IconButton type="submit" icon={<LogOut />} label={`Sign out (${userEmail})`} tooltipSide="right" />
+            ) : (
+              <>
+                <p className="tm-text--s truncate px-3 pb-1 text-muted" title={userEmail}>
+                  {userEmail}
+                </p>
+                <Button type="submit" variant="quiet">
+                  Sign out
+                </Button>
+              </>
+            )}
+          </form>
+        ) : null}
+        {/* Reset demo is hidden. To bring it back, uncomment the form below and its imports (RotateCcw, resetDemo).
+        <form
+          className={cx("flex py-5", collapsed ? "justify-center" : "px-2")}
+          action={async () => {
+            await resetDemo();
+          }}
+        >
+          {collapsed ? (
+            <IconButton type="submit" icon={<RotateCcw />} label="Reset demo" tooltipSide="right" />
+          ) : (
+            <Button type="submit" variant="quiet">
+              Reset demo
+            </Button>
+          )}
+        </form>
+        */}
+      </div>
     </aside>
   );
 }

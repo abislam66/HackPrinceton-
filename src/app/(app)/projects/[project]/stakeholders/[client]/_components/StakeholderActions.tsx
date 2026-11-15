@@ -15,10 +15,12 @@ type Props = {
   basePath: string;
   opens: number;
   sentAt: string | null;
+  /** The signed-in person's Gmail when the app can send as them, else null. Passed on to the send dialog. */
+  sendFrom: string | null;
 };
 
 /** PageHeader actions for a built stakeholder. Not-built has none: its one primary is in the viewer. */
-export function StakeholderActions({ stage, projectSlug, client, projectName, basePath, opens }: Props) {
+export function StakeholderActions({ stage, projectSlug, client, projectName, basePath, opens, sendFrom }: Props) {
   const [sendOpen, setSendOpen] = useState(false);
 
   const preview = (
@@ -41,6 +43,7 @@ export function StakeholderActions({ stage, projectSlug, client, projectName, ba
           client={client}
           projectName={projectName}
           basePath={basePath}
+          sendFrom={sendFrom}
         />
       </>
     );
