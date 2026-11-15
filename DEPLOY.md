@@ -36,6 +36,29 @@ Enable the Google Geocoding API on the key, and restrict the key to that API.
 6. Send six requests from one client. The sixth should return 429 with a Retry-After header.
 7. Check the function logs: lines should show step names, statuses and timings only. No keys, photos, prompts or addresses.
 
+## Sign-in (Google, through Supabase)
+
+Off by default. Nothing changes until `AUTH_REQUIRED=true` is set on the host, so it can be merged first and switched on when the settings below are ready. Code: `src/lib/auth/policy.ts` (the rules), `src/proxy.ts` (the gate), `src/app/auth/*` and `src/app/login/`.
+
+| Name | What it does |
+|---|---|
+| `AUTH_REQUIRED` | Exactly `true` turns sign-in on. Also needs the Supabase URL and publishable key; without them it stays off, so a missing key can't lock the app. |
+| `ALLOWED_EMAILS` | Optional, comma-separated Google emails. Unset means any Google account can sign in. |
+
+What is behind sign-in: every internal page and every API route. What stays open: the client's proposal page (`/proposals/<client>`), its tracking beacon (`/api/track`), the generated model's GLB read (`GET /api/models/<project>/glb`), `/models/*`, and the sign-in pages. The internal shot preview (`/proposals/<client>/shots`) is behind sign-in.
+
+Signed in means a **Google** sign-in. Supabase email sign-up is a separate provider that anyone can use against the project, so a session from it is turned away with "That account can't use this tool". To also stop strangers creating those accounts, turn off email sign-up in Supabase (Authentication, Sign In / Providers).
+
+Setup, once:
+
+1. Supabase, Authentication, Providers: Google enabled with the Web OAuth client's ID and secret. In Google Cloud, that client's authorized redirect URI is `https://<project-ref>.supabase.co/auth/v1/callback`.
+2. Supabase, Authentication, URL Configuration, Redirect URLs: add each origin that serves the app, with `/auth/callback`: `http://localhost:3000/auth/callback` (and any other dev port), `https://<production-domain>/auth/callback`, and the Vercel preview pattern `https://*-<team>.vercel.app/auth/callback`. A URL that is not listed makes Supabase send the person to the Site URL instead.
+3. Set `AUTH_REQUIRED=true` (and optionally `ALLOWED_EMAILS`) on the host, then redeploy.
+
+To lock a deployment down later, set `ALLOWED_EMAILS`. To switch sign-in off in an emergency, unset `AUTH_REQUIRED` and redeploy.
+
+Not yet changed: the building viewer still asks for its shared access code. With sign-in on, that code can be dropped, but it stays until the viewer's own PR lands.
+
 ## Model parameters used
 
 - Model: `claude-opus-5-5`.
