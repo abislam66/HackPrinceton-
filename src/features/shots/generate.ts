@@ -1,15 +1,93 @@
 import "server-only";
+import { z } from "zod";
 import type { ModelInfo } from "@/features/model/schema";
+import { callStructured } from "@/features/proposal/llm";
 import type { Client, Project } from "@/features/project/schema";
+import { compileShotList } from "./compile";
+import { shotIntentSchema, shotMoves, type ShotIntent } from "./intent";
 import type { Shot } from "./schema";
+
+const MIN_SHOTS = 3;
+
+const SYSTEM = `You plan drone and ground shots for Tradesmark, a company that films and documents construction projects. You write the shot list our crew will fly, for one client on one building.
+
+Rules:
+- Every shot serves this client's need and frames their focus elements. A glazing contractor gets glass, a university gets campus context. Two clients on the same building must get visibly different lists.
+- Use only the sides listed in allowedSides. Other sides have no real reference.
+- Use only facts from the project and client given. Never invent features of the building.
+- You choose the move and framing; code computes the camera path. distance is a multiple of the building's largest dimension (1.2 close, 4 far). height is a multiple of the building's height (0 ground, 1 roofline, 1.6 well above).
+- Moves: rise (low near a face, up past the roofline), orbit (60 degree arc around the building), push-in (slow approach to one face), track (slide along a face), reveal (high and top-down, descending to an oblique view), ground-hero (eye level, looking up at a face). Use ground-hero only with platform "ground".
+- Vary moves and sides across the list. 3 to 5 shots.
+- name: short and specific, under 8 words. description: one or two sentences for the crew on what to frame and why it matters to this client.
+- lens like "24mm wide" or "70mm tele". timeOfDay names the light, e.g. "golden hour, low west sun". constructionPhase names when to capture, from the project's timeline.
+- Plain, specific language. No marketing words.`;
+
+const EXAMPLES = `Examples of the level of specificity wanted (a different building, for illustration only):
+- sales-and-bids, a masonry contractor, focus "stone entry arch": {"name":"Arch keystone push-in","description":"Slow approach on the entry arch so the joint work and keystone fill the frame; this is the detail their next bid package needs.","platform":"drone","lens":"70mm tele","timeOfDay":"overcast midday, even light on the stone","constructionPhase":"after scaffolding comes down","side":"south","move":"push-in","distance":1.6,"height":0.3,"durationSec":7}
+- community-and-pr, a city library owner, focus "new plaza": {"name":"Plaza reveal from above","description":"Start over the roof and descend to the plaza with people crossing it, showing how the building opens to the street.","platform":"drone","lens":"24mm wide","timeOfDay":"late afternoon, warm side light","constructionPhase":"landscaping complete, before opening","side":"east","move":"reveal","distance":2.5,"height":1.2,"durationSec":9}`;
+
+type Side = ModelInfo["knownSides"][number];
+
+/** The reply shape, with `side` narrowed to the sides that have real reference. */
+function responseSchema(knownSides: [Side, ...Side[]]) {
+  return z.object({
+    shots: z.array(shotIntentSchema.extend({ side: z.enum(knownSides) })).min(MIN_SHOTS).max(5),
+  });
+}
 
 /**
  * Generates the drone shots for one client from the model and the client's needs.
- * The agent's output must be parsed with shotListSchema before it is returned.
+ * The LLM picks shot intents; the compiler turns them into camera paths and enforces the
+ * invariants. If fewer than three survive, asks once more with the reasons.
  */
-export async function generateShots(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  input: { project: Project; client: Client; model: ModelInfo },
-): Promise<Shot[]> {
-  throw new Error("generateShots is not implemented yet");
+export async function generateShots(input: { project: Project; client: Client; model: ModelInfo }): Promise<Shot[]> {
+  const { project, client, model } = input;
+  const [firstSide, ...otherSides] = model.knownSides;
+  if (!firstSide) throw new Error("The model has no side with real reference, so no shot can be framed");
+  const schema = responseSchema([firstSide, ...otherSides]);
+
+  const [minX, minY, minZ] = model.boundingBox.min;
+  const [maxX, maxY, maxZ] = model.boundingBox.max;
+  const brief = {
+    project,
+    client: {
+      company: client.company,
+      role: client.role,
+      need: client.need,
+      needsNotes: client.needsNotes,
+      focusElements: client.focusElements,
+    },
+    allowedSides: model.knownSides,
+    allowedMoves: shotMoves,
+    buildingSizeMeters: {
+      eastWest: round(maxX - minX),
+      northSouth: round(maxZ - minZ),
+      height: round(maxY - minY),
+    },
+  };
+  const user = `${EXAMPLES}\n\nPlan the shot list for this brief:\n${JSON.stringify(brief, null, 2)}`;
+
+  let intents = await requestIntents(schema, user);
+  let compiled = compileShotList(intents, model, client.id);
+  if (compiled.shots.length < MIN_SHOTS) {
+    const reasons = compiled.dropped.map((d) => `"${d.name}": ${d.reasons.join("; ")}`).join("\n");
+    intents = await requestIntents(
+      schema,
+      `${user}\n\nOnly ${compiled.shots.length} of your shots could be used. These were rejected:\n${reasons}\nReturn a full list that avoids these problems.`,
+    );
+    compiled = compileShotList(intents, model, client.id);
+  }
+  if (compiled.shots.length < MIN_SHOTS) {
+    throw new Error(`Only ${compiled.shots.length} usable shots after a retry`);
+  }
+  return compiled.shots;
+}
+
+async function requestIntents(schema: ReturnType<typeof responseSchema>, user: string): Promise<ShotIntent[]> {
+  const { shots } = await callStructured(schema, SYSTEM, user, { effort: "low", maxTokens: 6000 });
+  return shots;
+}
+
+function round(v: number): number {
+  return Math.round(v * 10) / 10;
 }
