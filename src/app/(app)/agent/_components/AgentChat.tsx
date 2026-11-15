@@ -3,12 +3,19 @@
 import { ArrowUp } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { Heading } from "@/components/ui/Heading";
+// Type only: erased at build time, so the server-only module never reaches the browser.
+import type { AgentEvent } from "@/features/agent/chat";
 import { cx } from "@/lib/cx";
 
 /** A turn in the thread. "error" turns are shown but never sent back to the model. */
 type Turn = { id: number; role: "user" | "assistant" | "error"; text: string };
 
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt";
+
+/** "research_dossier" → "research dossier", for the working line. */
+function toolLabel(tool: string): string {
+  return tool.replaceAll("_", " ");
+}
 
 /**
  * A prompt box with a thread. Each prompt goes to POST /api/agent with the conversation so far;
@@ -18,6 +25,8 @@ export function AgentChat() {
   const [value, setValue] = useState("");
   const [prompts, setPrompts] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
+  /** What the agent is doing right now (which tool, latest progress line), while a reply is pending. */
+  const [working, setWorking] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(0);
   const inputId = useId();
@@ -67,19 +76,48 @@ export function AgentChat() {
     setValue("");
     setPending(true);
     inputRef.current?.focus();
+    setWorking(null);
     try {
       const response = await fetch("/api/agent", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: thread }),
       });
-      const data = (await response.json().catch(() => ({}))) as { reply?: string; error?: string };
-      if (response.ok && data.reply) append("assistant", data.reply);
-      else append("error", data.error ?? `The agent didn't answer (HTTP ${response.status}).`);
+      if (!response.ok || !response.body) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        append("error", data.error ?? `The agent didn't answer (HTTP ${response.status}).`);
+        return;
+      }
+      // One JSON event per line: tool starts and progress while it works, then a reply or an error.
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = "";
+      let answered = false;
+      for (;;) {
+        const { value: chunk, done } = await reader.read();
+        if (done) break;
+        buffer += chunk;
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as AgentEvent;
+          if (event.type === "tool") setWorking(`Running ${toolLabel(event.tool)}…`);
+          else if (event.type === "progress") setWorking(`${toolLabel(event.tool)}: ${event.message}`);
+          else if (event.type === "reply") {
+            append("assistant", event.text);
+            answered = true;
+          } else {
+            append("error", event.error);
+            answered = true;
+          }
+        }
+      }
+      if (!answered) append("error", "The agent stopped before answering. Try again.");
     } catch {
       append("error", "Couldn't reach the agent. Check your connection and try again.");
     } finally {
       setPending(false);
+      setWorking(null);
     }
   }
 
@@ -116,7 +154,7 @@ export function AgentChat() {
           )}
           {pending ? (
             <li aria-live="polite" className="tm-text--s tm-muted px-5">
-              Thinking…
+              {working ?? "Thinking…"}
             </li>
           ) : null}
         </ol>
