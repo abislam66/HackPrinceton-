@@ -160,7 +160,7 @@ export function createAppTools(): BetaRunnableTool[] {
         }
         const project = await getScoutedProject(projectId);
         if (!project) return `Error: "${projectId}" is not a project added from scouting. Use list_projects, or add_project_from_scout first.`;
-        const limit = takeGeneration(AGENT_RATE_KEY);
+        const limit = await takeGeneration(AGENT_RATE_KEY);
         if (!limit.ok) return `Error: 5 models were generated in the last hour. Try again in ${Math.ceil(limit.retryAfterS / 60)} minutes.`;
         const release = claimRun(`model:${projectId}`);
         if (!release) return `A model for ${projectId} is already being generated. Check get_project_model in a few minutes.`;
