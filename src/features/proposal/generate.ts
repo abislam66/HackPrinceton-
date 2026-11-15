@@ -1,7 +1,8 @@
 import "server-only";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { generatePitch } from "@/features/pitch/generate";
-import { loadClient, loadProject } from "@/features/project/load";
+import { loadProjectClient, loadProjectFacts } from "@/features/project-agent/store";
+import { PROJECT_SLUG } from "@/features/project/schema";
 import { generateShots } from "@/features/shots/generate";
 import type { Proposal } from "./schema";
 import { getProposal, saveProposal } from "./store";
@@ -17,19 +18,21 @@ export type GenerateResult =
   | { status: "unknown-client" };
 
 /**
- * Runs the pipeline for one client: shots, then pitch (it captions the shots), then save as a
- * draft for review. On any failure or timeout, returns the last good proposal for the client.
- * Throws only when generation fails and there is nothing cached.
+ * Runs the pipeline for one client on a project: shots, then pitch (it captions the shots), then
+ * save as a draft for review. Uses the project's current brief for the client (including changes
+ * the project agent replaced, and stakeholders of projects opened from drafts). On any failure or
+ * timeout, returns the last good proposal for the client on that project. Throws only when
+ * generation fails and there is nothing cached.
  */
-export async function generateProposal(clientId: string): Promise<GenerateResult> {
-  const client = await loadClient(clientId);
-  if (!client) return { status: "unknown-client" };
+export async function generateProposal(clientId: string, projectSlug: string = PROJECT_SLUG): Promise<GenerateResult> {
+  const [client, project] = await Promise.all([loadProjectClient(projectSlug, clientId), loadProjectFacts(projectSlug)]);
+  if (!client || !project) return { status: "unknown-client" };
 
   const live = (async () => {
-    const [project, model] = await Promise.all([loadProject(), loadStakeholderModel(clientId)]);
+    const model = await loadStakeholderModel(clientId);
     const shots = await generateShots({ project, client, model });
     const pitch = await generatePitch({ project, client, shots });
-    const proposal: Proposal = { clientId, projectSlug: project.slug, status: "draft", pitch, shots };
+    const proposal: Proposal = { clientId, projectSlug, status: "draft", pitch, shots };
     await saveProposal(proposal);
     return proposal;
   })();
@@ -41,8 +44,8 @@ export async function generateProposal(clientId: string): Promise<GenerateResult
     // A run that times out keeps going and still saves if it finishes; don't leave it unhandled.
     live.catch(() => {});
     const reason = (error as Error).message;
-    console.error(`generateProposal(${clientId}): live generation failed, trying cache. ${reason}`);
-    const cached = await getProposal(clientId);
+    console.error(`generateProposal(${clientId}, ${projectSlug}): live generation failed, trying cache. ${reason}`);
+    const cached = await getProposal(clientId, projectSlug);
     if (!cached) throw error;
     return { status: "ok", proposal: cached, source: "cache", error: reason };
   }

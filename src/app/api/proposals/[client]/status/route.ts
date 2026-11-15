@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 import { allowedTransitions, canTransition, statusUpdateSchema } from "@/features/proposal/status";
 import { getProposal, saveProposal } from "@/features/proposal/store";
+import { PROJECT_SLUG } from "@/features/project/schema";
 
 /**
- * Moves a proposal through review. Body: `{status}`.
+ * Moves a proposal through review. Body: `{status}`. `?project=<slug>` picks the project
+ * (default `demo-project`).
  * 200 with the updated proposal; 400 bad body; 404 no proposal; 409 transition not allowed;
  * 503 when nothing can be written (no Supabase on a read-only filesystem).
  */
 export async function PATCH(request: Request, ctx: RouteContext<"/api/proposals/[client]/status">) {
   const { client } = await ctx.params;
+  const project = new URL(request.url).searchParams.get("project") || PROJECT_SLUG;
+  if (!/^[a-z0-9-]+$/.test(project)) return NextResponse.json({ error: `Bad project: ${project}` }, { status: 400 });
 
   let body: unknown;
   try {
@@ -23,7 +27,7 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/proposals/
   const to = parsed.data.status;
 
   try {
-    const proposal = await getProposal(client);
+    const proposal = await getProposal(client, project);
     if (!proposal) return NextResponse.json({ error: `No proposal for client: ${client}` }, { status: 404 });
     if (!canTransition(proposal.status, to)) {
       return NextResponse.json(
