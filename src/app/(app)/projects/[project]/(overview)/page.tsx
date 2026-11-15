@@ -1,10 +1,12 @@
+import { notFound } from "next/navigation";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaList, MediaRow } from "@/components/ui/MediaRow";
 import { Panel } from "@/components/ui/Panel";
 import { Tag } from "@/components/ui/Tag";
 import { DOSSIER_PEEK, SOURCES } from "@/features/demo/building";
-import { PROJECT_SLUG } from "@/features/project/schema";
+import { loadProjectFacts } from "@/features/project-agent/store";
 import { loadStakeholders, type StakeholderStatus } from "@/features/workspace/status";
 import { NEED_LABEL, ROLE_LABEL } from "@/lib/labels";
 
@@ -16,28 +18,37 @@ function StageTag({ status }: { status: StakeholderStatus }) {
   return opens > 0 ? <Tag tone="pass">{`Opened · ${opens}`}</Tag> : <Tag>Sent · not opened</Tag>;
 }
 
-export default async function ProjectStakeholdersPage() {
-  const stakeholders = await loadStakeholders();
+export default async function ProjectStakeholdersPage({ params }: PageProps<"/projects/[project]">) {
+  const { project: slug } = await params;
+  const [project, stakeholders] = await Promise.all([loadProjectFacts(slug), loadStakeholders(slug)]);
+  if (!project) notFound();
   const sent = stakeholders.filter((s) => s.stage === "sent").length;
-  const base = `/projects/${PROJECT_SLUG}`;
+  const base = `/projects/${slug}`;
 
   return (
     <div className="grid items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_320px]">
       <Panel title="Proposals" count={`${sent} of ${stakeholders.length} sent`} flush>
-        {/* One slot width for every status, so the tags line up down the list. */}
-        <MediaList trailingWidth={128}>
-          {stakeholders.map((s) => (
-            <MediaRow
-              key={s.client.id}
-              href={`${base}/stakeholders/${s.client.id}`}
-              media={<Avatar name={s.client.company} />}
-              title={s.client.company}
-              meta={`${ROLE_LABEL[s.client.role]} · Needs: ${NEED_LABEL[s.client.need]}`}
-            >
-              <StageTag status={s} />
-            </MediaRow>
-          ))}
-        </MediaList>
+        {stakeholders.length === 0 ? (
+          <EmptyState
+            title="No stakeholders"
+            description="Ask the project agent to add one: who they are and what they need from footage."
+          />
+        ) : (
+          // One slot width for every status, so the tags line up down the list.
+          <MediaList trailingWidth={128}>
+            {stakeholders.map((s) => (
+              <MediaRow
+                key={s.client.id}
+                href={`${base}/stakeholders/${s.client.id}`}
+                media={<Avatar name={s.client.company} />}
+                title={s.client.company}
+                meta={`${ROLE_LABEL[s.client.role]} · Needs: ${NEED_LABEL[s.client.need]}`}
+              >
+                <StageTag status={s} />
+              </MediaRow>
+            ))}
+          </MediaList>
+        )}
       </Panel>
 
       {/* Its own container: one column in the 320 px rail, two or three when the page folds it under the list. */}

@@ -1,11 +1,15 @@
+import { notFound } from "next/navigation";
 import { Panel } from "@/components/ui/Panel";
 import { TextLink } from "@/components/ui/TextLink";
 import { DOSSIER_FACTS, NOT_CONFIRMED, SOURCES, TIMELINE } from "@/features/demo/building";
-import { loadProject } from "@/features/project/load";
+import { loadProjectFacts } from "@/features/project-agent/store";
 import { cx } from "@/lib/cx";
 
-export default async function DossierPage() {
-  const project = await loadProject();
+export default async function DossierPage({ params }: PageProps<"/projects/[project]/dossier">) {
+  const { project: slug } = await params;
+  // A project opened from a draft shares the base project's building, so the dossier is the same.
+  const project = await loadProjectFacts(slug);
+  if (!project) notFound();
 
   return (
     <div className="grid items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_360px]">
