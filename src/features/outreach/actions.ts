@@ -1,7 +1,7 @@
 import "server-only";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { markSent } from "@/features/workspace/state";
-import { draftEmail, ensureUrl, type DraftSource } from "./draft";
+import { checkDraft, draftEmail, ensureUrl, type DraftSource } from "./draft";
 import { getAccount, getDeliverTo, gmailConfigured, isAllowedRecipient, sendEmail } from "./gmail";
 import {
   outreachOverviewSchema,
@@ -27,6 +27,11 @@ export type SendOutcome =
   | { status: "no-draft" }
   | { status: "already-sent"; message: OutreachMessage }
   | { status: "not-configured"; reason: string };
+
+export type EditOutcome =
+  | { status: "ok"; message: OutreachMessage; problems: string[] }
+  | { status: "no-draft" }
+  | { status: "already-sent"; message: OutreachMessage };
 
 /** How long to skip the account lookup after it failed, so a polling screen does not hammer Google. */
 const ACCOUNT_RETRY_MS = 30_000;
@@ -87,6 +92,26 @@ export async function draftOutreach(clientId: string, opts: { force?: boolean } 
       replies: [],
     });
     return { status: "ok", message, source };
+  });
+}
+
+/**
+ * Rewrites the stored draft's subject or body in place, without the model. The proposal link always stays in the
+ * body. A sent message is not edited: re-draft it first. Returns the house-rule problems (pricing, scope, length)
+ * for the caller to show; they do not block the edit, as an operator's own words win.
+ */
+export async function editOutreachDraft(
+  clientId: string,
+  edits: { subject?: string; body?: string },
+): Promise<EditOutcome> {
+  return withClientLock(clientId, async (): Promise<EditOutcome> => {
+    const stored = await getMessage(clientId);
+    if (!stored) return { status: "no-draft" };
+    if (stored.status === "sent") return { status: "already-sent", message: stored };
+    const subject = edits.subject?.trim() || stored.subject;
+    const body = ensureUrl(edits.body?.trim() || stored.body, stored.proposalUrl);
+    const message = await saveMessage({ ...stored, subject, body, status: "draft", error: null });
+    return { status: "ok", message, problems: checkDraft({ subject, body }, stored.proposalUrl) };
   });
 }
 

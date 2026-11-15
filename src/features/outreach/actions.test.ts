@@ -25,7 +25,7 @@ vi.mock("@/lib/agent/structured", () => ({
 }));
 vi.mock("@/features/proposal/store", () => ({ getProposal: vi.fn(async () => null) }));
 
-const { draftOutreach, sendOutreach, getOutreachOverview } = await import("./actions");
+const { draftOutreach, editOutreachDraft, sendOutreach, getOutreachOverview } = await import("./actions");
 const { resetGmailCache } = await import("./gmail");
 const { getSentAt } = await import("@/features/workspace/state");
 
@@ -124,6 +124,17 @@ describe("outreach actions", () => {
     const body = Buffer.from(sends[0].split("\r\n\r\n")[1].replace(/\r\n/g, ""), "base64").toString("utf8");
     expect(body).toContain("A short note with our proposal for you.");
     expect(body).toContain("http://localhost:3000/proposals/client-a?ref=email");
+  });
+
+  it("edits a draft in place, keeps the proposal link, and flags pricing", async () => {
+    expect((await editOutreachDraft("client-a", { subject: "Hi" })).status).toBe("no-draft");
+    const drafted = await draftOutreach("client-a");
+    if (drafted.status !== "ok") throw new Error("expected a draft");
+    const edited = await editOutreachDraft("client-a", { body: "Short note. Our pricing is fair." });
+    if (edited.status !== "ok") throw new Error("expected an edit");
+    expect(edited.message.subject).toBe(drafted.message.subject);
+    expect(edited.message.body).toContain(drafted.message.proposalUrl);
+    expect(edited.problems).toContain("mentions pricing");
   });
 
   it("sends once when two sends race", async () => {

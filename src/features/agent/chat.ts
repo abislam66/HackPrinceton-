@@ -2,12 +2,14 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { APP_TOOLS_PROMPT, createAppTools } from "@/features/agent-tools/app-tools";
 import { createPipelineTools, PIPELINE_TOOLS_PROMPT } from "@/features/agent-tools/tools";
 import { applyScenario, MAX_CHANGE_CHARS } from "@/features/proposal/scenario";
 
 /*
  * The Agent tab's model call. The chat model orchestrates Rafiat's live pipeline tools (scouting,
- * dossiers, outreach, sample progress) through the SDK tool runner; the research runs inside the
+ * dossiers, outreach, sample progress) and the rest of the app (projects, models, proposals,
+ * tracking; ../agent-tools/app-tools.ts) through the SDK tool runner; the research runs inside the
  * tools. Events stream back while it works, so the chat can show which tool is running.
  */
 
@@ -15,8 +17,8 @@ import { applyScenario, MAX_CHANGE_CHARS } from "@/features/proposal/scenario";
 const MODEL = "claude-sonnet-5-5";
 /** A scout or dossier can take a few minutes; the route's maxDuration is the hard stop. */
 const TIMEOUT_MS = 280_000;
-/** Tool rounds per prompt, so a confused run can't loop forever. */
-const MAX_ITERATIONS = 8;
+/** Tool rounds per prompt, so a confused run can't loop forever. Room for "scout, add, research, model" in one ask. */
+const MAX_ITERATIONS = 12;
 
 /** Re-pitching from a described change; the generation pipeline does the work. */
 const SCENARIO_PROMPT = `Re-pitching (regenerate_proposal): when the team describes a change in a stakeholder (what they need, who they are) or in the project's goals or projections, call regenerate_proposal with that client's id (from list_stakeholders) and the change in the team's words. It rebuilds that client's shots and pitch and saves them as a draft for review; tell the user what changed and link the proposal page. It takes about 15 seconds.`;
@@ -101,12 +103,13 @@ export async function agentReply(messages: AgentMessage[], emit: (event: AgentEv
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     output_config: { effort: "low" },
-    system: `${SYSTEM}\n\n${PIPELINE_TOOLS_PROMPT}\n\n${SCENARIO_PROMPT}`,
+    system: `${SYSTEM}\n\n${PIPELINE_TOOLS_PROMPT}\n\n${APP_TOOLS_PROMPT}\n\n${SCENARIO_PROMPT}`,
     tools: [
       ...createPipelineTools({
         onProgress: (p) => emit({ type: "progress", tool: p.tool, message: p.message }),
       }),
       regenerateProposalTool,
+      ...createAppTools(),
     ],
     messages,
   });
