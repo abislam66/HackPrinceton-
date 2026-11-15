@@ -164,10 +164,51 @@ def test_block_outline_shrinks_to_plate_area():
     assert plate.area == pytest.approx(5000, rel=0.01) and "outlineScale" in notes
 
 
-@pytest.mark.parametrize("bad", [{"typology": "tower"}, {"grossAreaSqFt": -1}, {"heightM": 0}])
+@pytest.mark.parametrize("bad", [{"typology": "pyramid"}, {"grossAreaSqFt": -1}, {"heightM": 0}])
 def test_bad_inference_inputs_are_rejected(bad):
     with pytest.raises(ValueError):
         parse_spec({**HOBSON_FACTS, **bad})
+
+
+# --- Podium and tower (Morgan Hall North: 27 floors, 92 m, 3-floor base, oblong slab, charcoal core) ---
+
+MORGAN = {"slug": "demo-project", "footprint": SITE, "floors": 27, "heightM": 92.0, "typology": "tower",
+          "podiumFloors": 3, "towerPlateM2": 1450, "core": {"material": "charcoal"},
+          "facades": {"north": {"material": "tile", "glass": 0.6}}}
+
+
+def test_tower_stands_on_a_podium_within_the_height_cap(tmp_path):
+    out = tmp_path / "out"
+    metadata = build_model(make_project(tmp_path, MORGAN), out)
+    assert metadata.boundingBox.max[1] == pytest.approx(92.0, abs=0.01)  # the plant reaches the cap, not above it
+    mesh = trimesh.load(out / "model.glb", file_type="glb", force="mesh")
+    roofs = mesh.face_normals[:, 1] > 0.5
+    heights = sorted({round(float(h), 1) for h in mesh.triangles_center[roofs][:, 1]})
+    assert heights[0] == pytest.approx(3 * 1.4 * (92 - 5) / (3 * 1.4 + 24), abs=0.1)  # podium roof
+    assert 87.0 in heights and 92.0 in heights  # main roof and the plant / core top
+    # The tower is slimmer than the podium: roof area at the podium level is the full site.
+    podium_roof = mesh.area_faces[roofs & (mesh.triangles_center[:, 1] < heights[0] + 0.5)].sum()
+    assert podium_roof > 0.5 * 168 * 175
+    colors = {tuple(c[:3]) for c in mesh.visual.vertex_colors}
+    assert (58, 58, 62) in colors  # charcoal core
+
+
+def test_tower_plate_is_an_oblong_of_the_given_area():
+    from model_builder.massing import _local_outline, infer_tower
+
+    spec = parse_spec(MORGAN)
+    plate, core, notes = infer_tower(_local_outline(spec.footprint), spec)
+    assert plate.area == pytest.approx(1450, rel=0.02)
+    minx, miny, maxx, maxy = plate.bounds
+    long, short = sorted([maxx - minx, maxy - miny], reverse=True)
+    assert long / short >= 2.0  # an oblong slab along the site's long axis
+    assert core is not None and core.area == pytest.approx(1450 * 0.18, rel=0.05)
+    assert plate.contains(core.representative_point())
+
+
+def test_podium_must_be_shorter_than_the_building():
+    with pytest.raises(ValueError):
+        parse_spec({**MORGAN, "podiumFloors": 27})
 
 
 def test_needs_footprint_or_area():
