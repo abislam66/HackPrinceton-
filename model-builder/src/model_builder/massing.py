@@ -55,6 +55,8 @@ CORE_SHARE = 0.18  # the service core takes one end of the tower
 LOUNGE_STRIP_M = 1.7  # a stack of glass lounges past the core, at the very end of the slab
 CROWN_OVERHANG_M = 1.2  # a thin roof canopy over a glassy top floor
 CROWN_CANOPY_M = 0.8
+FIN_SPACING_M = 2.2  # default for finSpacingM: white tile fins on a curtain wall, from the Morgan photos' rhythm
+FIN_SPACING_RANGE_M = (0.8, 6.0)
 
 _MATERIAL_COLORS: dict[str, tuple[int, int, int]] = {
     "brick": (160, 82, 60),
@@ -89,6 +91,7 @@ class MassingSpec:
     crown: bool = False
     context: list[dict[str, Any]] = field(default_factory=list)  # neighbors: {"footprint": ring, "heightM": n}
     streets: list[dict[str, Any]] = field(default_factory=list)  # {"line": [[lng, lat], ...], "widthM": n}
+    fin_spacing_m: float = FIN_SPACING_M  # centre-to-centre spacing of tile fins on curtain walls
 
 
 def _number(project: dict[str, Any], key: str, *, whole: bool = False) -> float | None:
@@ -209,8 +212,17 @@ def parse_spec(project: dict[str, Any]) -> MassingSpec | None:
         raise ValueError("streets must be a list of {line, widthM}")
     if (context or streets) and ring is None:
         raise ValueError("context and streets need a footprint to place them")
+    fin_spacing = _number(project, "finSpacingM")
+    if fin_spacing is None:
+        fin_spacing = FIN_SPACING_M
+        provenance["finSpacingM"] = f"default {FIN_SPACING_M} m (photo rhythm)"
+    else:
+        low, high = FIN_SPACING_RANGE_M
+        if not low <= fin_spacing <= high:
+            raise ValueError(f"finSpacingM must be between {low} and {high} metres")
+        provenance["finSpacingM"] = "given"
     return MassingSpec(ring, int(floors), float(floor_height), float(height), gross, typology, facades, provenance,
-                       podium_floors, tower_plate, core, tower_ring, crown, context, streets)
+                       podium_floors, tower_plate, core, tower_ring, crown, context, streets, fin_spacing)
 
 
 def _largest_polygon(geom: BaseGeometry) -> Polygon:
@@ -493,7 +505,6 @@ _PBR: dict[str, dict[str, Any]] = {
     "context": {"color": (30, 32, 36), "metallic": 0.0, "roughness": 0.95},  # dim, so the subject stands out
     "street": {"color": (14, 15, 16), "metallic": 0.0, "roughness": 1.0},
 }
-FIN_SPACING_M = 2.2  # white tile fins on a curtain wall, from the photos' rhythm
 FIN_WIDTH_M = 0.55
 FIN_DEPTH_M = 0.3
 BAND_DEPTH_M = 0.18  # floor-line band proud of the glass
@@ -586,7 +597,7 @@ def _wall_strip(a, u, n, s0: float, s1: float, depth: float) -> Polygon:
 
 
 def _facade_fins(body: BaseGeometry, curtain_sides: set[str], levels: list[float], first: int, last: int,
-                 notes: dict[str, str]) -> list[trimesh.Trimesh]:
+                 spacing: float, notes: dict[str, str]) -> list[trimesh.Trimesh]:
     """Staggered vertical tile fins, two to five floors long, on every long curtain-wall edge."""
     fins: list[trimesh.Trimesh] = []
     # Counter-clockwise rings, so edge a->b faces out along (dy, -dx). The body can be several pieces
@@ -604,10 +615,10 @@ def _facade_fins(body: BaseGeometry, curtain_sides: set[str], levels: list[float
         n = (u[1], -u[0])
         if _side_of_plan_normal(*n) not in curtain_sides:
             continue
-        count = int((length - 1.6) // FIN_SPACING_M)
-        start = (length - count * FIN_SPACING_M) / 2
+        count = int((length - 1.6) // spacing)
+        start = (length - count * spacing) / 2
         for c in range(count + 1):
-            s = start + c * FIN_SPACING_M
+            s = start + c * spacing
             rng = random.Random(i * 1000 + c)  # deterministic: the same inputs give the same facade
             f = first + rng.randint(0, 2)
             while f < last:
@@ -617,7 +628,7 @@ def _facade_fins(body: BaseGeometry, curtain_sides: set[str], levels: list[float
                 f = top + rng.randint(1, 2)
             columns += 1
     if columns:
-        notes["facade"] = f"{columns} columns of staggered tile fins every {FIN_SPACING_M} m (pattern from the photos)"
+        notes["facade"] = f"{columns} columns of staggered tile fins every {spacing:g} m"
     return fins
 
 
@@ -704,7 +715,8 @@ def _build_tower(spec: MassingSpec, outline: Polygon, provenance: dict[str, str]
             bands = bands.difference(core.buffer(0.01))
         for f in range(spec.podium_floors, top_floor + 1):
             parts.add("tower", "tile", _extrude(bands, BAND_HEIGHT_M, base=levels[f] - BAND_HEIGHT_M / 2, min_area=0.05))
-        parts.add("tower", "tile", _facade_fins(body, curtain, levels, spec.podium_floors, top_floor, provenance))
+        parts.add("tower", "tile", _facade_fins(body, curtain, levels, spec.podium_floors, top_floor,
+                                                spec.fin_spacing_m, provenance))
 
     if spec.crown:
         parts.add_walls("crown", _extrude(body.buffer(-0.4, join_style="mitre"), crown_h, base=roof_h - crown_h), {}, "glass")

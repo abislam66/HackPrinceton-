@@ -28,6 +28,8 @@ The service exists so the web app can start a build and poll it (`POST /builds`,
 
 `src/model_builder/build.py`, `build_model()`. The command line and the service both call it. Geometry libraries are not chosen yet: add them to `pyproject.toml` with `uv add`.
 
+Tile fin spacing is `finSpacingM` (metres, 0.8 to 6, default 2.2). The look rules and viewer styles are in [STYLE.md](STYLE.md).
+
 ## Example: Morgan Hall North (tower typology)
 
 `examples/morgan-hall-north.json` is a full input for a 27-floor tower on a dining-hall base, built from published facts, two photos and OpenStreetMap. To try it, copy it to a project folder as `project.json` and build:

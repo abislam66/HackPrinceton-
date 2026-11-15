@@ -276,3 +276,28 @@ def test_tower_ignores_gross_area_when_sizing_the_lot(tmp_path):
 def test_needs_footprint_or_area():
     with pytest.raises(ValueError):
         parse_spec({"slug": "x", "floors": 3})
+
+
+def test_fin_spacing_is_an_input():
+    from model_builder.massing import build_massing
+
+    tile = {"north": {"material": "tile", "glass": 0.3}, "south": {"material": "tile", "glass": 0.3},
+            "east": {"material": "charcoal"}, "west": {"material": "tile", "glass": 0.9}}
+    base = {**MORGAN, "facades": tile}
+    default = parse_spec(base)
+    assert default.fin_spacing_m == 2.2
+    assert default.provenance["finSpacingM"].startswith("default")
+    wide = parse_spec({**base, "finSpacingM": 4.4})
+    assert wide.fin_spacing_m == 4.4
+    assert wide.provenance["finSpacingM"] == "given"
+
+    def columns(spec):
+        return int(build_massing(spec)[2]["facade"].split()[0])
+
+    assert columns(default) > columns(wide)  # wider spacing, fewer fin columns
+
+
+@pytest.mark.parametrize("value", [0.2, 9.0, "2.2", True])
+def test_fin_spacing_out_of_range_is_rejected(value):
+    with pytest.raises(ValueError):
+        parse_spec({**MORGAN, "finSpacingM": value})
