@@ -23,14 +23,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That access code isn't right.", step: "access" }, { status: 401 });
   }
 
-  const limit = takeGeneration(clientKey(request.headers));
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: "You've made 5 viewers in the last hour. Try again later.", step: "rate_limit" },
-      { status: 429, headers: { "Retry-After": String(limit.retryAfterS) } },
-    );
-  }
-
   let form: FormData;
   try {
     form = await request.formData();
@@ -59,6 +51,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "The photo must be a JPEG or PNG.", step: "validate" }, { status: 400 });
     }
     photo = { bytes, mediaType };
+  }
+
+  // Count a run only once the access code and the input have passed, so a rejected request is free.
+  const limit = takeGeneration(clientKey(request.headers));
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "You've made 5 viewers in the last hour. Try again later.", step: "rate_limit" },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfterS) } },
+    );
   }
 
   const encoder = new TextEncoder();

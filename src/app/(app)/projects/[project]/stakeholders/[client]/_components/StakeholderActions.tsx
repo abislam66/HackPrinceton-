@@ -9,6 +9,7 @@ import { SendDialog } from "./SendDialog";
 
 type Props = {
   stage: "ready" | "sent";
+  projectSlug: string;
   client: Pick<Client, "id" | "company" | "contact">;
   projectName: string;
   basePath: string;
@@ -17,7 +18,7 @@ type Props = {
 };
 
 /** PageHeader actions for a built stakeholder. Not-built has none: its one primary is in the viewer. */
-export function StakeholderActions({ stage, client, projectName, basePath, opens }: Props) {
+export function StakeholderActions({ stage, projectSlug, client, projectName, basePath, opens }: Props) {
   const [sendOpen, setSendOpen] = useState(false);
 
   const preview = (
@@ -36,6 +37,7 @@ export function StakeholderActions({ stage, client, projectName, basePath, opens
         <SendDialog
           open={sendOpen}
           onClose={() => setSendOpen(false)}
+          projectSlug={projectSlug}
           client={client}
           projectName={projectName}
           basePath={basePath}

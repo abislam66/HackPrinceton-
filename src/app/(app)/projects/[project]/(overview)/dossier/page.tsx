@@ -1,63 +1,38 @@
-import { Panel } from "@/components/ui/Panel";
-import { TextLink } from "@/components/ui/TextLink";
-import { DOSSIER_FACTS, NOT_CONFIRMED, SOURCES, TIMELINE } from "@/features/demo/building";
+import { notFound } from "next/navigation";
+import { DossierBoard } from "@/components/app/dossier/DossierBoard";
+import { loadDossier } from "@/features/dossier/load";
 import { loadProject } from "@/features/project/load";
-import { cx } from "@/lib/cx";
+import { PROJECT_SLUG } from "@/features/project/schema";
+import { loadProjectFacts } from "@/features/project-agent/store";
+import { getScoutedProject } from "@/features/scout/projects";
+import { replayFrom } from "@/lib/agent/replay-param";
 
-export default async function DossierPage() {
-  const project = await loadProject();
+/**
+ * The building the dossier covers. Projects opened from the project agent's drafts share the demo project's building,
+ * so they share its dossier; a project added from scouting has its own. Null for an unknown project.
+ */
+async function dossierSubject(slug: string): Promise<{ id: string; name: string } | null> {
+  if (await loadProjectFacts(slug)) return { id: PROJECT_SLUG, name: (await loadProject()).name };
+  const scouted = await getScoutedProject(slug);
+  return scouted ? { id: slug, name: scouted.candidate.name } : null;
+}
+
+/**
+ * The project's dossier: what the research agent found in public sources, every fact citing its page. Opens on the
+ * latest run (or the committed snapshot) and can research again live. `?replay=1` replays the last recorded run.
+ */
+export default async function DossierPage({ params, searchParams }: PageProps<"/projects/[project]/dossier">) {
+  const [{ project: slug }, query] = await Promise.all([params, searchParams]);
+  const subject = await dossierSubject(slug);
+  if (!subject) notFound();
+  const stored = await loadDossier(subject.id);
 
   return (
-    <div className="grid items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_360px]">
-      {/* Its own container, so the list sets label beside value by the panel's width, not the page's. */}
-      <Panel title="Building" flush className="@container">
-        <p className="max-w-[66ch] p-5 text-sm leading-[22px] text-pretty">{project.summary}</p>
-        <dl>
-          {DOSSIER_FACTS.map((fact) => (
-            <div
-              key={fact.label}
-              className="grid gap-1 border-t border-divider px-5 py-3 @lg:grid-cols-[180px_minmax(0,1fr)] @lg:gap-6"
-            >
-              <dt className="text-sm text-muted">{fact.label}</dt>
-              <dd className={cx("text-sm text-pretty", fact.value === NOT_CONFIRMED && "text-muted")}>{fact.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Panel>
-
-      <div className="flex min-w-0 flex-col gap-6">
-        <Panel title="Timeline" flush>
-          <ol className="app-rows">
-            {TIMELINE.map((item) => (
-              <li key={item.when} className="flex gap-4 px-5 py-3 text-sm">
-                <span className="app-num w-28 shrink-0 text-muted">{item.when}</span>
-                <span className="min-w-0">{item.what}</span>
-              </li>
-            ))}
-          </ol>
-        </Panel>
-
-        <Panel title="Sources" count={SOURCES.length} flush>
-          <ol className="app-rows">
-            {SOURCES.map((source) => (
-              <li key={source.url} className="flex flex-col gap-1 px-5 py-3">
-                <TextLink href={source.url} target="_blank" className="text-sm text-pretty">
-                  {source.title}
-                </TextLink>
-                <span className="text-xs text-muted">
-                  {source.publisher}
-                  {source.year ? (
-                    <>
-                      {" · "}
-                      <span className="app-num">{source.year}</span>
-                    </>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </Panel>
-      </div>
-    </div>
+    <DossierBoard
+      projectId={subject.id}
+      projectName={subject.name}
+      initial={stored?.data ?? null}
+      replay={replayFrom(query)}
+    />
   );
 }
