@@ -1,8 +1,9 @@
 "use client";
 
-import { Edges, useGLTF } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Suspense, useMemo } from "react";
+import { Edges, OrbitControls, useGLTF } from "@react-three/drei";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Suspense, useMemo, useRef, useState } from "react";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { MathUtils, PerspectiveCamera, Vector3 } from "three";
 import type { ModelInfo } from "@/features/model/schema";
 import type { CameraPath } from "@/features/shots/schema";
@@ -13,23 +14,57 @@ type Props = {
   /** The camera move to play. Changing it restarts playback. */
   path: CameraPath;
   loop?: boolean;
+  /** Let the viewer orbit, zoom and pan. Grabbing the model stops the camera path; Replay restarts it. */
+  interactive?: boolean;
   className?: string;
 };
 
 /** The shared 3D view. The proposal teaser and the shot preview both play camera paths through it. */
-export function ModelViewer({ model, path, loop = true, className }: Props) {
+export function ModelViewer({ model, path, loop = true, interactive = true, className }: Props) {
+  const [userControl, setUserControl] = useState(false);
+  const [replay, setReplay] = useState(0);
+  const box = model.boundingBox;
+  const span = Math.max(box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]);
+
   return (
-    <div className={className}>
+    <div className={`relative ${className ?? ""}`}>
       <Canvas camera={{ fov: path.fov, near: 0.5, far: 5000 }} dpr={[1, 2]}>
         <color attach="background" args={["#0b0d10"]} />
         <ambientLight intensity={0.7} />
         <directionalLight position={[80, 160, 120]} intensity={1.6} />
-        <Ground box={model.boundingBox} />
-        <Suspense fallback={<Massing box={model.boundingBox} />}>
-          {model.url ? <BuiltModel url={model.url} /> : <Massing box={model.boundingBox} />}
+        <Ground box={box} />
+        <Suspense fallback={<Massing box={box} />}>
+          {model.url ? <BuiltModel url={model.url} /> : <Massing box={box} />}
         </Suspense>
-        <CameraRig key={JSON.stringify(path)} path={path} loop={loop} />
+        {interactive && (
+          <OrbitControls
+            makeDefault
+            enableDamping
+            minDistance={span * 0.15}
+            maxDistance={span * 6}
+            maxPolarAngle={Math.PI / 2 - 0.02} // stay above the ground
+            onStart={() => setUserControl(true)}
+          />
+        )}
+        <CameraRig key={`${JSON.stringify(path)}-${replay}`} path={path} loop={loop} paused={userControl} />
       </Canvas>
+      {interactive && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-3 text-xs text-zinc-300">
+          <span className="rounded bg-black/50 px-2 py-1">Drag to orbit · scroll to zoom · right-drag to pan</span>
+          {userControl && (
+            <button
+              type="button"
+              onClick={() => {
+                setUserControl(false);
+                setReplay((n) => n + 1);
+              }}
+              className="pointer-events-auto rounded bg-black/60 px-3 py-1 font-medium text-white hover:bg-black/80"
+            >
+              Replay
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -70,8 +105,10 @@ function Ground({ box }: { box: ModelInfo["boundingBox"] }) {
   );
 }
 
-function CameraRig({ path, loop }: { path: CameraPath; loop: boolean }) {
+function CameraRig({ path, loop, paused }: { path: CameraPath; loop: boolean; paused: boolean }) {
   const duration = pathDuration(path);
+  const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
+  const start = useRef<number | null>(null); // clock time when this playback began, so Replay starts at t = 0
   const frames = useMemo(
     () =>
       path.keyframes.map((k) => ({
@@ -84,7 +121,9 @@ function CameraRig({ path, loop }: { path: CameraPath; loop: boolean }) {
   const scratch = useMemo(() => ({ position: new Vector3(), target: new Vector3() }), []);
 
   useFrame(({ camera, clock }) => {
-    const elapsed = clock.getElapsedTime();
+    if (paused) return; // the viewer is orbiting by hand
+    if (start.current === null) start.current = clock.getElapsedTime();
+    const elapsed = clock.getElapsedTime() - start.current;
     const t = duration === 0 ? 0 : loop ? elapsed % duration : Math.min(elapsed, duration);
 
     let next = frames.findIndex((f) => f.t >= t);
@@ -99,6 +138,8 @@ function CameraRig({ path, loop }: { path: CameraPath; loop: boolean }) {
     scratch.target.lerpVectors(a.target, b.target, eased);
     camera.position.copy(scratch.position);
     camera.lookAt(scratch.target);
+    // Keep the orbit pivot on the path's target, so grabbing the model mid-flight orbits around what was in view.
+    if (controls) controls.target.copy(scratch.target);
     if (camera instanceof PerspectiveCamera && camera.fov !== path.fov) {
       camera.fov = path.fov;
       camera.updateProjectionMatrix();
