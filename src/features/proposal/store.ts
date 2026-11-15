@@ -19,12 +19,15 @@ import { proposalSchema, type Proposal } from "./schema";
 const FALLBACK_DIR = path.join(process.cwd(), "src", "features", "proposal", "fallback");
 const CLIENT_ID = /^[a-z0-9-]+$/;
 
-/** Local drafts. PROPOSAL_DRAFTS_DIR overrides it (tests use this). */
-function draftsDir(): string {
-  return process.env.PROPOSAL_DRAFTS_DIR || path.join(os.tmpdir(), "tradesmark-proposals", PROJECT_SLUG);
+/** Local drafts, one folder per project. PROPOSAL_DRAFTS_DIR overrides the root (tests use this). */
+function draftsDir(projectSlug: string): string {
+  return path.join(process.env.PROPOSAL_DRAFTS_DIR || path.join(os.tmpdir(), "tradesmark-proposals"), projectSlug);
 }
 
-/** Returns the stored proposal for a client: Supabase, then a local draft, then the committed fallback. */
+/**
+ * Returns the stored proposal for a client on a project: Supabase, then that project's local draft,
+ * then (demo project only) the committed fallback.
+ */
 export async function getProposal(clientId: string, projectSlug: string = PROJECT_SLUG): Promise<Proposal | null> {
   if (isSupabaseConfigured()) {
     try {
@@ -34,7 +37,9 @@ export async function getProposal(clientId: string, projectSlug: string = PROJEC
       console.error(`getProposal(${clientId}): Supabase read failed, using the local copy.`, error);
     }
   }
-  return (await readProposalFile(draftPath(clientId), clientId)) ?? getFallbackProposal(clientId);
+  // The committed fallback is the demo project's reviewed proposal; other projects have none.
+  const draft = await readProposalFile(draftPath(projectSlug, clientId), clientId);
+  return draft ?? (projectSlug === PROJECT_SLUG ? getFallbackProposal(clientId) : null);
 }
 
 /**
@@ -81,7 +86,7 @@ async function readProposalFile(file: string | null, clientId: string): Promise<
 
 /** Writes the local draft (atomically, via a temp file). Returns false instead of throwing when it can't. */
 async function writeDraft(proposal: Proposal): Promise<boolean> {
-  const file = draftPath(proposal.clientId);
+  const file = draftPath(proposal.projectSlug, proposal.clientId);
   if (!file) return false;
   try {
     await mkdir(path.dirname(file), { recursive: true });
@@ -95,8 +100,8 @@ async function writeDraft(proposal: Proposal): Promise<boolean> {
   }
 }
 
-function draftPath(clientId: string): string | null {
-  return CLIENT_ID.test(clientId) ? path.join(draftsDir(), `${clientId}.json`) : null;
+function draftPath(projectSlug: string, clientId: string): string | null {
+  return CLIENT_ID.test(clientId) && CLIENT_ID.test(projectSlug) ? path.join(draftsDir(projectSlug), `${clientId}.json`) : null;
 }
 
 async function getStoredProposal(clientId: string, projectSlug: string): Promise<Proposal | null> {
