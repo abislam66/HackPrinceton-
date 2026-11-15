@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { send } = vi.hoisted(() => ({ send: vi.fn() }));
+const { send, session } = vi.hoisted(() => ({ send: vi.fn(), session: vi.fn() }));
 vi.mock("@/features/outreach/actions", () => ({ sendOutreach: send }));
+vi.mock("@/lib/auth/session", () => ({ getSessionEmail: session }));
 
 const { POST } = await import("./route");
 
@@ -19,28 +20,46 @@ describe("POST /api/outreach/[client]/send", () => {
   beforeEach(() => {
     send.mockReset();
     send.mockResolvedValue({ status: "ok", message: { status: "sent" } });
+    session.mockReset();
+    session.mockResolvedValue("abislam64@gmail.com");
   });
 
-  it("passes the typed address to the send, apart from the edits", async () => {
+  it("passes the typed address and the signed-in person's email to the send, apart from the edits", async () => {
     await call({ ...edits, to: "sam@gmail.com" });
-    expect(send).toHaveBeenCalledWith("client-a", { resend: false, edits, to: "sam@gmail.com" });
+    expect(send).toHaveBeenCalledWith("client-a", {
+      resend: false,
+      edits,
+      to: "sam@gmail.com",
+      signedInAs: "abislam64@gmail.com",
+    });
   });
 
-  it("sends to the demo inbox when no address is given", async () => {
+  it("takes who is sending from the session, never from the request body", async () => {
+    session.mockResolvedValue(null);
+    await call({ ...edits, to: "sam@gmail.com", signedInAs: "rafiatamir@gmail.com", sender: "rafiatamir@gmail.com" });
+    expect(send).toHaveBeenCalledWith("client-a", { resend: false, edits, to: "sam@gmail.com", signedInAs: null });
+  });
+
+  it("sends the demo copy when no address is given, and doesn't even look at the session", async () => {
     await call(edits);
-    expect(send).toHaveBeenCalledWith("client-a", { resend: false, edits, to: undefined });
+    expect(send).toHaveBeenCalledWith("client-a", { resend: false, edits, to: undefined, signedInAs: null });
     await call();
-    expect(send).toHaveBeenLastCalledWith("client-a", { resend: false, edits: undefined, to: undefined });
+    expect(send).toHaveBeenLastCalledWith("client-a", { resend: false, edits: undefined, to: undefined, signedInAs: null });
+    expect(session).not.toHaveBeenCalled();
   });
 
-  it("answers 403 for an address that is not allowed, and 400 for one that is not an address", async () => {
-    send.mockResolvedValueOnce({ status: "refused", why: "not-allowed", reason: "x@y.co isn't on OUTREACH_ALLOWLIST" });
-    const forbidden = await call({ ...edits, to: "x@y.co" });
-    expect(forbidden.status).toBe(403);
-    expect((await forbidden.json()).error).toContain("OUTREACH_ALLOWLIST");
-
-    send.mockResolvedValueOnce({ status: "refused", why: "bad-address", reason: "Enter one email address." });
-    expect((await call({ ...edits, to: "nope" })).status).toBe(400);
+  it("answers 400 for something that isn't an address, 401 when nobody is signed in, 403 when that account can't send", async () => {
+    const cases = [
+      ["bad-address", 400],
+      ["sign-in", 401],
+      ["not-a-sender", 403],
+    ] as const;
+    for (const [why, status] of cases) {
+      send.mockResolvedValueOnce({ status: "refused", why, reason: `reason for ${why}` });
+      const res = await call({ ...edits, to: "x@y.co" });
+      expect(res.status).toBe(status);
+      expect((await res.json()).error).toBe(`reason for ${why}`);
+    }
   });
 
   it("rejects a bad body before sending anything", async () => {

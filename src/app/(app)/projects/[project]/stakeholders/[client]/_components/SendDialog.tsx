@@ -9,6 +9,7 @@ import { Field } from "@/components/ui/Field";
 import { normalizeAddress } from "@/features/outreach/address";
 import { gmailComposeUrl } from "@/features/outreach/compose";
 import type { OutreachMessage, OutreachOverview } from "@/features/outreach/schema";
+import { planSend } from "@/features/outreach/send-plan";
 import { type Client, PROJECT_SLUG } from "@/features/project/schema";
 import { sendProposal } from "@/features/workspace/actions";
 
@@ -19,6 +20,8 @@ type Props = {
   client: Pick<Client, "id" | "company" | "contact">;
   projectName: string;
   basePath: string;
+  /** The signed-in person's Gmail when the app can send as them (they're on OUTREACH_SENDERS), else null. */
+  sendFrom: string | null;
 };
 
 /** The 13 px/500 label a Field draws, for the read-only parts of the form. */
@@ -61,13 +64,14 @@ async function loadDraft(clientId: string, fresh: boolean): Promise<{ message: O
 /**
  * Sends a built proposal. Opening it writes the email live (Sonnet, from the stakeholder's brief and pitch, about
  * ten seconds) or reopens the stored draft; the operator edits it and sends. Two ways out:
- * - Send from here, with Gmail set up: through Gmail to the address typed in "Email address" if it is on the
- *   server's OUTREACH_ALLOWLIST (the server refuses otherwise), or, left blank, to the team inbox as a demo copy.
- * - Open in Gmail: Gmail's compose window with the address, subject and message filled in, sent from the operator's
- *   own Gmail. Then "Mark as sent" records it here. Works without any Gmail setup.
+ * - Send from here, with Gmail set up: to the address typed in "Email address", to anyone, from the signed-in
+ *   person's own Gmail (`sendFrom`, only for the accounts on the server's OUTREACH_SENDERS); or, with the address
+ *   left blank, a demo copy to the team inbox. What the button does is decided by `planSend`.
+ * - Open in Gmail: Gmail's compose window with the address, subject and message filled in, sent from whichever
+ *   Gmail the operator is signed in to in the browser. Then "Mark as sent" records it here. Needs no setup.
  * Email covers the demo project's stakeholders only: for a project the agent opened, sending marks it sent.
  */
-export function SendDialog({ open, onClose, projectSlug, client, projectName, basePath }: Props) {
+export function SendDialog({ open, onClose, projectSlug, client, projectName, basePath, sendFrom }: Props) {
   const router = useRouter();
   const formId = useId();
   const [draft, setDraft] = useState<DraftState>({ phase: "loading" });
@@ -111,11 +115,20 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
   const ready = draft.phase === "ready" ? draft : null;
   const markOnly = draft.phase === "mark-only";
   const alreadyEmailed = ready?.message.status === "sent";
-  const emails = Boolean(ready?.gmail.configured) && !alreadyEmailed && !gmailOpened;
 
   const typed = to.trim();
   const address = typed ? normalizeAddress(typed) : null;
   const toInvalid = typed !== "" && address === null;
+  const plan = planSend({
+    gmailConfigured: Boolean(ready?.gmail.configured),
+    alreadyEmailed: Boolean(alreadyEmailed),
+    gmailOpened,
+    address,
+    sendFrom,
+    deliverTo: ready?.gmail.deliverTo ?? null,
+  });
+  // The email goes out from here (a demo copy, or from the signed-in person's Gmail), not just "mark as sent".
+  const emails = plan.kind === "demo" || plan.kind === "direct";
   // The message as it goes to Gmail: the proposal link always stays in it, as it does on a send from here.
   const proposalUrl = ready?.message.proposalUrl ?? "";
   const gmailBody = proposalUrl && !body.includes(proposalUrl) ? `${body.trimEnd()}\n\n${proposalUrl}` : body;
@@ -140,7 +153,7 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
   };
 
   const send = () => {
-    if (!ready && !markOnly) return;
+    if ((!ready && !markOnly) || plan.kind === "blocked") return;
     setError(null);
     startTransition(async () => {
       if (emails) {
@@ -174,11 +187,13 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
       ? "This email already went out. Sending marks the proposal as sent."
       : gmailOpened
         ? (gmailNote ?? "Send it from the Gmail window, then mark it sent here.")
-        : ready.gmail.configured
-          ? address
-            ? `Sends through Gmail to ${address}. The address has to be on the allowlist.`
-            : `Sends through Gmail to ${ready.gmail.deliverTo ?? "the team inbox"} as a demo copy. Type an address to send to someone else.`
-          : "Gmail isn't connected, so Mark as sent only records it. Open in Gmail to send it yourself.";
+        : plan.kind === "direct"
+          ? `Sends from ${plan.from} to ${plan.to}, as written.`
+          : plan.kind === "blocked"
+            ? plan.reason
+            : plan.kind === "demo"
+              ? `Sends a demo copy through Gmail to ${plan.deliverTo ?? "the team inbox"}. Type an address to email someone.`
+              : "Gmail isn't connected, so Mark as sent only records it. Open in Gmail to send it yourself.";
 
   return (
     <Dialog
@@ -202,11 +217,11 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
               variant="primary"
               type="submit"
               form={formId}
-              disabled={(!ready && !markOnly) || (emails && toInvalid)}
+              disabled={(!ready && !markOnly) || plan.kind === "blocked" || (emails && toInvalid)}
               pending={pending}
               pendingLabel="Sending…"
             >
-              {emails ? "Send proposal" : "Mark as sent"}
+              {emails || plan.kind === "blocked" ? "Send proposal" : "Mark as sent"}
             </Button>
           </div>
         </>

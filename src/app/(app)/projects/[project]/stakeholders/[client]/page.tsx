@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { draftView } from "@/components/project-agent/draft-view";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { senderFor } from "@/features/outreach/gmail";
 import { listDrafts, loadProjectFacts } from "@/features/project-agent/store";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { loadStakeholder } from "@/features/workspace/status";
+import { getSessionEmail } from "@/lib/auth/session";
 import { NEED_LABEL } from "@/lib/labels";
 import { StakeholderActions } from "./_components/StakeholderActions";
 import { Workspace, type WorkspaceTab } from "./_components/Workspace";
@@ -17,13 +19,16 @@ export default async function StakeholderPage({
 }: PageProps<"/projects/[project]/stakeholders/[client]">) {
   const { project: projectSlug, client: clientId } = await params;
 
-  const [project, status, model, query, drafts] = await Promise.all([
+  const [project, status, model, query, drafts, email] = await Promise.all([
     loadProjectFacts(projectSlug),
     loadStakeholder(projectSlug, clientId),
     loadStakeholderModel(clientId, projectSlug),
     searchParams,
     listDrafts(projectSlug),
+    getSessionEmail(),
   ]);
+  // The Gmail the app can send this person's proposals from: theirs, if it's one of OUTREACH_SENDERS. Null otherwise.
+  const sendFrom = senderFor(email)?.email ?? null;
   if (!project || !status) notFound();
 
   const { client, stage, proposal, engagement, events, sentAt } = status;
@@ -56,6 +61,7 @@ export default async function StakeholderPage({
               basePath={basePath}
               opens={engagement.opens}
               sentAt={sentAt}
+              sendFrom={sendFrom}
             />
           )
         }

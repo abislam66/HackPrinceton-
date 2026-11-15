@@ -3,7 +3,15 @@ import { PROJECT_SLUG } from "@/features/project/schema";
 import { markSent } from "@/features/workspace/state";
 import { checkDraft, draftEmail, ensureUrl, type DraftSource } from "./draft";
 import { normalizeAddress } from "./address";
-import { getAccount, getDeliverTo, gmailConfigured, isAllowedRecipient, sendEmail } from "./gmail";
+import {
+  getAccount,
+  getDeliverTo,
+  gmailConfigured,
+  isAllowedRecipient,
+  senderFor,
+  sendEmail,
+  type Sender,
+} from "./gmail";
 import {
   outreachOverviewSchema,
   type EmailDraft,
@@ -14,9 +22,10 @@ import { getMessage, getSyncedAt, listMessages, messageId, saveMessage, syncRepl
 
 /*
  * Outreach as plain functions: the API routes and the chat agent's tools both call these.
- * A send goes to OUTREACH_DELIVER_TO, never to the stakeholder, unless the operator types a recipient in the
- * send dialog (`to`). Nothing the model writes ever becomes a recipient. gmail.ts refuses anything off
- * OUTREACH_ALLOWLIST either way, so an address only works once someone has put it on that list.
+ * A send goes to OUTREACH_DELIVER_TO as a demo copy, never to the stakeholder, unless the operator types a recipient
+ * in the send dialog (`to`). Then it goes to that address, to anyone, but only from the signed-in person's own Gmail
+ * and only if that account is on OUTREACH_SENDERS. Nothing the model writes ever becomes a recipient. gmail.ts
+ * refuses anything off OUTREACH_ALLOWLIST when it sends from the shared account.
  */
 
 export type DraftOutcome =
@@ -29,8 +38,11 @@ export type SendOutcome =
   | { status: "no-draft" }
   | { status: "already-sent"; message: OutreachMessage }
   | { status: "not-configured"; reason: string }
-  /** The typed recipient is not one plain address, or is not on OUTREACH_ALLOWLIST. Nothing was sent. */
-  | { status: "refused"; why: "bad-address" | "not-allowed"; reason: string };
+  /**
+   * Nothing was sent: the typed recipient is not one plain address (`bad-address`), nobody is signed in
+   * (`sign-in`), or the signed-in person's Gmail is not one the app can send as (`not-a-sender`).
+   */
+  | { status: "refused"; why: "bad-address" | "sign-in" | "not-a-sender"; reason: string };
 
 export type EditOutcome =
   | { status: "ok"; message: OutreachMessage; problems: string[] }
@@ -126,14 +138,19 @@ export function demoLine(intendedFor: OutreachMessage["intendedFor"]): string {
 }
 
 /**
- * Sends the stored draft through Gmail. By default it goes to OUTREACH_DELIVER_TO as a labelled demo copy. With `to`
- * (the operator typed an address) it goes to that one address as written, if it is on OUTREACH_ALLOWLIST; otherwise
- * it is refused and nothing is sent. A sent message is not sent again unless `resend`. Configuration problems leave
- * the message untouched; a Gmail failure marks it `failed` with the error.
+ * Sends the stored draft through Gmail. By default it goes to OUTREACH_DELIVER_TO as a labelled demo copy, from the
+ * shared account. With `to` (the operator typed an address) it goes to that one address as written, to anyone, from
+ * the Gmail account of `signedInAs`: the verified email of whoever is signed in, which the caller must take from the
+ * session and never from the request. It is refused, and nothing is sent, if nobody is signed in or that account is
+ * not on OUTREACH_SENDERS. A sent message is not sent again unless `resend`. Configuration problems leave the message
+ * untouched; a Gmail failure marks it `failed` with the error.
+ *
+ * Replies to a message sent from a person's own Gmail arrive in their own inbox, so it keeps no Gmail thread id:
+ * the reply sync reads the shared account only.
  */
 export async function sendOutreach(
   clientId: string,
-  opts: { resend?: boolean; edits?: EmailDraft; to?: string } = {},
+  opts: { resend?: boolean; edits?: EmailDraft; to?: string; signedInAs?: string | null } = {},
 ): Promise<SendOutcome> {
   return withClientLock(clientId, async (): Promise<SendOutcome> => {
     const stored = await getMessage(clientId);
@@ -155,17 +172,27 @@ export async function sendOutreach(
         reason: "Gmail is not configured: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GMAIL_REFRESH_TOKEN.",
       };
     }
-    // An address the operator typed wins over the demo inbox, and is sent as written, with no demo label.
+    // An address the operator typed wins over the demo inbox, and is sent as written, with no demo label, from the
+    // signed-in person's own Gmail.
     const typed = opts.to?.trim() ?? "";
     let deliverTo: string | null;
+    let sender: Sender | undefined;
     if (typed) {
       deliverTo = normalizeAddress(typed);
       if (!deliverTo) return { status: "refused", why: "bad-address", reason: "Enter one email address." };
-      if (!isAllowedRecipient(deliverTo)) {
+      if (!opts.signedInAs) {
         return {
           status: "refused",
-          why: "not-allowed",
-          reason: `${deliverTo} isn't on OUTREACH_ALLOWLIST, so it can't be sent from here. Add it to the allowlist on the host, or use Open in Gmail to send it yourself.`,
+          why: "sign-in",
+          reason: "Sign in to send from your Gmail. Until then, use Open in Gmail.",
+        };
+      }
+      sender = senderFor(opts.signedInAs) ?? undefined;
+      if (!sender) {
+        return {
+          status: "refused",
+          why: "not-a-sender",
+          reason: `${opts.signedInAs} isn't set up to send from the app. Use Open in Gmail to send it from your own Gmail.`,
         };
       }
     } else {
@@ -181,7 +208,7 @@ export async function sendOutreach(
     const subject = typed ? message.subject : `[Demo → ${message.intendedFor.company}] ${message.subject}`;
     const body = typed ? message.body : `${demoLine(message.intendedFor)}\n\n${message.body}`;
     try {
-      const sent = await sendEmail({ to: deliverTo, subject, body });
+      const sent = await sendEmail({ to: deliverTo, subject, body, sender });
       const sentAt = new Date().toISOString();
       const saved = await saveMessage({
         ...message,
@@ -190,7 +217,8 @@ export async function sendOutreach(
         deliveredTo: deliverTo,
         sentAt,
         gmailMessageId: sent.id,
-        gmailThreadId: sent.threadId,
+        // The reply sync reads the shared account's threads only; a person's own thread is not in it.
+        gmailThreadId: sender ? null : sent.threadId,
         error: null,
         // A new send is a new thread; the reply sync fills this from it.
         replies: [],
