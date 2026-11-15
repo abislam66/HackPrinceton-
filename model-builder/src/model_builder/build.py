@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from .contract import METADATA_FILE, MODEL_FILE, BoundingBox, ModelMetadata
@@ -54,7 +55,10 @@ def build_model(project_dir: Path, out_dir: Path) -> ModelMetadata:
     if spec is None:
         glb, box = box_glb(STAND_IN_BOX, name=slug), STAND_IN_BOX
     else:
-        glb, box = build_massing(spec)
+        glb, box, provenance = build_massing(spec)
+        # Which values came from the project and which were inferred, so assumptions are visible.
+        for key, source in provenance.items():
+            print(f"  {key}: {source}", file=sys.stderr)
     _replace_atomic(out_dir / MODEL_FILE, glb)
 
     metadata = ModelMetadata(

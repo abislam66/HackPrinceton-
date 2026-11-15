@@ -94,3 +94,82 @@ def test_tiny_footprint_is_rejected(tmp_path):
     tiny = {**HOBSON, "footprint": [[LNG, LAT], [LNG + 1e-7, LAT], [LNG, LAT + 1e-7]]}
     with pytest.raises(ValueError):
         build_model(make_project(tmp_path, tiny), tmp_path / "out")
+
+
+# --- Inference from few facts (Hobson: 270,000 sq ft, six levels up to 60 ft, wings around a quad) ---
+
+from shapely.geometry import Polygon as _Polygon  # noqa: E402
+
+from model_builder.massing import infer_plate  # noqa: E402
+
+SITE = [  # ~168 m x 175 m site, about the size of the OSM construction area
+    [LNG - 0.0010, LAT - 0.0008],
+    [LNG + 0.0010, LAT - 0.0008],
+    [LNG + 0.0010, LAT + 0.0008],
+    [LNG - 0.0010, LAT + 0.0008],
+]
+HOBSON_FACTS = {"slug": "demo-project", "footprint": SITE, "grossAreaSqFt": 270000, "floors": 6,
+                "heightM": 18.288, "typology": "courtyard", "facades": {"south": {"material": "brick"}}}
+PLATE_M2 = 270000 * 0.09290304 / 6  # ~4,181 m² per floor
+
+
+def test_courtyard_plate_holds_the_gross_area_with_a_quad():
+    spec = parse_spec(HOBSON_FACTS)
+    plate, notes = infer_plate(spec)
+    polys = [plate] if isinstance(plate, _Polygon) else list(plate.geoms)
+    assert any(p.interiors for p in polys), "courtyard needs a quad (a hole)"
+    depth = float(notes["wingDepthM"].split()[0])
+    assert 10.0 <= depth <= 20.0
+    # The site would need ~6 m wings to hold exactly PLATE_M2; depth is clamped to 10 m, so the plate is bigger
+    # and the provenance reports the implied average floor count ("varied massing, reaching six levels").
+    assert plate.area >= PLATE_M2
+    assert "average floors" in notes["plateAreaM2"]
+
+
+def test_courtyard_build_respects_height_cap_and_has_open_quad(tmp_path):
+    out = tmp_path / "out"
+    metadata = build_model(make_project(tmp_path, HOBSON_FACTS), out)
+    assert metadata.boundingBox.max[1] <= 18.288 + 1e-6
+    assert metadata.boundingBox.max[0] - metadata.boundingBox.min[0] > 150  # wings still span the site
+    mesh = trimesh.load(out / "model.glb", file_type="glb", force="mesh")
+    roof = mesh.face_normals[:, 1] > 0.5
+    roof_area = mesh.area_faces[roof].sum()
+    assert roof_area < 0.5 * 168 * 175  # mostly open quad, not a solid block
+
+
+def test_height_only_infers_floors():
+    spec = parse_spec({"slug": "x", "grossAreaM2": 3000, "heightM": 12.5})
+    assert spec.floors == 4 and spec.height_m == pytest.approx(12.2)
+    assert spec.provenance["floors"].startswith("inferred")
+
+
+@pytest.mark.parametrize("typology, aspect", [("block", 1.0), ("bar", 3.0)])
+def test_no_footprint_shapes_have_plate_area(typology, aspect):
+    spec = parse_spec({"slug": "x", "grossAreaM2": 6000, "floors": 3, "typology": typology})
+    plate, _ = infer_plate(spec)
+    assert plate.area == pytest.approx(2000, rel=0.01)
+    minx, miny, maxx, maxy = plate.bounds
+    assert (maxx - minx) / (maxy - miny) == pytest.approx(aspect, rel=0.01)
+
+
+def test_no_footprint_courtyard_is_a_ring_of_plate_area():
+    spec = parse_spec({"slug": "x", "grossAreaM2": 24000, "floors": 4, "typology": "courtyard"})
+    plate, _ = infer_plate(spec)
+    assert plate.interiors and plate.area == pytest.approx(6000, rel=0.01)
+
+
+def test_block_outline_shrinks_to_plate_area():
+    spec = parse_spec({"slug": "x", "footprint": SITE, "grossAreaM2": 20000, "floors": 4})
+    plate, notes = infer_plate(spec)
+    assert plate.area == pytest.approx(5000, rel=0.01) and "outlineScale" in notes
+
+
+@pytest.mark.parametrize("bad", [{"typology": "tower"}, {"grossAreaSqFt": -1}, {"heightM": 0}])
+def test_bad_inference_inputs_are_rejected(bad):
+    with pytest.raises(ValueError):
+        parse_spec({**HOBSON_FACTS, **bad})
+
+
+def test_needs_footprint_or_area():
+    with pytest.raises(ValueError):
+        parse_spec({"slug": "x", "floors": 3})
