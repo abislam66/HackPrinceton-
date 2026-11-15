@@ -70,7 +70,7 @@ Steps run in order: `geocode`, `context`, `model`, `assemble`. Context is `skipp
 
 ## What a good result looks like
 
-- A 17-floor tower in the house style: orange background, toon shading, dark outlines, shadows on the ground.
+- A 17-floor tower in the house style: a light-blue sky, beige ground running to a hazy horizon with a generic low-rise town past the real neighbours, toon shading, dark outlines, shadows on the ground.
 - Nearby buildings as plain blocks, or a reply that says context was "not retrieved".
 - The reply separates observed values (your known facts) from inferred ones, and labels every estimate as inferred.
 - Sources the model cites, if it used web search (up to 3 searches, for building facts only).

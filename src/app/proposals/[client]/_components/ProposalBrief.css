@@ -53,7 +53,7 @@
 
 .proposal-open-copy .tm-h { max-width: 22ch; }
 
-/* Over the light house stage (cream ground, orange sky): asphalt copy and logo. */
+/* Over the light house stage (beige ground, pale blue sky): asphalt copy and logo. */
 .proposal-open--light .proposal-logo,
 .proposal-open--light .proposal-open-copy { color: var(--tm-asphalt); }
 

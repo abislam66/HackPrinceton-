@@ -20,6 +20,8 @@ export type ModelView = {
   contextStatus: string;
   drift: boolean;
   generatedAt: string;
+  /** Made by the older, code-writing generator: it can't take today's stage (the sky, the ground). */
+  stale?: boolean;
 };
 
 /** A run that is not this page's own: started when the project was added, or by the agent. */
@@ -339,6 +341,7 @@ export function ModelBoard({
         <p className="border-t border-divider px-5 py-3 text-[13px] leading-5 text-muted" suppressHydrationWarning>
           Generated {relativeTime(model.generatedAt)} · map location {found(model.geocodeStatus)} · nearby buildings{" "}
           {found(model.contextStatus)}
+          {model.stale ? " · made with an older viewer, so it keeps the old orange stage. Generate again for the sky." : null}
         </p>
       </Panel>
 
