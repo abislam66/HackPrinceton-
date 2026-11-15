@@ -44,6 +44,26 @@ So it is a tool that runs jobs, not a chat companion. The page should look like 
 - Does the Agent page need history at all, or should each run land in the record it changed (a dossier, a project, an outbox)?
 - The reply is plain text by system prompt. Structured results (project cards, a dossier summary) would need the tool results in the stream.
 
+## Decision
+
+**Handoff**, picked from the five directions at `/proto/agent` on 2026-11-15, and shipped on `/agent`.
+
+What it does:
+- The conversation on the left, a sticky **Runs** rail on the right (a "Runs (n)" toggle above the thread under 1100 px). Each tool call is a run card: label, Running / Done / Failed / Stopped tag, live elapsed time, its progress lines behind "Show steps", a dashed "opens here when ready" placeholder while running, and Stop.
+- A finished run with somewhere to go shows a small preview (dossier: three key facts, firm and source counts; 3D model: status and when it was generated; scout: top three with city and fit, and the total; draft: who it is to and the subject), **one Open link**, and its other destinations as quiet links.
+- The reply renders paragraphs and real lists, links the project names the chat's runs returned (and app paths it writes out, when they are real pages), and ends with result rows, each one link.
+- A result that finishes while the rail is out of view raises a notice above the composer: role=status, gone after 6 s, paused on hover or focus, Escape to dismiss, stacks several results of one prompt.
+- Cone rule: the newest unread result's Open is primary and Send drops to secondary, until the user types or follows one of its links; otherwise Send is primary. One Cone in view.
+- Empty state: four quick actions that prefill real prompts (Scout projects, Research a dossier, Build a 3D viewer, Draft outreach). History: a Past chats popover with a filter, grouped by day. Runs are saved with each chat.
+- It needed the structured results the open question above asked about: `/api/agent` now streams a `result` event per tool call with its destinations, built only from what the tool returned (`src/features/agent/destinations.ts`).
+
+Rejected:
+- **Threads** (a history list beside the chat): makes history easy to browse but does nothing for long runs or their results, which are the page's real job.
+- **Ledger** (a dense log of every step): honest and complete, but reads as a debug console; the results it produced are lines among hundreds.
+- **Launch** (task launchers per job): good starts, but every job needed its own structured result from the API, more work than the hackathon allows, and free-form asks fall out of it.
+- **Bench as-is** (runs as first-class cards beside the chat): the right base, but a finished run had no way to reach its result; Handoff is Bench with that added.
+- **Peek** (results open in a side peek): keeps you on the page, but each result type needs its own view to build and keep in step with the real screens, which already exist one click away.
+
 ## Sources
 
 - NN/g, "10 Guidelines for Designing Your Site's AI Chatbots" (April 2026), via https://frontpage-reader-eta.vercel.app/article/cmojyhvtd0007blqcilnnc9rt

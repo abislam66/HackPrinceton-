@@ -6,8 +6,9 @@ export const maxDuration = 300;
 
 /**
  * The Agent tab. Body: `{messages: [{role: "user" | "assistant", content}]}`, ending with the
- * user's new message. Streams newline-delimited JSON events (`AgentEvent`): `tool` when a pipeline
- * tool starts, `progress` lines from long tools, then one `reply` or `error`.
+ * user's new message. Streams newline-delimited JSON events (`AgentEvent`): `tool` when a tool call
+ * starts, `progress` lines from long tools, `result` when each call returns (the pages its results
+ * live on, or its error), then one `reply` or `error`. Events about one call share its `toolUseId`.
  * 400 bad body and 503 no API key come back as plain JSON before any streaming.
  */
 export async function POST(request: Request) {

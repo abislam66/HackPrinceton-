@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { STORAGE_KEY, loadChats, newChat, saveChat, threadFor, titleFor, type Chat } from "@/features/agent/history";
+import {
+  STORAGE_KEY,
+  loadChats,
+  newChat,
+  restoreRuns,
+  saveChat,
+  saveRuns,
+  threadFor,
+  titleFor,
+  type Chat,
+} from "@/features/agent/history";
+import { STOPPED_TEXT, reduceRuns, settleRuns, type Run } from "@/features/agent/runs";
 
 /** A turn on screen. "error" turns are shown but never sent back to the model. */
 export type Turn = { id: number; role: "user" | "assistant" | "error"; text: string };
@@ -38,6 +49,13 @@ export type AgentChat = {
   working: string | null;
   /** When the pending run started (epoch ms), for an elapsed-time readout. */
   startedAt: number | null;
+  /** The chat's tool calls, oldest first, each with its steps and, once done, where its results live. */
+  runs: Run[];
+  /**
+   * Stops reading the pending reply: open runs show as stopped and the thread says the server may still finish the
+   * job. No-op when nothing is pending.
+   */
+  stop: () => void;
   /** Sends a prompt. False when it is empty or a reply is still pending, so the caller keeps the text. */
   send: (text: string) => boolean;
   openChat: (chat: Chat) => void;
@@ -67,14 +85,18 @@ export function useAgentChat({
   const [pending, setPending] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [runs, setRuns] = useState<Run[]>([]);
 
   /** Set when the thread changes by sending, so opening a saved chat doesn't re-save it. */
   const dirty = useRef(false);
   const nextId = useRef(0);
   // Mirrors for the async run, which outlives the render that started it.
   const turnsRef = useRef<Turn[]>([]);
+  const runsRef = useRef<Run[]>([]);
   const pendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  /** Set by stop(), so the aborted read says it was stopped (leaving the page aborts it quietly). */
+  const stoppedRef = useRef(false);
   const handlers = useRef({ toolLabel, onEvent, framePrompt });
   useEffect(() => {
     handlers.current = { toolLabel, onEvent, framePrompt };
@@ -85,12 +107,19 @@ export function useAgentChat({
     setTurns(next);
   }, []);
 
+  const showRuns = useCallback((next: Run[]) => {
+    runsRef.current = next;
+    setRuns(next);
+  }, []);
+
   const openTurns = useCallback(
     (chat: Chat) => {
       setChatId(chat.id);
-      showTurns(chat.turns.map((turn) => ({ ...turn, id: (nextId.current += 1) })));
+      const opened = chat.turns.map((turn) => ({ ...turn, id: (nextId.current += 1) }));
+      showTurns(opened);
+      showRuns(restoreRuns(chat.runs, opened.map((t) => t.id)));
     },
-    [showTurns],
+    [showTurns, showRuns],
   );
 
   // Coming back reopens the latest chat. localStorage only exists in the browser, so this runs after hydration;
@@ -104,13 +133,16 @@ export function useAgentChat({
     setLoaded(true);
   }, [storageKey, openTurns]);
 
-  // Save the chat on screen after every change made by sending.
+  // Save the chat on screen after every change made by sending, its runs with it.
   useEffect(() => {
     if (!dirty.current || !chatId) return;
     dirty.current = false;
     const plain = turns.map(({ role, text }) => ({ role, text }));
-    setChats(saveChat({ id: chatId, title: titleFor(plain), updatedAt: Date.now(), turns: plain }, undefined, storageKey));
-  }, [turns, chatId, storageKey]);
+    const saved = saveRuns(runs, turns.map((t) => t.id));
+    setChats(
+      saveChat({ id: chatId, title: titleFor(plain), updatedAt: Date.now(), turns: plain, runs: saved }, undefined, storageKey),
+    );
+  }, [turns, runs, chatId, storageKey]);
 
   // Leaving the page stops reading the stream. The server finishes its work either way.
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -120,8 +152,18 @@ export function useAgentChat({
       nextId.current += 1;
       dirty.current = true;
       showTurns([...turnsRef.current, { id: nextId.current, role, text }]);
+      return nextId.current;
     },
     [showTurns],
+  );
+
+  const updateRuns = useCallback(
+    (next: Run[]) => {
+      if (next === runsRef.current) return;
+      dirty.current = true;
+      showRuns(next);
+    },
+    [showRuns],
   );
 
   const run = useCallback(
@@ -130,7 +172,8 @@ export function useAgentChat({
       const thread = threadFor([...turnsRef.current, { role: "user", text }]).map((turn) =>
         frame && turn.role === "user" ? { ...turn, content: frame(turn.content) } : turn,
       );
-      append("user", text);
+      const turnId = append("user", text);
+      stoppedRef.current = false;
       pendingRef.current = true;
       setPending(true);
       setWorking(null);
@@ -167,6 +210,7 @@ export function useAgentChat({
               continue; // a torn or foreign line: skip it rather than drop the whole answer
             }
             handlers.current.onEvent?.(event, text);
+            updateRuns(reduceRuns(runsRef.current, event, turnId, Date.now()));
             const label = handlers.current.toolLabel ?? defaultToolLabel;
             if (event.type === "tool" && typeof event.tool === "string") setWorking(label(event.tool));
             else if (event.type === "progress" && typeof event.message === "string") setWorking(event.message);
@@ -179,10 +223,21 @@ export function useAgentChat({
             }
           }
         }
-        if (!answered) append("error", "The agent stopped before answering. Try again.");
+        if (!answered) {
+          const error = "The agent stopped before answering. Try again.";
+          updateRuns(settleRuns(runsRef.current, turnId, "failed", Date.now(), error));
+          append("error", error);
+        }
       } catch {
-        if (controller.signal.aborted) return;
-        append("error", "Couldn't reach the agent. Check your connection and try again.");
+        if (controller.signal.aborted) {
+          if (!stoppedRef.current) return;
+          updateRuns(settleRuns(runsRef.current, turnId, "stopped", Date.now()));
+          append("error", STOPPED_TEXT);
+          return;
+        }
+        const error = "Couldn't reach the agent. Check your connection and try again.";
+        updateRuns(settleRuns(runsRef.current, turnId, "failed", Date.now(), error));
+        append("error", error);
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
         pendingRef.current = false;
@@ -191,7 +246,7 @@ export function useAgentChat({
         setStartedAt(null);
       }
     },
-    [append, endpoint],
+    [append, endpoint, updateRuns],
   );
 
   const send = useCallback(
@@ -218,7 +273,14 @@ export function useAgentChat({
     dirty.current = false;
     setChatId(newChat().id);
     showTurns([]);
-  }, [showTurns]);
+    showRuns([]);
+  }, [showTurns, showRuns]);
 
-  return { turns, chats, chatId, loaded, pending, working, startedAt, send, openChat, startNewChat };
+  const stop = useCallback(() => {
+    if (!pendingRef.current || !abortRef.current) return;
+    stoppedRef.current = true;
+    abortRef.current.abort();
+  }, []);
+
+  return { turns, chats, chatId, loaded, pending, working, startedAt, runs, stop, send, openChat, startNewChat };
 }
