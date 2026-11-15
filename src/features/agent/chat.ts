@@ -11,7 +11,7 @@ import { destinationsFor, type Destination } from "./destinations";
 
 /*
  * The Agent tab's model call. The chat model orchestrates Rafiat's live pipeline tools (scouting,
- * dossiers, outreach, sample progress) and the rest of the app (projects, models, proposals,
+ * dossiers, outreach) and the rest of the app (projects, models, proposals,
  * tracking; ../agent-tools/app-tools.ts) through the SDK tool runner; the research runs inside the
  * tools. Events stream back while it works, so the chat can show which tool is running.
  */

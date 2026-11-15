@@ -45,7 +45,6 @@ const RUN_LABELS: Record<string, string> = {
   edit_outreach_draft: "Editing an outreach draft",
   send_outreach: "Sending outreach",
   list_outreach: "Reading the outbox",
-  get_progress: "Reading progress",
   regenerate_proposal: "Re-pitching a proposal",
   list_projects: "Listing projects",
   add_project_from_scout: "Adding a project",
