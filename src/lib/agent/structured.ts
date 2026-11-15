@@ -2,12 +2,13 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
-import { AgentAbortedError, AgentError, hasAnthropicKey, RESEARCH_MODEL } from "./research";
+import { modelFor, supportsServerFallback } from "./models";
+import { AgentAbortedError, AgentError, hasAnthropicKey } from "./research";
 
 /*
- * Phase 2 of a live stage, and the outreach drafter: one call whose output is constrained to a
- * Zod schema, then parsed again with the same schema. Same approach as
- * src/features/proposal/llm.ts, with a longer timeout because extraction reads a whole run's notes.
+ * Phase 2 of a live stage (extraction, on Haiku) and the outreach drafter (on Sonnet): one call
+ * whose output is constrained to a Zod schema, then parsed again with the same schema. The
+ * models are set per job in ./models.ts.
  */
 
 const TIMEOUT_MS = 90_000;
@@ -15,11 +16,15 @@ const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
-  client ??= new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 0 });
+  // One automatic retry on rate limits and server errors.
+  client ??= new Anthropic({ timeout: TIMEOUT_MS, maxRetries: 1 });
   return client;
 }
 
 type Options = {
+  /** Which job this call does; picks the model. */
+  job?: "extract" | "draft";
+  /** Defaults: medium for extraction (accuracy of the cited ids), low for drafting. */
   effort?: "low" | "medium" | "high";
   maxTokens?: number;
   signal?: AbortSignal;
@@ -33,12 +38,12 @@ export async function structured<T extends z.ZodType>(
   schema: T,
   system: string,
   user: string,
-  { effort = "low", maxTokens = 16000, signal }: Options = {},
+  { job = "extract", effort, maxTokens = 16000, signal }: Options = {},
 ): Promise<z.infer<T>> {
   if (!hasAnthropicKey()) throw new AgentError("ANTHROPIC_API_KEY is not set");
+  const model = modelFor(job);
+  const fallback = supportsServerFallback(model) ? { betas: [FALLBACK_BETA], fallbacks: "default" as const } : {};
   let lastProblem = "";
-  // Fast mode first for stage time; on its own rate limit, retry the same attempt at standard speed.
-  let speed: "fast" | "standard" = "fast";
   for (let attempt = 0; attempt < 2; attempt++) {
     const content =
       attempt === 0 ? user : `${user}\n\nYour previous answer was rejected: ${lastProblem}\nReturn a corrected answer.`;
@@ -46,25 +51,21 @@ export async function structured<T extends z.ZodType>(
     try {
       response = await getClient().beta.messages.parse(
         {
-          model: RESEARCH_MODEL,
+          model,
           max_tokens: maxTokens,
-          betas: [FALLBACK_BETA],
-          fallbacks: "default",
-          speed,
+          ...fallback,
           system,
           messages: [{ role: "user", content }],
-          output_config: { effort, format: betaZodOutputFormat(schema) },
+          output_config: {
+            effort: effort ?? (job === "extract" ? "medium" : "low"),
+            format: betaZodOutputFormat(schema),
+          },
         },
         { signal },
       );
     } catch (error) {
       if (signal?.aborted) throw new AgentAbortedError("The run passed its deadline");
-      if (error instanceof Anthropic.RateLimitError && speed === "fast") {
-        speed = "standard";
-        attempt--;
-        continue;
-      }
-      if (error instanceof Anthropic.APIError) throw new AgentError(`Extraction call failed: ${error.message}`);
+      if (error instanceof Anthropic.APIError) throw new AgentError(`${job} call failed: ${error.message}`);
       // The SDK's parse step throws when the JSON does not match the schema: retry once.
       lastProblem = (error as Error).message;
       continue;

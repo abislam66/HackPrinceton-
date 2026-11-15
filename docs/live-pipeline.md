@@ -36,8 +36,22 @@ POST /api/outreach/[client]/draft ──► review ──► POST .../send ─�
 
 ### Two phases per research run (`src/lib/agent/`)
 
-1. **Research** (`research.ts`): one streamed call to `claude-opus-5-5` with Anthropic's server-side `web_search_20260209` (and optionally `web_fetch_20260209`). Searches are capped per call with `max_uses`. Every page a tool returns goes into the **source ledger** (`ledger.ts`) and is numbered S1, S2, and so on. The ledger is built only from tool-result blocks and citations, never from model text. The model's notes come back with `[S3]` markers wherever a citation backs a passage. `pause_turn` is resent at most twice. Refusals use the server-side fallback.
-2. **Extraction** (`structured.ts`): one structured-output call validated against the stage's Zod schema. It is given the notes and the ledger, and cites ledger IDs. Afterwards, `keepCited` drops anything citing an ID the ledger doesn't have, and the stage drops any firm whose name never appears in the notes or source titles.
+1. **Research** (`research.ts`): one streamed call to `claude-sonnet-5-5` with Anthropic's server-side `web_search_20260209` (and optionally `web_fetch_20260209`). Searches are capped per call with `max_uses`. Every page a tool returns goes into the **source ledger** (`ledger.ts`) and is numbered S1, S2, and so on. The ledger is built only from tool-result blocks and citations, never from model text. The model's notes come back with `[S3]` markers wherever a citation backs a passage. `pause_turn` is resent at most twice. Refusals use the server-side fallback.
+2. **Extraction** (`structured.ts`): one structured-output call on `claude-haiku-5-5`, validated against the stage's Zod schema. It is given the notes and the ledger, and cites ledger IDs. Afterwards, `keepCited` drops anything citing an ID the ledger doesn't have, and the stage drops any firm whose name never appears in the notes or source titles.
+
+### Models per job (`src/lib/agent/models.ts`)
+
+Chosen for cost on 2026-11-15. Research reads tens of thousands of tokens of search results per call, so the model that searches sets most of the bill.
+
+| Job | Model | Override |
+|---|---|---|
+| Research (scout regions, dossier) | `claude-sonnet-5-5`, low effort | `RESEARCH_MODEL` |
+| Extraction (notes to schema, citing source ids) | `claude-haiku-5-5`, medium effort | `EXTRACT_MODEL` |
+| Outreach drafts | `claude-sonnet-5-5`, low effort | `DRAFT_MODEL` |
+| Agent tab chat (Behruz's route) | `claude-sonnet-5-5` recommended | in that route |
+| Shots and pitch | unchanged, `src/features/proposal/llm.ts` | |
+
+No fast mode: Sonnet 5.5 and Haiku 5.5 don't offer it. The server-side refusal fallback is sent only to models that accept it; Haiku has none, so a declined extraction fails and the run falls back to its snapshot.
 
 ### Runs stream from the POST (`src/lib/agent/run.ts`)
 

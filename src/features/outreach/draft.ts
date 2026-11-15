@@ -142,7 +142,7 @@ async function liveDraft(input: DraftInput): Promise<EmailDraft> {
     proposalUrl,
   };
   const user = `Write the email for this brief:\n${JSON.stringify(brief, null, 2)}`;
-  const options = { effort: "low" as const, maxTokens: 4000, signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS) };
+  const options = { job: "draft" as const, effort: "low" as const, maxTokens: 4000, signal: AbortSignal.timeout(DRAFT_TIMEOUT_MS) };
 
   let draft = await structured(emailDraftSchema, SYSTEM, user, options);
   let problems = checkDraft(draft, proposalUrl);

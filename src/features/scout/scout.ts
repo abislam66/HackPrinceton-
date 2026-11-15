@@ -95,7 +95,7 @@ async function scoutRegion(
     extractionSchema,
     EXTRACT_SYSTEM,
     extractPrompt(region, today, notes.text, sources.length ? sources : ledger.list()),
-    { signal, maxTokens: 8000 },
+    { job: "extract", signal, maxTokens: 8000 },
   );
 
   const found = Math.min(candidates.filter((c) => c.sourceIds.some((id) => ledger.has(id))).length, SCOUT_LIMITS.perRegion);

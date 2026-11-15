@@ -26,7 +26,7 @@ import { writeRecord } from "@/lib/store/json-store";
  * Use with the SDK tool runner:
  *
  *   const runner = client.beta.messages.toolRunner({
- *     model: "claude-opus-5-5", max_tokens: 16000,
+ *     model: "claude-sonnet-5-5", max_tokens: 16000,
  *     system: `${yourPrompt}\n\n${PIPELINE_TOOLS_PROMPT}`,
  *     tools: createPipelineTools({ onProgress }),
  *     messages,

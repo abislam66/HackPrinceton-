@@ -6,6 +6,7 @@ import type {
   BetaToolUnion,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { SourceLedger } from "./ledger";
+import { modelFor, supportsServerFallback } from "./models";
 import type { ProgressFn } from "./schema";
 
 /*
@@ -15,7 +16,6 @@ import type { ProgressFn } from "./schema";
  * Phase 2 (./structured.ts) turns that text into the stage's schema, citing ledger ids.
  */
 
-export const RESEARCH_MODEL = "claude-opus-5-5";
 /** A research call searches and reads pages server-side; give it room, but not forever. */
 const REQUEST_TIMEOUT_MS = 180_000;
 /** A long server-side tool loop stops with `pause_turn`; resend at most this many times. */
@@ -170,16 +170,18 @@ export async function research(options: ResearchOptions): Promise<ResearchResult
     }
   };
 
+  const model = modelFor("research");
+  // Re-runs a declined request on Anthropic's recommended fallback model, where the model has one.
+  const fallback = supportsServerFallback(model) ? { betas: [FALLBACK_BETA], fallbacks: "default" as const } : {};
+
   let messages: BetaMessageParam[] = [{ role: "user", content: options.prompt }];
   try {
     for (let turn = 0; ; turn++) {
       const stream = getClient().beta.messages.stream(
         {
-          model: RESEARCH_MODEL,
+          model,
           max_tokens: 16000,
-          // Re-runs a declined request on Anthropic's recommended fallback model.
-          betas: [FALLBACK_BETA],
-          fallbacks: "default",
+          ...fallback,
           system: options.system,
           messages,
           tools,

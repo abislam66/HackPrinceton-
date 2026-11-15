@@ -124,7 +124,7 @@ export async function runDossier(target: DossierTarget, ctx: RunContext): Promis
 
   progress({ kind: "note", message: `Writing the dossier from ${ledger.size} sources` });
   const extraction = await structured(dossierExtractionSchema, extractionSystem(now), extractionPrompt(target, notes, ledger), {
-    effort: "low",
+    job: "extract",
     maxTokens: 8000,
     signal,
   });
