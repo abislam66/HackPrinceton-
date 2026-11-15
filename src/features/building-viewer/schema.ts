@@ -40,6 +40,8 @@ export type ViewerEvent =
       /** model.json in the model builder's schema, or null when even the SUBJECT-dims fallback failed. */
       model_json: ModelMetadata | null;
       model_json_status: string;
+      /** The project this viewer belongs to: the form's projectSlug, else made from the name or address. */
+      project_slug: string;
     }
   | { type: "error"; error: string; step: string };
 

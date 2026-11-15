@@ -148,6 +148,7 @@ export async function generateViewer(input: ViewerInput, photo: { bytes: Uint8Ar
     drift,
     model_json: model.ok ? model.model : null,
     model_json_status: modelJsonStatus,
+    project_slug: projectSlug,
   };
 }
 

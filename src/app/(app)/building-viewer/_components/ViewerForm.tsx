@@ -6,6 +6,7 @@ import { Field } from "@/components/ui/Field";
 import { Panel } from "@/components/ui/Panel";
 import { Tag } from "@/components/ui/Tag";
 import type { ViewerEvent, ViewerStep } from "@/features/building-viewer/schema";
+import { exportGlb, saveModel } from "./save-model";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const TOO_LONG = "This took too long. Try again.";
@@ -23,12 +24,26 @@ type Result = Extract<ViewerEvent, { type: "result" }>;
 
 /** What the form starts with when it is opened from a project. Every field stays editable. */
 export type ViewerPrefill = {
+  /** The project the form was opened from; the generated model is saved to it. */
+  projectSlug?: string;
   address: string;
   buildingName: string;
   knownFacts: string;
   /** The project's first reference photo, fetched into the photo field on load. */
   photo?: { url: string; name: string };
 };
+
+type ModelState = { status: "idle" | "working" | "saved" | "failed"; message?: string };
+
+/** Export the building as a GLB in a hidden sandboxed frame and save it as the project's model for the Shots tab. */
+async function exportAndSaveModel(html: string, projectSlug: string, accessCode: string): Promise<ModelState> {
+  try {
+    await saveModel(await exportGlb(html), projectSlug, accessCode);
+    return { status: "saved" };
+  } catch (caught) {
+    return { status: "failed", message: caught instanceof Error ? caught.message : "The 3D model could not be saved." };
+  }
+}
 
 /** A message already written for the person reading it, shown as is. */
 class ShownError extends Error {}
@@ -74,6 +89,8 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
   const [elapsed, setElapsed] = useState(0);
   const [steps, setSteps] = useState<Partial<Record<ViewerStep, StepState>>>({});
   const [result, setResult] = useState<Result | null>(null);
+  /** The 3D model for the Shots tab: exported from the viewer's building, then saved to the project. */
+  const [modelState, setModelState] = useState<ModelState>({ status: "idle" });
   const [error, setError] = useState<string | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
@@ -162,6 +179,7 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
     setAddressError(undefined);
     setError(null);
     setResult(null);
+    setModelState({ status: "idle" });
     setSteps({});
     if (address.trim().length < 5) return setAddressError("Enter a street address.");
     if (photoError) return;
@@ -171,6 +189,7 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
     body.set("buildingName", buildingName);
     body.set("knownFacts", knownFacts);
     body.set("notes", notes);
+    if (prefill?.projectSlug) body.set("projectSlug", prefill.projectSlug);
     if (photo) body.set("photo", photo);
 
     setRunning(true);
@@ -196,6 +215,12 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
         } else if (event.type === "result") {
           finished = true;
           setResult(event);
+          if (prefill?.projectSlug) {
+            setModelState({ status: "working" });
+            void exportAndSaveModel(event.html, event.project_slug, accessCode).then(setModelState);
+          } else {
+            setModelState({ status: "failed", message: "Open this form from a project to save its 3D model for the Shots tab." });
+          }
         } else {
           throw new ShownError(failureText(event.step, event.error));
         }
@@ -328,6 +353,11 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
             <Panel title="What the model says">
               <div className="flex flex-col gap-3 tm-text--s">
                 <p className="whitespace-pre-wrap">{result.reply}</p>
+                <p className="text-muted" role="status">
+                  {modelState.status === "working" ? "Saving the 3D model for the Shots tab…" : null}
+                  {modelState.status === "saved" ? "3D model saved. The Shots tab uses it for this project." : null}
+                  {modelState.status === "failed" ? `3D model not saved: ${modelState.message}` : null}
+                </p>
                 <p className="text-muted">
                   Geocode: {result.geocode_status}. Nearby buildings: {result.context_status}.
                   {result.drift ? " The model changed locked code, so the locked scaffold was used." : ""}

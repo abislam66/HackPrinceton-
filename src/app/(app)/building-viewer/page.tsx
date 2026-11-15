@@ -48,6 +48,7 @@ async function loadPrefill(slug: string): Promise<{ name: string; prefill: Viewe
   return {
     name: project.name,
     prefill: {
+      projectSlug: slug,
       address: geocodableAddress(project.address),
       buildingName: project.name,
       knownFacts: factsLine(project),
