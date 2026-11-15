@@ -1,5 +1,6 @@
 import "server-only";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -7,31 +8,39 @@ import { createClient } from "@/lib/supabase/server";
 import { proposalSchema, type Proposal } from "./schema";
 
 /*
- * Proposals live in Supabase when it is configured. The fallback files in ./fallback/ are the
- * last good proposal per client: they keep the demo working without Supabase, and the committed
- * copies keep the deployed demo working (Vercel's filesystem is read-only).
+ * Where proposals live, in the order they are read:
+ * 1. Supabase, when it is configured.
+ * 2. A local draft: the last proposal generated or edited on this machine without Supabase. It sits
+ *    in the OS temp directory, outside the repo, so it can never be committed by accident.
+ * 3. The committed fallback in ./fallback/: the reviewed proposal per client that keeps the demo
+ *    working (Vercel ships it). The app only reads it; to change it, edit and commit the file.
  */
 
 const FALLBACK_DIR = path.join(process.cwd(), "src", "features", "proposal", "fallback");
 const CLIENT_ID = /^[a-z0-9-]+$/;
 
-/** Returns the stored proposal for a client: Supabase first, then the fallback file, else null. */
+/** Local drafts. PROPOSAL_DRAFTS_DIR overrides it (tests use this). */
+function draftsDir(): string {
+  return process.env.PROPOSAL_DRAFTS_DIR || path.join(os.tmpdir(), "tradesmark-proposals", PROJECT_SLUG);
+}
+
+/** Returns the stored proposal for a client: Supabase, then a local draft, then the committed fallback. */
 export async function getProposal(clientId: string): Promise<Proposal | null> {
   if (isSupabaseConfigured()) {
     try {
       const stored = await getStoredProposal(clientId);
       if (stored) return stored;
     } catch (error) {
-      console.error(`getProposal(${clientId}): Supabase read failed, using fallback file.`, error);
+      console.error(`getProposal(${clientId}): Supabase read failed, using the local copy.`, error);
     }
   }
-  return getFallbackProposal(clientId);
+  return (await readProposalFile(draftPath(clientId), clientId)) ?? getFallbackProposal(clientId);
 }
 
 /**
- * Saves a proposal. Upserts to Supabase when configured. Without Supabase, or if the upsert
- * fails, writes the fallback file instead. Throws only if the Supabase write and the file both fail.
- * Returns where it was saved; "none" means no Supabase and a read-only filesystem.
+ * Saves a proposal. Upserts to Supabase when configured. Without Supabase, or if the upsert fails,
+ * writes a local draft; the committed fallback is never touched. Throws only if both fail.
+ * Returns where it was saved; "none" means no Supabase and nowhere writable.
  */
 export async function saveProposal(proposal: Proposal): Promise<"supabase" | "file" | "none"> {
   const parsed = proposalSchema.parse(proposal);
@@ -40,47 +49,54 @@ export async function saveProposal(proposal: Proposal): Promise<"supabase" | "fi
       await upsertStoredProposal(parsed);
       return "supabase";
     } catch (error) {
-      if (!(await writeFallbackProposal(parsed))) throw error;
-      console.error(`saveProposal(${parsed.clientId}): Supabase write failed, wrote the fallback file.`, error);
+      if (!(await writeDraft(parsed))) throw error;
+      console.error(`saveProposal(${parsed.clientId}): Supabase write failed, wrote a local draft.`, error);
       return "file";
     }
   }
-  return (await writeFallbackProposal(parsed)) ? "file" : "none";
+  return (await writeDraft(parsed)) ? "file" : "none";
 }
 
-/** The last good proposal committed or written for this client, or null. */
+/** The reviewed proposal committed for this client, or null. Read-only to the app. */
 export async function getFallbackProposal(clientId: string): Promise<Proposal | null> {
-  if (!CLIENT_ID.test(clientId)) return null;
+  return readProposalFile(path.join(FALLBACK_DIR, `${clientId}.json`), clientId);
+}
+
+async function readProposalFile(file: string | null, clientId: string): Promise<Proposal | null> {
+  if (!file || !CLIENT_ID.test(clientId)) return null;
   let raw: string;
   try {
-    raw = await readFile(fallbackPath(clientId), "utf8");
+    raw = await readFile(file, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
   const result = proposalSchema.safeParse(JSON.parse(raw));
   if (!result.success) {
-    console.error(`Fallback proposal for ${clientId} does not match proposalSchema.`, result.error);
+    console.error(`Proposal file for ${clientId} does not match proposalSchema: ${file}`, result.error);
     return null;
   }
   return result.data;
 }
 
-/** Writes the fallback file. Returns false instead of throwing on a read-only filesystem. */
-async function writeFallbackProposal(proposal: Proposal): Promise<boolean> {
-  if (!CLIENT_ID.test(proposal.clientId)) return false;
+/** Writes the local draft (atomically, via a temp file). Returns false instead of throwing when it can't. */
+async function writeDraft(proposal: Proposal): Promise<boolean> {
+  const file = draftPath(proposal.clientId);
+  if (!file) return false;
   try {
-    await mkdir(FALLBACK_DIR, { recursive: true });
-    await writeFile(fallbackPath(proposal.clientId), `${JSON.stringify(proposal, null, 2)}\n`, "utf8");
+    await mkdir(path.dirname(file), { recursive: true });
+    const temp = `${file}.${process.pid}.tmp`;
+    await writeFile(temp, `${JSON.stringify(proposal, null, 2)}\n`, "utf8");
+    await rename(temp, file);
     return true;
   } catch (error) {
-    console.error(`Could not write fallback proposal for ${proposal.clientId}.`, error);
+    console.error(`Could not write a local draft for ${proposal.clientId}.`, error);
     return false;
   }
 }
 
-function fallbackPath(clientId: string): string {
-  return path.join(FALLBACK_DIR, `${clientId}.json`);
+function draftPath(clientId: string): string | null {
+  return CLIENT_ID.test(clientId) ? path.join(draftsDir(), `${clientId}.json`) : null;
 }
 
 async function getStoredProposal(clientId: string): Promise<Proposal | null> {
