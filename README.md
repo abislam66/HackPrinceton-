@@ -30,7 +30,6 @@ Scouting, the dossier stage, outreach, and progress tracking after a client sign
 
 ### Still open
 
-- The LLM provider for shot and pitch generation.
 - The geometry libraries inside the model builder.
 - How the Matterport resource fits in (details to come).
 - The final format of the shot preview.
@@ -41,6 +40,7 @@ Scouting, the dossier stage, outreach, and progress tracking after a client sign
 - **3D in the browser:** three.js through React Three Fiber and drei
 - **Model builder:** Python, managed with uv, with a FastAPI service around it
 - **Database:** Supabase Postgres
+- **Generation:** Claude Opus 5.5 (`claude-opus-5-5`) through the Anthropic TypeScript SDK
 
 The decisions behind this and the contracts between the parts are in [technical-architecture.md](technical-architecture.md).
 
@@ -82,6 +82,11 @@ uv run model-builder serve                # or run the service the web app calls
 ```
 
 Checks before pushing: `npm run lint && npm run typecheck`, and `uv run pytest` in `model-builder/`.
+
+## Use of AI
+
+- **In the product:** Claude Opus 5.5 (`claude-opus-5-5`, from Anthropic) generates each client's shot list and pitch copy at runtime. It picks which shots to take and writes the copy; camera paths come from fixed templates, and every output is parsed with a Zod schema and rule-checked before it is stored or shown. A person reviews each proposal before it is sent.
+- **In building it:** the team built this project with Claude Code, Anthropic's coding agent, alongside our own work.
 
 ## Team rules
 
