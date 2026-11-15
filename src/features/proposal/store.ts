@@ -25,10 +25,10 @@ function draftsDir(): string {
 }
 
 /** Returns the stored proposal for a client: Supabase, then a local draft, then the committed fallback. */
-export async function getProposal(clientId: string): Promise<Proposal | null> {
+export async function getProposal(clientId: string, projectSlug: string = PROJECT_SLUG): Promise<Proposal | null> {
   if (isSupabaseConfigured()) {
     try {
-      const stored = await getStoredProposal(clientId);
+      const stored = await getStoredProposal(clientId, projectSlug);
       if (stored) return stored;
     } catch (error) {
       console.error(`getProposal(${clientId}): Supabase read failed, using the local copy.`, error);
@@ -99,12 +99,12 @@ function draftPath(clientId: string): string | null {
   return CLIENT_ID.test(clientId) ? path.join(draftsDir(), `${clientId}.json`) : null;
 }
 
-async function getStoredProposal(clientId: string): Promise<Proposal | null> {
+async function getStoredProposal(clientId: string, projectSlug: string): Promise<Proposal | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("proposals")
     .select("client_id, project_slug, status, pitch, shots")
-    .eq("project_slug", PROJECT_SLUG)
+    .eq("project_slug", projectSlug)
     .eq("client_id", clientId)
     .maybeSingle();
   if (error) throw new Error(`Could not load proposal: ${error.message}`);
