@@ -6,6 +6,8 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { Field } from "@/components/ui/Field";
+import { normalizeAddress } from "@/features/outreach/address";
+import { gmailComposeUrl } from "@/features/outreach/compose";
 import type { OutreachMessage, OutreachOverview } from "@/features/outreach/schema";
 import { type Client, PROJECT_SLUG } from "@/features/project/schema";
 import { sendProposal } from "@/features/workspace/actions";
@@ -58,8 +60,11 @@ async function loadDraft(clientId: string, fresh: boolean): Promise<{ message: O
 
 /**
  * Sends a built proposal. Opening it writes the email live (Sonnet, from the stakeholder's brief and pitch, about
- * ten seconds) or reopens the stored draft; the operator edits it and sends. With Gmail set up the email goes through
- * Gmail to the allowlisted team inbox, never to the stakeholder; without it, sending only marks the proposal sent.
+ * ten seconds) or reopens the stored draft; the operator edits it and sends. Two ways out:
+ * - Send from here, with Gmail set up: through Gmail to the address typed in "Email address" if it is on the
+ *   server's OUTREACH_ALLOWLIST (the server refuses otherwise), or, left blank, to the team inbox as a demo copy.
+ * - Open in Gmail: Gmail's compose window with the address, subject and message filled in, sent from the operator's
+ *   own Gmail. Then "Mark as sent" records it here. Works without any Gmail setup.
  * Email covers the demo project's stakeholders only: for a project the agent opened, sending marks it sent.
  */
 export function SendDialog({ open, onClose, projectSlug, client, projectName, basePath }: Props) {
@@ -68,6 +73,11 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
   const [draft, setDraft] = useState<DraftState>({ phase: "loading" });
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [to, setTo] = useState("");
+  const [toTouched, setToTouched] = useState(false);
+  // The operator went to Gmail to send it themselves, so this dialog must not also send it.
+  const [gmailOpened, setGmailOpened] = useState(false);
+  const [gmailNote, setGmailNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const loaded = useRef(false);
@@ -101,7 +111,33 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
   const ready = draft.phase === "ready" ? draft : null;
   const markOnly = draft.phase === "mark-only";
   const alreadyEmailed = ready?.message.status === "sent";
-  const emails = Boolean(ready?.gmail.configured) && !alreadyEmailed;
+  const emails = Boolean(ready?.gmail.configured) && !alreadyEmailed && !gmailOpened;
+
+  const typed = to.trim();
+  const address = typed ? normalizeAddress(typed) : null;
+  const toInvalid = typed !== "" && address === null;
+  // The message as it goes to Gmail: the proposal link always stays in it, as it does on a send from here.
+  const proposalUrl = ready?.message.proposalUrl ?? "";
+  const gmailBody = proposalUrl && !body.includes(proposalUrl) ? `${body.trimEnd()}\n\n${proposalUrl}` : body;
+  const compose =
+    ready && !alreadyEmailed && !toInvalid ? gmailComposeUrl({ to: address ?? "", subject, body: gmailBody }) : null;
+
+  const close = () => {
+    setGmailOpened(false);
+    setGmailNote(null);
+    onClose();
+  };
+
+  const openedGmail = () => {
+    setGmailOpened(true);
+    if (compose && !compose.bodyIncluded) {
+      // Too long for a link: Gmail opens with the address and subject, and the message is on the clipboard.
+      navigator.clipboard?.writeText(gmailBody).catch(() => {});
+      setGmailNote("The message is too long for the link, so it's copied. Paste it into the Gmail window.");
+    } else {
+      setGmailNote(null);
+    }
+  };
 
   const send = () => {
     if (!ready && !markOnly) return;
@@ -111,7 +147,7 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
         const response = await fetch(`/api/outreach/${encodeURIComponent(client.id)}/send`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ subject, body }),
+          body: JSON.stringify({ subject, body, ...(address ? { to: address } : {}) }),
         });
         const result = await readJson<OutreachMessage>(response);
         if (!response.ok && response.status !== 409) {
@@ -124,7 +160,7 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
         setError(emails ? `The email went out, but the proposal wasn't marked sent: ${marked.error}` : marked.error);
         return;
       }
-      onClose();
+      close();
       router.push(`${basePath}?tab=engagement`);
       router.refresh();
     });
@@ -136,28 +172,37 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
     ? "Writing the email from the stakeholder's brief and pitch…"
     : alreadyEmailed
       ? "This email already went out. Sending marks the proposal as sent."
-      : ready.gmail.configured
-        ? `Sends through Gmail to ${ready.gmail.deliverTo ?? "the team inbox"}, never to the stakeholder.`
-        : "Gmail isn't connected, so this only marks the proposal as sent.";
+      : gmailOpened
+        ? (gmailNote ?? "Send it from the Gmail window, then mark it sent here.")
+        : ready.gmail.configured
+          ? address
+            ? `Sends through Gmail to ${address}. The address has to be on the allowlist.`
+            : `Sends through Gmail to ${ready.gmail.deliverTo ?? "the team inbox"} as a demo copy. Type an address to send to someone else.`
+          : "Gmail isn't connected, so Mark as sent only records it. Open in Gmail to send it yourself.";
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={close}
       locked={pending}
       title="Send proposal"
       footer={
         <>
           <p className="text-[13px] leading-[18px] text-muted">{footerNote}</p>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="tertiary" onClick={onClose} disabled={pending}>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button variant="tertiary" onClick={close} disabled={pending}>
               Cancel
             </Button>
+            {markOnly ? null : (
+              <Button href={compose?.url ?? "#"} target="_blank" disabled={!compose || pending} onClick={openedGmail}>
+                Open in Gmail
+              </Button>
+            )}
             <Button
               variant="primary"
               type="submit"
               form={formId}
-              disabled={!ready && !markOnly}
+              disabled={(!ready && !markOnly) || (emails && toInvalid)}
               pending={pending}
               pendingLabel="Sending…"
             >
@@ -186,6 +231,21 @@ export function SendDialog({ open, onClose, projectSlug, client, projectName, ba
               </p>
             </div>
           </div>
+          {markOnly ? null : (
+            <Field
+              label="Email address"
+              type="email"
+              inputMode="email"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="name@gmail.com"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              onBlur={() => setToTouched(true)}
+              error={toInvalid && toTouched ? "Enter one email address." : undefined}
+              disabled={!ready || pending || alreadyEmailed}
+            />
+          )}
         </div>
 
         {markOnly ? null : draft.phase === "error" ? (

@@ -2,6 +2,7 @@ import "server-only";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { markSent } from "@/features/workspace/state";
 import { checkDraft, draftEmail, ensureUrl, type DraftSource } from "./draft";
+import { normalizeAddress } from "./address";
 import { getAccount, getDeliverTo, gmailConfigured, isAllowedRecipient, sendEmail } from "./gmail";
 import {
   outreachOverviewSchema,
@@ -13,8 +14,9 @@ import { getMessage, getSyncedAt, listMessages, messageId, saveMessage, syncRepl
 
 /*
  * Outreach as plain functions: the API routes and the chat agent's tools both call these.
- * Every send goes to OUTREACH_DELIVER_TO, never to the stakeholder; nothing the model writes
- * ever becomes a recipient. gmail.ts refuses anything off OUTREACH_ALLOWLIST on top of that.
+ * A send goes to OUTREACH_DELIVER_TO, never to the stakeholder, unless the operator types a recipient in the
+ * send dialog (`to`). Nothing the model writes ever becomes a recipient. gmail.ts refuses anything off
+ * OUTREACH_ALLOWLIST either way, so an address only works once someone has put it on that list.
  */
 
 export type DraftOutcome =
@@ -26,7 +28,9 @@ export type SendOutcome =
   | { status: "ok" | "failed"; message: OutreachMessage }
   | { status: "no-draft" }
   | { status: "already-sent"; message: OutreachMessage }
-  | { status: "not-configured"; reason: string };
+  | { status: "not-configured"; reason: string }
+  /** The typed recipient is not one plain address, or is not on OUTREACH_ALLOWLIST. Nothing was sent. */
+  | { status: "refused"; why: "bad-address" | "not-allowed"; reason: string };
 
 export type EditOutcome =
   | { status: "ok"; message: OutreachMessage; problems: string[] }
@@ -122,13 +126,14 @@ export function demoLine(intendedFor: OutreachMessage["intendedFor"]): string {
 }
 
 /**
- * Sends the stored draft through Gmail to OUTREACH_DELIVER_TO. A sent message is not sent again
- * unless `resend`. Configuration problems leave the message untouched; a Gmail failure marks it
- * `failed` with the error.
+ * Sends the stored draft through Gmail. By default it goes to OUTREACH_DELIVER_TO as a labelled demo copy. With `to`
+ * (the operator typed an address) it goes to that one address as written, if it is on OUTREACH_ALLOWLIST; otherwise
+ * it is refused and nothing is sent. A sent message is not sent again unless `resend`. Configuration problems leave
+ * the message untouched; a Gmail failure marks it `failed` with the error.
  */
 export async function sendOutreach(
   clientId: string,
-  opts: { resend?: boolean; edits?: EmailDraft } = {},
+  opts: { resend?: boolean; edits?: EmailDraft; to?: string } = {},
 ): Promise<SendOutcome> {
   return withClientLock(clientId, async (): Promise<SendOutcome> => {
     const stored = await getMessage(clientId);
@@ -150,21 +155,37 @@ export async function sendOutreach(
         reason: "Gmail is not configured: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GMAIL_REFRESH_TOKEN.",
       };
     }
-    const deliverTo = getDeliverTo();
-    if (!deliverTo) {
-      return { status: "not-configured", reason: "OUTREACH_DELIVER_TO is not set to one email address." };
-    }
-    if (!isAllowedRecipient(deliverTo)) {
-      return { status: "not-configured", reason: "OUTREACH_DELIVER_TO is not on OUTREACH_ALLOWLIST." };
+    // An address the operator typed wins over the demo inbox, and is sent as written, with no demo label.
+    const typed = opts.to?.trim() ?? "";
+    let deliverTo: string | null;
+    if (typed) {
+      deliverTo = normalizeAddress(typed);
+      if (!deliverTo) return { status: "refused", why: "bad-address", reason: "Enter one email address." };
+      if (!isAllowedRecipient(deliverTo)) {
+        return {
+          status: "refused",
+          why: "not-allowed",
+          reason: `${deliverTo} isn't on OUTREACH_ALLOWLIST, so it can't be sent from here. Add it to the allowlist on the host, or use Open in Gmail to send it yourself.`,
+        };
+      }
+    } else {
+      deliverTo = getDeliverTo();
+      if (!deliverTo) {
+        return { status: "not-configured", reason: "OUTREACH_DELIVER_TO is not set to one email address." };
+      }
+      if (!isAllowedRecipient(deliverTo)) {
+        return { status: "not-configured", reason: "OUTREACH_DELIVER_TO is not on OUTREACH_ALLOWLIST." };
+      }
     }
 
-    const subject = `[Demo → ${message.intendedFor.company}] ${message.subject}`;
-    const body = `${demoLine(message.intendedFor)}\n\n${message.body}`;
+    const subject = typed ? message.subject : `[Demo → ${message.intendedFor.company}] ${message.subject}`;
+    const body = typed ? message.body : `${demoLine(message.intendedFor)}\n\n${message.body}`;
     try {
       const sent = await sendEmail({ to: deliverTo, subject, body });
       const sentAt = new Date().toISOString();
       const saved = await saveMessage({
         ...message,
+        intendedFor: typed ? { ...message.intendedFor, email: deliverTo } : message.intendedFor,
         status: "sent",
         deliveredTo: deliverTo,
         sentAt,

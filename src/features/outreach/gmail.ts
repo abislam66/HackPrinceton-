@@ -1,6 +1,8 @@
 import "server-only";
-import { z } from "zod";
+import { normalizeAddress } from "./address";
 import type { OutreachReply } from "./schema";
+
+export { normalizeAddress };
 
 /*
  * The Gmail API over plain fetch, with one pre-minted refresh token (tools/gmail-token).
@@ -15,11 +17,7 @@ const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** Refresh the access token this long before Google says it expires. */
 const TOKEN_MARGIN_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
-/** One plain address, no display name, no list. */
-const SINGLE_ADDRESS = /^[^\s@,;<>"()[\]\\]+@[^\s@,;<>"()[\]\\]+\.[^\s@,;<>"()[\]\\]+$/;
 const GMAIL_ID = /^[A-Za-z0-9_-]+$/;
-/** The same check the outreach schema applies to `deliveredTo` and `account`. */
-const EMAIL = z.email();
 
 export class GmailError extends Error {
   constructor(
@@ -42,12 +40,6 @@ const cache: GmailCache = (globalStore.__tmGmail ??= { token: null, pendingToken
 /** True when the OAuth client and the refresh token are set. */
 export function gmailConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN);
-}
-
-/** Lowercased and trimmed when it is one plain address, else null. */
-export function normalizeAddress(value: string | undefined | null): string | null {
-  const address = (value ?? "").trim().toLowerCase();
-  return SINGLE_ADDRESS.test(address) && EMAIL.safeParse(address).success ? address : null;
 }
 
 /** OUTREACH_ALLOWLIST as a set of normalized addresses. Empty when unset. */

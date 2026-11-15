@@ -126,6 +126,63 @@ describe("outreach actions", () => {
     expect(body).toContain("http://localhost:3000/proposals/client-a?ref=email");
   });
 
+  describe("an address typed in the send dialog", () => {
+    const decode = (message: string) => {
+      const [head, rawBody] = message.split("\r\n\r\n");
+      return { head, body: Buffer.from(rawBody.replace(/\r\n/g, ""), "base64").toString("utf8") };
+    };
+
+    it("sends to that address as written, with no demo label, once it is on the allowlist", async () => {
+      vi.stubEnv("OUTREACH_ALLOWLIST", "inbox@tradesmark.test, Sam@Gmail.com");
+      const drafted = await draftOutreach("client-a");
+      if (drafted.status !== "ok") throw new Error(drafted.status);
+
+      const sent = await sendOutreach("client-a", { to: "  Sam@Gmail.com " });
+      if (sent.status !== "ok") throw new Error(sent.status);
+      expect(sent.message).toMatchObject({ status: "sent", deliveredTo: "sam@gmail.com" });
+      expect(sent.message.intendedFor.email).toBe("sam@gmail.com");
+
+      const { head, body } = decode(sends[0]);
+      expect(head).toContain("\r\nTo: sam@gmail.com\r\n");
+      expect(head).not.toMatch(/Demo/);
+      expect(body).not.toContain("[Demo send");
+      expect(body).toContain("http://localhost:3000/proposals/client-a?ref=email");
+    });
+
+    it("needs no OUTREACH_DELIVER_TO when the operator names the recipient", async () => {
+      vi.stubEnv("OUTREACH_DELIVER_TO", "");
+      vi.stubEnv("OUTREACH_ALLOWLIST", "sam@gmail.com");
+      await draftOutreach("client-a");
+      expect((await sendOutreach("client-a", { to: "sam@gmail.com" })).status).toBe("ok");
+    });
+
+    it("refuses an address that is not on the allowlist, sends nothing, and leaves the draft a draft", async () => {
+      await draftOutreach("client-a");
+      const result = await sendOutreach("client-a", { to: "stranger@gmail.com" });
+      expect(result).toMatchObject({ status: "refused", why: "not-allowed" });
+      if (result.status === "refused") expect(result.reason).toContain("OUTREACH_ALLOWLIST");
+      expect(sends).toHaveLength(0);
+      expect((await getOutreachOverview()).messages[0]).toMatchObject({ status: "draft", deliveredTo: null });
+    });
+
+    it("refuses anything that is not one plain address", async () => {
+      vi.stubEnv("OUTREACH_ALLOWLIST", "inbox@tradesmark.test,sam@gmail.com");
+      await draftOutreach("client-a");
+      for (const to of ["sam", "sam@gmail.com, inbox@tradesmark.test", "Sam <sam@gmail.com>", "sam@gmail.com;x@y.co"]) {
+        expect(await sendOutreach("client-a", { to })).toMatchObject({ status: "refused", why: "bad-address" });
+      }
+      expect(sends).toHaveLength(0);
+    });
+
+    it("falls back to the demo copy when the address is blank", async () => {
+      await draftOutreach("client-a");
+      const sent = await sendOutreach("client-a", { to: "   " });
+      if (sent.status !== "ok") throw new Error(sent.status);
+      expect(sent.message.deliveredTo).toBe("inbox@tradesmark.test");
+      expect(decode(sends[0]).body).toContain("[Demo send");
+    });
+  });
+
   it("edits a draft in place, keeps the proposal link, and flags pricing", async () => {
     expect((await editOutreachDraft("client-a", { subject: "Hi" })).status).toBe("no-draft");
     const drafted = await draftOutreach("client-a");

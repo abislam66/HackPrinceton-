@@ -87,7 +87,8 @@ There are no Supabase keys yet. Records are held in process memory and written t
 
 - `draft.ts` writes the email for one stakeholder. It uses the client file, the project, the stakeholder's pitch and the proposal link, in Tradesmark's voice, with no pricing.
 - `gmail.ts` calls the Gmail API over `fetch`, with one pre-minted refresh token in env (no OAuth routes). Send builds an RFC 2822 message. Reply sync reads only the thread IDs we sent and folds into `GET /api/outreach`.
-- **Safety:** every email is delivered to `OUTREACH_DELIVER_TO`, whatever the stakeholder's address. `gmail.ts` itself refuses any recipient not on `OUTREACH_ALLOWLIST`. A model-written string never becomes a recipient. Use a dedicated demo Gmail account, because the read scope sees the whole mailbox.
+- **Safety:** by default every email is delivered to `OUTREACH_DELIVER_TO`, whatever the stakeholder's address. The one exception is an address the operator types in the Send proposal dialog ("Email address"): it is sent to that address as written, and only if it is on `OUTREACH_ALLOWLIST`. `gmail.ts` itself refuses any recipient not on that list, so nobody can be emailed from here until someone adds them to the env var. A model-written string never becomes a recipient. Use a dedicated demo Gmail account, because the read scope sees the whole mailbox.
+- **Open in Gmail:** the same dialog can open Gmail's compose window with the address, subject and message filled in (`compose.ts`), so the operator sends it from their own Gmail. Nothing goes through our credentials and no allowlist applies, because a person sends it. "Mark as sent" then records it in the app.
 - The proposal link carries `?ref=email` so opens can be tied to the email.
 
 ### Tools for the general agent (`src/features/agent-tools/tools.ts`)
