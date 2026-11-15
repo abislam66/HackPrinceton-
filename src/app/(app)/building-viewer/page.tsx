@@ -21,6 +21,21 @@ function factsLine(project: Project): string {
 }
 
 /**
+ * The address as a geocoder reads it: no parenthetical notes, and only street, city and state. The project file's
+ * full address ("1601 N Broad St, Philadelphia, PA (Broad Street and …), Temple University Main Campus") sends
+ * Google to the campus center, 340 m away; "1601 N Broad St, Philadelphia, PA" lands on the building.
+ */
+function geocodableAddress(address: string): string {
+  return address
+    .replace(/\([^)]*\)/g, "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(", ");
+}
+
+/**
  * With `?project=<slug>`, the form starts filled from that project: address, name, a facts line, and its first
  * reference photo. A project opened from a draft shares its base project's photos. Without it, the form starts empty.
  */
@@ -33,7 +48,7 @@ async function loadPrefill(slug: string): Promise<{ name: string; prefill: Viewe
   return {
     name: project.name,
     prefill: {
-      address: project.address,
+      address: geocodableAddress(project.address),
       buildingName: project.name,
       knownFacts: factsLine(project),
       photo: photo ? { url: `/api/project-images/${imagesFrom}/${photo}`, name: photo } : undefined,
