@@ -45,11 +45,12 @@ There are two programs. The **web app** (Next.js, TypeScript) is the only backen
 3. **The handoff is a GLB file plus `model.json`.** The builder writes both to `public/models/<project>/`. The web app treats the presence of `model.json` as "a model exists" and shows a gray-box stand-in until then.
 4. **A shot is data, not video.** A shot carries a camera path (keyframes of position and target, plus field of view). The browser plays it live through the 3D viewer. Nothing is rendered to video.
 5. **One viewer, two uses.** The proposal page's opening fly-up and the shot preview are the same `ModelViewer` component playing different camera paths.
-6. **Pre-loaded data lives in the repo as files.** `data/demo-project/` holds the project, the clients and their needs, and the reference images. There is no live research and no needs classification.
+6. **Pre-loaded data lives in the repo as files.** `data/demo-project/` holds the project, the clients and their needs, and the reference images. There is no needs classification, and live research never rewrites these files.
 7. **Generated proposals live in Supabase.** Generation writes one row per client to `proposals` with status `draft`. The pages read from there. Tracking events go to `proposal_events`.
 8. **The pages work without Supabase.** With no keys set, pages render the model and an empty state; only storing proposals and tracking are unavailable.
 9. **Cache Components is off** (`cacheComponents: false` in `next.config.ts`). Pages read the files and the database on every request, so a new model or proposal appears without a rebuild.
 10. **LLM output is always parsed against a Zod schema** (`shotListSchema`, `pitchSchema`) before it is stored or shown.
+11. **Scouting, dossier and outreach are live** (scope change, 2026-11-15). Research runs on `claude-opus-5-5` with Anthropic's server-side web search and fetch, in two phases: research as free text, then a structured extraction that may only cite pages the tools actually returned (the source ledger). Runs stream NDJSON from the POST request, are recorded for replay, and fall back to a committed snapshot. Outreach sends through the Gmail API and delivers only to an allowlisted team inbox. Full design: `docs/live-pipeline.md`.
 
 ### Not decided yet
 
@@ -72,6 +73,10 @@ These are the shapes teammates depend on. Changing one is a contract change: pos
 | Pitch | `src/features/pitch/schema.ts` | pitch generation, proposal page |
 | Proposal | `src/features/proposal/schema.ts` and the `proposals` table | generation, pages |
 | Tracking event | `src/features/tracking/schema.ts` and the `proposal_events` table | proposal page, tracking API |
+| Run events and sources | `src/lib/agent/schema.ts` | every live stage's NDJSON stream |
+| Scout result | `src/features/scout/schema.ts` | scouting API, Discover screen, dossier targets |
+| Dossier | `src/features/dossier/schema.ts` | dossier API, dossier screen |
+| Outreach message | `src/features/outreach/schema.ts` | outreach API, Outreach screen |
 
 ### Coordinates
 
@@ -106,6 +111,13 @@ The model, the camera paths and the viewer all use the same space: meters, glTF 
 | `POST /api/track` | Records an open, watch or click event | Works once Supabase keys are set; 503 without them |
 | `POST /api/model/builds` | Starts a model build on the Python service | Works; the build itself fails until `build_model()` exists |
 | `GET /api/model/builds/[id]` | Reports a build's status | Works |
+| `POST /api/scout/runs` | Streams a live scout run (NDJSON); `?replay=1` replays the last one | Needs `ANTHROPIC_API_KEY`; falls back to the snapshot |
+| `GET /api/scout/candidates` | Latest scout result | Works |
+| `POST /api/dossiers/[project]/runs` | Streams a live dossier run (NDJSON); `?replay=1` replays | Needs `ANTHROPIC_API_KEY`; falls back to the snapshot |
+| `GET /api/dossiers/[project]` | Latest dossier | Works |
+| `POST /api/outreach/[client]/draft` | Drafts the stakeholder's email | Template draft without a key |
+| `POST /api/outreach/[client]/send` | Sends it through Gmail to the allowlisted inbox | Needs the Gmail env vars; 503 without them |
+| `GET /api/outreach` | Sent messages and synced replies | Works |
 
 Python service: `GET /health`, `POST /builds`, `GET /builds/{id}`. Builds are held in memory and run one at a time.
 

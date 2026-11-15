@@ -13,12 +13,17 @@ Built:
 4. **Proposal page.** A hosted page per client: animated fly-up into the building, the pitch, the renders, a "book a call" button, and tracking of opens, watch time and clicks. No pricing or scope on the page.
 5. **Shot preview.** A second view showing how the shots would come out: an animated demo, not a rendered video. The exact format is undecided; ask on the board before choosing one.
 
+Live, around the demo project (scope change by the team lead, 2026-11-15; design in `docs/live-pipeline.md`):
+6. **Scouting.** Live web research for real construction projects in five Northeast regions: New York, Philadelphia and the Main Line, Connecticut, Greater Boston, New Jersey.
+7. **Dossier.** Live web research on one project: building facts, firms by role, timeline, every fact citing a source.
+8. **Outreach.** Emails linking each stakeholder's proposal page, sent through Gmail. During the hackathon every email goes to an allowlisted team inbox, never to the stakeholder.
+
 Pre-loaded, never built live:
-- **Project research.** No scraping or live lookups. The demo project's files, images and location data are in the repo.
+- **The demo project's files.** Project data, images and location data for the model, shots and pitch are in the repo. Live research feeds the scouting and dossier screens; it never rewrites `data/`.
 - **Client needs.** Fake needs in two variations. Do not build needs classification from company data.
 - **Stakeholder contacts.**
 
-Out of scope (slides only): scouting, dossier, outreach, progress tracking after signing.
+Faked in-app: progress tracking after signing (canned data in `src/features/demo/progress.ts`).
 
 Undecided: the LLM provider, the model builder's geometry libraries, how Matterport fits in, and the final shot preview format. Do not guess these; ask on the board.
 
@@ -78,6 +83,7 @@ Humans over agents. The team lead is Rafiat (`@templeterror`). Only the team lea
 | Generation: shots, pitch, proposal pipeline | `banneddb` (Behruz) | `src/features/shots/generate.ts`, `src/features/pitch/`, `src/features/proposal/`, `src/app/api/proposals/` |
 | Viewer and shot preview: 3D view, camera paths | `abislam66` (Abrar) | `src/features/viewer/`, `src/features/shots/ShotPreview.tsx`, `src/app/proposals/[client]/shots/` |
 | Frontend: the internal app (client list, review and send screens, layout, shared UI), the proposal page, and tracking | `templeterror` (Rafiat) | `src/app/` pages and layouts (except `proposals/[client]/shots/` and `api/` routes owned above), `src/components/`, `src/features/tracking/`, `src/app/api/track/`, `supabase/` |
+| Live pipeline: scouting, dossier, outreach (Gmail), the research runtime and its store | `templeterror` (Rafiat) | `src/lib/agent/`, `src/lib/store/`, `src/features/scout/`, `src/features/dossier/`, `src/features/outreach/`, `src/features/agent-tools/`, `src/app/api/scout/`, `src/app/api/dossiers/`, `src/app/api/outreach/`, `tools/gmail-token` |
 | Shared: contracts, Supabase clients, config, deps | `templeterror` (Rafiat), team lead | every `schema.ts`, `src/features/model/`, `src/app/api/model/`, `src/lib/`, `src/types/`, `package.json`, root config files |
 | Demo, Devpost submission, pitch and business case | `templeterror` (Rafiat) | not code; ask Rafiat for anything the demo needs |
 
