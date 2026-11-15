@@ -1,10 +1,13 @@
 {
   "slug": "demo-project",
-  "name": "Sample Project",
-  "address": "Sample address, replace with the demo project's",
-  "location": { "lat": 40.3431, "lng": -74.6551 },
-  "buildingType": "Sample building type",
-  "scopeType": "Sample scope type",
-  "timeline": "Sample timeline",
-  "summary": "Sample data. Replace this file with the real pre-loaded demo project."
+  "name": "Morgan Hall North",
+  "address": "1601 N Broad St, Philadelphia, PA (Broad Street and Cecil B. Moore Avenue), Temple University Main Campus",
+  "location": {
+    "lat": 39.9780016,
+    "lng": -75.1576848
+  },
+  "buildingType": "Residence hall: a 27-story, 92 m (302 ft) all-concrete tower with 364 apartments for upperclassmen, part of the block-long Mitchell and Hilarie Morgan Hall complex (1,275 students)",
+  "scopeType": "Completed building. Tower with a curtain wall facade banded in white tile, a charcoal brick service core, and operable vertical windows running the full height",
+  "timeline": "Groundbreaking spring 2011, topped out July 2012, students moved in fall 2013. Complete and occupied",
+  "summary": "Morgan Hall North is the 27-story tower of Temple University's Morgan Hall complex, designed by MGA Partners and described as the tallest structure north of Center City. It sits on the southeast side of Broad Street and Cecil B. Moore Avenue, marking the approach from Center City and the end of Liacouras Walk. With the 10-story Morgan Hall South and a dining pavilion on Broad Street, it frames a 30,000 square foot elevated terrace landscaped by OLIN, with a wide stair down to Broad. Two-story glass-enclosed lounges serve each residential neighborhood, and residents look out over Philadelphia and New Jersey. The complex is LEED Silver."
 }

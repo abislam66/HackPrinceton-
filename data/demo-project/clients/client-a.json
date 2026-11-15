@@ -1,9 +1,9 @@
 {
   "id": "client-a",
-  "company": "Sample Client A",
-  "role": "general-contractor",
-  "contact": { "name": "Sample Contact", "title": "Sample Title" },
-  "need": "documentation",
-  "needsNotes": "Sample data. Replace with the first client-needs variation.",
-  "focusElements": ["whole build"]
+  "company": "Mock Glazing Co. (placeholder)",
+  "role": "trade",
+  "contact": { "name": "Placeholder Contact", "title": "Director of Business Development" },
+  "need": "sales-and-bids",
+  "needsNotes": "Glazing and curtain wall contractor bidding on the next round of university and high-rise residential work. Needs proof of craft it can show in bid packages: clean, well-lit footage of a finished curtain wall on a named, high-profile tower. Its own selling point is bird-safe glazing, which universities increasingly ask for; this is the contractor's capability, not a claim about Morgan Hall North.",
+  "focusElements": ["the tower's curtain wall and its white tile bands", "the two-story glass-enclosed lounges"]
 }
