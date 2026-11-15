@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Copies the latest good live runs from .data/ (gitignored) into the committed snapshot and
+# recording folders, so the deployed demo shows real results with no key and no store.
+#
+#   tools/promote-snapshots            # scout result + every dossier + their recordings
+#   tools/promote-snapshots --dry-run  # show what would be copied
+#
+# Review the JSON before committing: it is what the screens will show when live runs fail.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+dry=false
+[[ "${1:-}" == "--dry-run" ]] && dry=true
+
+copy() {
+  local from="$1" to="$2"
+  [[ -f "$from" ]] || return 0
+  if $dry; then
+    echo "would copy $from -> $to"
+  else
+    mkdir -p "$(dirname "$to")"
+    cp "$from" "$to"
+    echo "copied $from -> $to"
+  fi
+}
+
+copy .data/scout/latest.json src/features/scout/snapshot/latest.json
+copy .data/recordings/scout.ndjson src/features/scout/recordings/scout.ndjson
+
+shopt -s nullglob
+for file in .data/dossiers/*.json; do
+  copy "$file" "src/features/dossier/snapshot/$(basename "$file")"
+done
+for file in .data/recordings/dossier-*.ndjson; do
+  copy "$file" "src/features/dossier/recordings/$(basename "$file")"
+done

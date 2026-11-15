@@ -1,0 +1,703 @@
+{
+  "runAt": "2026-11-15T04:17:55.656Z",
+  "regions": [
+    "new-york",
+    "philadelphia-main-line",
+    "boston"
+  ],
+  "candidates": [
+    {
+      "name": "Lavine Bekenstein Cancer Hospital (Dana-Farber / BIDMC)",
+      "address": "1 Joslin Place",
+      "city": "Boston",
+      "buildingType": "Hospital",
+      "stage": "under-construction",
+      "completion": "2030",
+      "floors": 10,
+      "valueUsd": 1700000000,
+      "whyItFits": "$1.7B, 10-floor, 450,000 SF cancer hospital that broke ground October 2026; Payette, Suffolk",
+      "firms": [
+        {
+          "name": "Dana-Farber Cancer Institute",
+          "role": "owner"
+        },
+        {
+          "name": "Beth Israel Deaconess Medical Center",
+          "role": "owner"
+        },
+        {
+          "name": "Suffolk",
+          "role": "general-contractor"
+        },
+        {
+          "name": "Payette",
+          "role": "architect"
+        }
+      ],
+      "score": 92,
+      "sourceIds": [
+        "S1",
+        "S2"
+      ],
+      "id": "lavine-bekenstein-cancer-hospital-dana-farber-bidmc-boston",
+      "region": "boston",
+      "state": "MA"
+    },
+    {
+      "name": "8 Carlisle",
+      "address": "8 Carlisle Street",
+      "city": "New York",
+      "buildingType": "residential tower",
+      "stage": "under-construction",
+      "completion": null,
+      "floors": 64,
+      "valueUsd": null,
+      "whyItFits": "64-story, 789-ft tower with gray metal paneling and illuminated metal crown; Handel Architects, Grubb Properties",
+      "firms": [
+        {
+          "name": "Handel Architects",
+          "role": "architect"
+        },
+        {
+          "name": "Grubb Properties",
+          "role": "developer"
+        },
+        {
+          "name": "Pink Stone Capital",
+          "role": "developer"
+        }
+      ],
+      "score": 86,
+      "sourceIds": [
+        "S3"
+      ],
+      "id": "8-carlisle-new-york",
+      "region": "new-york",
+      "state": "NY"
+    },
+    {
+      "name": "CHOP Roberts Children's Health tower",
+      "address": "3401 Civic Center Boulevard",
+      "city": "Philadelphia",
+      "buildingType": "Hospital patient tower",
+      "stage": "under-construction",
+      "completion": null,
+      "floors": 27,
+      "valueUsd": null,
+      "whyItFits": "27-story, 1.3-million-square-foot patient tower under construction on CHOP's campus; DPR Construction and LF Driscoll joint venture",
+      "firms": [
+        {
+          "name": "Children's Hospital of Philadelphia",
+          "role": "owner"
+        },
+        {
+          "name": "DPR Construction",
+          "role": "construction-manager"
+        },
+        {
+          "name": "LF Driscoll",
+          "role": "construction-manager"
+        }
+      ],
+      "score": 85,
+      "sourceIds": [
+        "S4",
+        "S5"
+      ],
+      "id": "chop-roberts-childrens-health-tower-philadelphia",
+      "region": "philadelphia-main-line",
+      "state": "PA"
+    },
+    {
+      "name": "280 Kent Avenue (Domino Building B)",
+      "address": "280 Kent Avenue",
+      "city": "New York",
+      "buildingType": "residential towers",
+      "stage": "under-construction",
+      "completion": null,
+      "floors": 50,
+      "valueUsd": null,
+      "whyItFits": "Two 50-story, 591-ft towers with glass facade going up, first expected to top out this winter; REX, Two Trees",
+      "firms": [
+        {
+          "name": "REX",
+          "role": "architect"
+        },
+        {
+          "name": "Two Trees",
+          "role": "developer"
+        }
+      ],
+      "score": 85,
+      "sourceIds": [
+        "S6"
+      ],
+      "id": "280-kent-avenue-domino-building-b-new-york",
+      "region": "new-york",
+      "state": "NY"
+    },
+    {
+      "name": "South Station Tower",
+      "address": "Atlantic Avenue",
+      "city": "Boston",
+      "buildingType": "Office and condo tower",
+      "stage": "completed",
+      "completion": "2025-09",
+      "floors": 51,
+      "valueUsd": 1500000000,
+      "whyItFits": "$1.5B, 51-floor dark-glass tower over South Station, finished Sept 2025; Pelli Clarke & Partners, Suffolk",
+      "firms": [
+        {
+          "name": "Hines",
+          "role": "developer"
+        },
+        {
+          "name": "Pelli Clarke & Partners",
+          "role": "architect"
+        },
+        {
+          "name": "Suffolk Construction",
+          "role": "general-contractor"
+        }
+      ],
+      "score": 80,
+      "sourceIds": [
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "id": "south-station-tower-boston",
+      "region": "boston",
+      "state": "MA"
+    },
+    {
+      "name": "Lumen",
+      "address": "23-15 44th Road",
+      "city": "New York",
+      "buildingType": "residential tower",
+      "stage": "topped-out",
+      "completion": "2026",
+      "floors": 66,
+      "valueUsd": null,
+      "whyItFits": "66-floor, 731-ft tower topped out, completing 2026; Hill West Architects, Carmel Construction East",
+      "firms": [
+        {
+          "name": "Hill West Architects",
+          "role": "architect"
+        },
+        {
+          "name": "Carmel Partners",
+          "role": "developer"
+        },
+        {
+          "name": "Carmel Construction East",
+          "role": "general-contractor"
+        }
+      ],
+      "score": 80,
+      "sourceIds": [
+        "S10"
+      ],
+      "id": "lumen-new-york",
+      "region": "new-york",
+      "state": "NY"
+    },
+    {
+      "name": "290 Binney Street (AstraZeneca/Alexion)",
+      "address": "290 Binney Street",
+      "city": "Cambridge",
+      "buildingType": "Lab and office",
+      "stage": "completed",
+      "completion": "2026",
+      "floors": null,
+      "valueUsd": null,
+      "whyItFits": "16–17 story Kendall lab tower with signature metal latticework, finished summer 2026; Pickard Chilton, Turner",
+      "firms": [
+        {
+          "name": "BXP",
+          "role": "developer"
+        },
+        {
+          "name": "Pickard Chilton",
+          "role": "architect"
+        },
+        {
+          "name": "Lemon Brooke",
+          "role": "landscape-architect"
+        },
+        {
+          "name": "Turner Construction",
+          "role": "general-contractor"
+        },
+        {
+          "name": "Stantec",
+          "role": "architect"
+        }
+      ],
+      "score": 78,
+      "sourceIds": [
+        "S11",
+        "S12",
+        "S13",
+        "S14"
+      ],
+      "id": "290-binney-street-astrazeneca-alexion-cambridge",
+      "region": "boston",
+      "state": "MA"
+    },
+    {
+      "name": "303 East 44th Street",
+      "address": "303 East 44th Street",
+      "city": "New York",
+      "buildingType": "residential tower",
+      "stage": "topped-out",
+      "completion": "mid-2027",
+      "floors": 35,
+      "valueUsd": null,
+      "whyItFits": "35-story, 470-ft reflective glass tower with open-air cutouts, topped out May 2026; ODA Architects, Bruklyn Builders",
+      "firms": [
+        {
+          "name": "ODA Architects",
+          "role": "architect"
+        },
+        {
+          "name": "Bruklyn Builders",
+          "role": "developer"
+        }
+      ],
+      "score": 78,
+      "sourceIds": [
+        "S15"
+      ],
+      "id": "303-east-44th-street-new-york",
+      "region": "new-york",
+      "state": "NY"
+    },
+    {
+      "name": "New Museum Expansion",
+      "address": "231 Bowery",
+      "city": "New York",
+      "buildingType": "cultural",
+      "stage": "completed",
+      "completion": "2026-03-21",
+      "floors": 6,
+      "valueUsd": 82000000,
+      "whyItFits": "$82M OMA-designed museum expansion reopened March 2026; Sciame, Arup, Front",
+      "firms": [
+        {
+          "name": "OMA",
+          "role": "architect"
+        },
+        {
+          "name": "Cooper Robertson",
+          "role": "architect"
+        },
+        {
+          "name": "F.J. Sciame Construction",
+          "role": "construction-manager"
+        },
+        {
+          "name": "Gardiner & Theobald",
+          "role": "other"
+        },
+        {
+          "name": "PML",
+          "role": "other"
+        },
+        {
+          "name": "Arup",
+          "role": "structural-engineer"
+        },
+        {
+          "name": "Front",
+          "role": "facade"
+        },
+        {
+          "name": "Langan",
+          "role": "other"
+        },
+        {
+          "name": "Philip Habib & Associates",
+          "role": "other"
+        },
+        {
+          "name": "2x4",
+          "role": "other"
+        },
+        {
+          "name": "Dot Dash",
+          "role": "other"
+        }
+      ],
+      "score": 76,
+      "sourceIds": [
+        "S16",
+        "S17",
+        "S18",
+        "S19"
+      ],
+      "id": "new-museum-expansion-new-york",
+      "region": "new-york",
+      "state": "NY"
+    },
+    {
+      "name": "Warren Towers renovation (Boston University)",
+      "address": "Commonwealth Avenue",
+      "city": "Boston",
+      "buildingType": "Campus housing renovation",
+      "stage": "under-construction",
+      "completion": "2029",
+      "floors": null,
+      "valueUsd": 550000000,
+      "whyItFits": "$550M phased renovation, Tower A reopened Aug 2026 with Towers B and C to follow; Miller Dyer Spears, Shawmut",
+      "firms": [
+        {
+          "name": "Boston University",
+          "role": "owner"
+        },
+        {
+          "name": "Miller Dyer Spears",
+          "role": "architect"
+        },
+        {
+          "name": "Shawmut Design & Construction",
+          "role": "general-contractor"
+        }
+      ],
+      "score": 74,
+      "sourceIds": [
+        "S20"
+      ],
+      "id": "warren-towers-renovation-boston-university",
+      "region": "boston",
+      "state": "MA"
+    },
+    {
+      "name": "10 World Trade",
+      "address": null,
+      "city": "Boston",
+      "buildingType": "Lab and office",
+      "stage": "completed",
+      "completion": "2026",
+      "floors": 17,
+      "valueUsd": null,
+      "whyItFits": "17-story, 600,000 SF Seaport lab on a tight site by a viaduct and ramp, finished 2026; Sasaki, Suffolk",
+      "firms": [
+        {
+          "name": "Boston Global Investors",
+          "role": "developer"
+        },
+        {
+          "name": "Sasaki",
+          "role": "architect"
+        },
+        {
+          "name": "Suffolk Construction",
+          "role": "general-contractor"
+        }
+      ],
+      "score": 72,
+      "sourceIds": [
+        "S21"
+      ],
+      "id": "10-world-trade-boston",
+      "region": "boston",
+      "state": "MA"
+    },
+    {
+      "name": "3201 Cuthbert Street",
+      "address": "3201 Cuthbert Street",
+      "city": "Philadelphia",
+      "buildingType": "Life sciences lab and office",
+      "stage": "topped-out",
+      "completion": null,
+      "floors": 11,
+      "valueUsd": null,
+      "whyItFits": "11-story, 520,000-sq-ft life sciences tower with steel rooftop canopy; RAMSA, Kendall/Heaton, Thornton Tomasetti",
+      "firms": [
+        {
+          "name": "Gattuso Development Partners",
+          "role": "developer"
+        },
+        {
+          "name": "RAMSA | Robert A.M. Stern Architects",
+          "role": "architect"
+        },
+        {
+          "name": "Kendall/Heaton Associates",
+          "role": "architect"
+        },
+        {
+          "name": "Thornton Tomasetti",
+          "role": "structural-engineer"
+        }
+      ],
+      "score": 68,
+      "sourceIds": [
+        "S22"
+      ],
+      "id": "3201-cuthbert-street-philadelphia",
+      "region": "philadelphia-main-line",
+      "state": "PA"
+    },
+    {
+      "name": "2000 Arch Street (Chubb office tower)",
+      "address": "2000 Arch Street",
+      "city": "Philadelphia",
+      "buildingType": "Office",
+      "stage": "topped-out",
+      "completion": "2026",
+      "floors": 18,
+      "valueUsd": null,
+      "whyItFits": "18-story, 550,000-sq-ft Chubb office tower topped out, completion scheduled 2026; Stantec, Thornton Tomasetti, Parkway",
+      "firms": [
+        {
+          "name": "Parkway Corporation",
+          "role": "developer"
+        },
+        {
+          "name": "Stantec",
+          "role": "architect"
+        },
+        {
+          "name": "Thornton Tomasetti",
+          "role": "structural-engineer"
+        }
+      ],
+      "score": 66,
+      "sourceIds": [
+        "S22"
+      ],
+      "id": "2000-arch-street-chubb-office-tower-philadelphia",
+      "region": "philadelphia-main-line",
+      "state": "PA"
+    },
+    {
+      "name": "Blayr",
+      "address": "145 E. City Ave.",
+      "city": "Bala Cynwyd",
+      "buildingType": "Mixed-use apartments",
+      "stage": "completed",
+      "completion": "April 2026",
+      "floors": 7,
+      "valueUsd": null,
+      "whyItFits": "Seven-story, 217-unit apartment building opened April 2026 on City Avenue; Federal Realty, CBG Building Company",
+      "firms": [
+        {
+          "name": "Federal Realty Investment Trust",
+          "role": "developer"
+        },
+        {
+          "name": "CBG Building Company",
+          "role": "general-contractor"
+        },
+        {
+          "name": "Bohler",
+          "role": "other"
+        },
+        {
+          "name": "Studio39",
+          "role": "landscape-architect"
+        },
+        {
+          "name": "MSA Interiors",
+          "role": "other"
+        }
+      ],
+      "score": 45,
+      "sourceIds": [
+        "S23",
+        "S24",
+        "S25",
+        "S26"
+      ],
+      "id": "blayr-bala-cynwyd",
+      "region": "philadelphia-main-line",
+      "state": "PA"
+    }
+  ],
+  "sources": [
+    {
+      "id": "S1",
+      "url": "https://theconstructionbroadsheet.com/danafarber-marks-the-start-of-construction-on-b-cancer-hospital-p2388-174.htm",
+      "title": "Dana-Farber marks the start of construction on $1.7B cancer hospital",
+      "publisher": "theconstructionbroadsheet.com",
+      "pageAge": "26 days ago"
+    },
+    {
+      "id": "S2",
+      "url": "https://www.beckershospitalreview.com/capital/construction-begins-on-dana-farbers-1-7b-cancer-hospital/",
+      "title": "Construction begins on Dana-Farber’s $1.7B cancer hospital",
+      "publisher": "beckershospitalreview.com",
+      "pageAge": "220 days ago"
+    },
+    {
+      "id": "S3",
+      "url": "https://newyorkyimby.com/2026/06/8-carlisle-street-passes-the-halfway-mark-in-financial-district-manhattan.html",
+      "title": "8 Carlisle Street Passes the Halfway Mark in Financial District, ...",
+      "publisher": "newyorkyimby.com",
+      "pageAge": "167 days ago"
+    },
+    {
+      "id": "S4",
+      "url": "https://stobuildinggroup.com/projects/childrens-hospital-of-philadelphia-roberts-childrens-health/",
+      "title": "Children’s Hospital of Philadelphia, Roberts Children’s Health ...",
+      "publisher": "stobuildinggroup.com",
+      "pageAge": "250 days ago"
+    },
+    {
+      "id": "S5",
+      "url": "https://www.dpr.com/projects/childrens-hospital-of-philadelphia-new-patient-tower-philadelphia-pa",
+      "title": "Children's Hospital of Philadelphia",
+      "publisher": "dpr.com",
+      "pageAge": "458 days ago"
+    },
+    {
+      "id": "S6",
+      "url": "https://newyorkyimby.com/2026/10/1262-unit-two-skyscraper-development-rises-at-280-kent-avenue-in-williamsburg-brooklyn.html",
+      "title": "1,262-Unit Two-Skyscraper Development Rises at 280 Kent Avenue ...",
+      "publisher": "newyorkyimby.com",
+      "pageAge": "34 days ago"
+    },
+    {
+      "id": "S7",
+      "url": "https://en.wikipedia.org/wiki/South_Station_Tower",
+      "title": "South Station Tower",
+      "publisher": "en.wikipedia.org",
+      "pageAge": null
+    },
+    {
+      "id": "S8",
+      "url": "https://www.enr.com/articles/58130-boston-team-builds-15b-tower-over-south-station",
+      "title": "Boston Team Builds $1.5B Tower Over South Station",
+      "publisher": "enr.com",
+      "pageAge": "661 days ago"
+    },
+    {
+      "id": "S9",
+      "url": "https://www.bloomberg.com/news/features/2025-11-03/boston-s-south-station-tower-adds-a-high-rise-to-a-transit-hub",
+      "title": "Boston's South Station Tower Adds a High-Rise to a Transit Hub ...",
+      "publisher": "bloomberg.com",
+      "pageAge": "376 days ago"
+    },
+    {
+      "id": "S10",
+      "url": "https://en.wikipedia.org/wiki/Lumen_(building)",
+      "title": "Lumen (building)",
+      "publisher": "en.wikipedia.org",
+      "pageAge": null
+    },
+    {
+      "id": "S11",
+      "url": "https://www.cambridgeredevelopment.org/projects/290-binney-street-astrazeneca",
+      "title": "290 Binney Street - AstraZeneca — Cambridge Redevelopment Authority",
+      "publisher": "cambridgeredevelopment.org",
+      "pageAge": "18 days ago"
+    },
+    {
+      "id": "S12",
+      "url": "https://static1.squarespace.com/static/685741b7a86daa47be48f7da/t/6896d3eea62a3c4c94333209/1754715121252/AstraZeneca+Building+Identification+Signage+Proposal.pdf",
+      "title": "MEMO Date: July 17, 2024 To: CRA Board From: Joel Smith, Project ...",
+      "publisher": "static1.squarespace.com",
+      "pageAge": null
+    },
+    {
+      "id": "S13",
+      "url": "https://www.bldup.com/posts/fit-out-begins-for-new-astrazeneca-r-d-centre-in-kendall-square",
+      "title": "Fit-Out Begins for New AstraZeneca R&D Centre in Kendall Square",
+      "publisher": "bldup.com",
+      "pageAge": "844 days ago"
+    },
+    {
+      "id": "S14",
+      "url": "https://www.commercialsearch.com/news/boston-properties-sells-stake-in-1-66b-boston-life-science-assets/",
+      "title": "Boston Properties Sells Stake in $1.66B Life Science Assets - CPE",
+      "publisher": "commercialsearch.com",
+      "pageAge": "1096 days ago"
+    },
+    {
+      "id": "S15",
+      "url": "https://newyorkyimby.com/2026/05/303-east-44th-street-tops-out-in-midtown-east-manhattan.html",
+      "title": "303 East 44th Street Tops Out In Midtown East, Manhattan - New ...",
+      "publisher": "newyorkyimby.com",
+      "pageAge": "171 days ago"
+    },
+    {
+      "id": "S16",
+      "url": "https://architecturetoday.co.uk/new-museum-extension-new-york-oma/",
+      "title": "New Museum extension, New York - Architecture Today",
+      "publisher": "architecturetoday.co.uk",
+      "pageAge": "228 days ago"
+    },
+    {
+      "id": "S17",
+      "url": "https://www.newmuseum.org/about/building/",
+      "title": "Building - New Museum",
+      "publisher": "newmuseum.org",
+      "pageAge": "218 days ago"
+    },
+    {
+      "id": "S18",
+      "url": "https://www.metalocus.es/en/news/synergistic-pair-expansion-new-museum-oma",
+      "title": "Synergistic pair. Expansion New Museum by OMA",
+      "publisher": "metalocus.es",
+      "pageAge": "241 days ago"
+    },
+    {
+      "id": "S19",
+      "url": "https://www.theartnewspaper.com/2026/09/21/new-york-city-museum-building-boom-bronx-museum-canyon-metropolitan-museum",
+      "title": "From the Bronx to the Lower East Side, New York’s museum building ...",
+      "publisher": "theartnewspaper.com",
+      "pageAge": "54 days ago"
+    },
+    {
+      "id": "S20",
+      "url": "https://www.bu.edu/articles/2026/warren-towers-tower-a-reopens-to-students/",
+      "title": "Warren Towers’ Tower A Reopens to Students",
+      "publisher": "bu.edu",
+      "pageAge": "59 days ago"
+    },
+    {
+      "id": "S21",
+      "url": "https://www.architecturalrecord.com/articles/18167-on-a-complex-site-in-boston-sasaki-reimagines-the-seaport-districts-tower-typology",
+      "title": "On a Complex Site in Boston, Sasaki Reimagines the Seaport District's ...",
+      "publisher": "architecturalrecord.com",
+      "pageAge": "190 days ago"
+    },
+    {
+      "id": "S22",
+      "url": "https://www.thorntontomasetti.com/news/helping-reshape-philadelphias-skyline",
+      "title": "Two Projects Transforming Philadelphia’s Skyline Near Completion ...",
+      "publisher": "thorntontomasetti.com",
+      "pageAge": "729 days ago"
+    },
+    {
+      "id": "S23",
+      "url": "https://www.cbgbuildingcompany.com/projects/bala-east-end/",
+      "title": "Blayr - CBG Building Company",
+      "publisher": "cbgbuildingcompany.com",
+      "pageAge": "531 days ago"
+    },
+    {
+      "id": "S24",
+      "url": "https://www.citybiz.co/article/690861/federal-realty-investment-trust-and-cbg-building-company-reach-topping-out-milestone-for-second-residential-phase-of-bala-cynwyd-on-city-avenue-development/",
+      "title": "Federal Realty Investment Trust and CBG Building Company Reach ...",
+      "publisher": "citybiz.co",
+      "pageAge": "557 days ago"
+    },
+    {
+      "id": "S25",
+      "url": "https://www.inquirer.com/real-estate/housing/city-avenue-blayr-development-new-apartment-building-20260412.html",
+      "title": "The Blayr, a luxury apartment building, is the latest effort to ...",
+      "publisher": "inquirer.com",
+      "pageAge": "214 days ago"
+    },
+    {
+      "id": "S26",
+      "url": "https://montco.today/2026/04/bala-cynwyd-apartment-blayr/",
+      "title": "New Bala Cynwyd Apartment Building Opens Along Evolving City Avenue ...",
+      "publisher": "montco.today",
+      "pageAge": "170 days ago"
+    }
+  ]
+}

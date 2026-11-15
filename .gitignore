@@ -53,3 +53,6 @@ __pycache__/
 
 # model builder output (large binaries)
 /public/models/**/*.glb
+
+# live pipeline: local run records, recordings and Gmail state
+/.data/
