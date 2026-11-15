@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Keep the dev badge off the sidebar's "Reset demo" button.
+  devIndicators: { position: "bottom-right" },
   // Cache Components is off on purpose: pages read the project files, model.json and the
   // proposals table on every request, so a new model or proposal shows up without a rebuild.
   cacheComponents: false,

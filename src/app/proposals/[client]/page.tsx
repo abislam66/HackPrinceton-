@@ -2,11 +2,14 @@ import { notFound } from "next/navigation";
 import { loadModelInfo } from "@/features/model/load";
 import { loadClient, loadProject } from "@/features/project/load";
 import { getProposal } from "@/features/proposal/store";
+import { ProposalTracker } from "@/features/tracking/ProposalTracker";
 import { teaserPath } from "@/features/viewer/camera-paths";
 import { ModelViewer } from "@/features/viewer/ModelViewer";
 
-export default async function ProposalPage({ params }: PageProps<"/proposals/[client]">) {
+export default async function ProposalPage({ params, searchParams }: PageProps<"/proposals/[client]">) {
   const { client: clientId } = await params;
+  // Internal previews (?preview=1) must not count as client activity.
+  const isPreview = (await searchParams).preview === "1";
   const client = await loadClient(clientId);
   if (!client) notFound();
 
@@ -14,6 +17,7 @@ export default async function ProposalPage({ params }: PageProps<"/proposals/[cl
 
   return (
     <main className="flex flex-1 flex-col">
+      {isPreview ? null : <ProposalTracker clientId={client.id} />}
       <section className="relative h-[80vh] min-h-96">
         <ModelViewer model={model} path={teaserPath(model.boundingBox)} loop={false} className="absolute inset-0" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 p-6 sm:p-10">
