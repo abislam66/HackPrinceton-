@@ -49,6 +49,9 @@ TOWER_ASPECT_RANGE = (2.0, 3.5)  # an oblong slab, not a square
 PENTHOUSE_HEIGHT_M = 5.0  # rooftop mechanical level, within the height cap
 PENTHOUSE_INSET_M = 4.0
 CORE_SHARE = 0.18  # the service core takes one end of the tower
+LOUNGE_STRIP_M = 2.5  # a stack of glass lounges past the core, at the very end of the slab
+CROWN_OVERHANG_M = 1.2  # a thin roof canopy over a glassy top floor
+CROWN_CANOPY_M = 0.8
 
 _MATERIAL_COLORS: dict[str, tuple[int, int, int]] = {
     "brick": (160, 82, 60),
@@ -79,6 +82,8 @@ class MassingSpec:
     podium_floors: int = 0
     tower_plate_m2: float | None = None
     core: dict[str, Any] | None = None
+    tower_footprint: list[tuple[float, float]] | None = None  # [lng, lat] ring of the tower, inside the footprint
+    crown: bool = False
 
 
 def _number(project: dict[str, Any], key: str, *, whole: bool = False) -> float | None:
@@ -148,7 +153,7 @@ def parse_spec(project: dict[str, Any]) -> MassingSpec | None:
     if not isinstance(facades, dict):
         raise ValueError("facades must be an object keyed by side")
 
-    podium_floors, tower_plate, core = 0, None, None
+    podium_floors, tower_plate, core, tower_ring, crown = 0, None, None, None, False
     if typology == "tower":
         podium = _number(project, "podiumFloors", whole=True)
         if podium is None:
@@ -164,6 +169,21 @@ def parse_spec(project: dict[str, Any]) -> MassingSpec | None:
         core = project.get("core")
         if core is not None and not isinstance(core, dict):
             raise ValueError("core must be an object such as {\"material\": \"charcoal\"}")
+        if core is not None and core.get("side") not in (None, "north", "south", "east", "west"):
+            raise ValueError("core.side must be north, south, east or west")
+        if project.get("towerFootprint") is not None:
+            if ring is None:
+                raise ValueError("towerFootprint needs a footprint")
+            try:
+                tower_ring = [(float(lng), float(lat)) for lng, lat in project["towerFootprint"]]
+            except (TypeError, ValueError) as exc:
+                raise ValueError("towerFootprint must be a list of [lng, lat] points") from exc
+            if len(tower_ring) < 3:
+                raise ValueError("towerFootprint needs at least 3 points")
+            provenance["towerPlateM2"] = "given (towerFootprint)"
+        else:
+            tower_ring = None
+        crown = bool(project.get("crown", False))
         # The height cap covers the rooftop plant too; podium floors are taller than bedroom floors.
         tower_floors = int(floors) - podium_floors
         if height_cap is not None:
@@ -175,7 +195,7 @@ def parse_spec(project: dict[str, Any]) -> MassingSpec | None:
             height = floor_height * (podium_floors * PODIUM_FLOOR_RATIO + tower_floors) + PENTHOUSE_HEIGHT_M
             provenance["heightM"] = "inferred (floors x floorHeightM + rooftop plant)"
     return MassingSpec(ring, int(floors), float(floor_height), float(height), gross, typology, facades, provenance,
-                       podium_floors, tower_plate, core)
+                       podium_floors, tower_plate, core, tower_ring, crown)
 
 
 def _largest_polygon(geom: BaseGeometry) -> Polygon:
@@ -185,18 +205,26 @@ def _largest_polygon(geom: BaseGeometry) -> Polygon:
     return max(polygons, key=lambda g: g.area, default=Polygon())
 
 
-def _local_outline(ring: list[tuple[float, float]]) -> Polygon:
-    """Project the ring to meters (x east, y north) and center it on its centroid."""
-    lng0 = sum(p[0] for p in ring) / len(ring)
-    lat0 = sum(p[1] for p in ring) / len(ring)
+def _local_outline(ring: list[tuple[float, float]], frame: list[tuple[float, float]] | None = None) -> Polygon:
+    """Project the ring to meters (x east, y north), centered on the centroid of ``frame`` (default: the ring itself).
+
+    Passing the site footprint as ``frame`` puts a second ring (e.g. the tower) in the same coordinates as the site.
+    """
+    frame = frame or ring
+    lng0 = sum(p[0] for p in frame) / len(frame)
+    lat0 = sum(p[1] for p in frame) / len(frame)
     per_lng = METERS_PER_DEG_LNG_AT_EQUATOR * math.cos(math.radians(lat0))
-    polygon = Polygon([((lng - lng0) * per_lng, (lat - lat0) * METERS_PER_DEG_LAT) for lng, lat in ring])
-    if not polygon.is_valid:
-        polygon = _largest_polygon(make_valid(polygon))
-    if polygon.is_empty or polygon.area < 1.0:
-        raise ValueError("footprint has no usable area")
-    c = polygon.centroid
-    return affinity.translate(polygon, -c.x, -c.y)
+
+    def project(points: list[tuple[float, float]]) -> Polygon:
+        polygon = Polygon([((lng - lng0) * per_lng, (lat - lat0) * METERS_PER_DEG_LAT) for lng, lat in points])
+        if not polygon.is_valid:
+            polygon = _largest_polygon(make_valid(polygon))
+        if polygon.is_empty or polygon.area < 1.0:
+            raise ValueError("footprint has no usable area")
+        return polygon
+
+    c = project(frame).centroid
+    return affinity.translate(project(ring), -c.x, -c.y)
 
 
 def _ring_of(outline: Polygon, depth: float) -> BaseGeometry:
@@ -285,37 +313,49 @@ def _deepest_point(outline: Polygon) -> tuple[float, float]:
 def infer_tower(outline: Polygon, spec: MassingSpec) -> tuple[Polygon, Polygon | None, dict[str, str]]:
     """The tower plate (an oblong slab inside the outline) and its service core, if any."""
     notes: dict[str, str] = {}
-    target = spec.tower_plate_m2 or outline.area * DEFAULT_TOWER_PLATE_SHARE
-    target = min(target, outline.area * 0.9)
-    # Oblong: as long as the plot allows, within the slab range.
-    mrr = outline.minimum_rotated_rectangle
-    pts = list(mrr.exterior.coords)
-    long_side = max(math.dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
-    aspect = min(max(0.8 * long_side / math.sqrt(target), TOWER_ASPECT_RANGE[0]), TOWER_ASPECT_RANGE[1])
-    w = math.sqrt(target / aspect)
-    length = w * aspect
-    angle = _long_axis_angle(outline)
-    cx, cy = _deepest_point(outline)
-    slab = affinity.rotate(box(-length / 2, -w / 2, length / 2, w / 2), angle, origin=(0, 0))
-    slab = affinity.translate(slab, cx, cy)
-    clipped = slab.intersection(outline)
-    plate = _largest_polygon(clipped) if clipped.area >= 0.85 * target else slab
-    notes["towerPlate"] = f"{plate.area:.0f} m², {length:.0f} x {w:.0f} m slab along the plot's long axis ({angle:.0f}°)"
+    if spec.tower_footprint is not None:
+        plate = _local_outline(spec.tower_footprint, frame=spec.footprint)
+        angle = _long_axis_angle(plate)
+        notes["towerPlate"] = f"{plate.area:.0f} m², from towerFootprint (long axis {angle:.0f}°)"
+    else:
+        target = spec.tower_plate_m2 or outline.area * DEFAULT_TOWER_PLATE_SHARE
+        target = min(target, outline.area * 0.9)
+        # Oblong: as long as the plot allows, within the slab range.
+        pts = list(outline.minimum_rotated_rectangle.exterior.coords)
+        long_side = max(math.dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
+        aspect = min(max(0.8 * long_side / math.sqrt(target), TOWER_ASPECT_RANGE[0]), TOWER_ASPECT_RANGE[1])
+        w = math.sqrt(target / aspect)
+        length = w * aspect
+        angle = _long_axis_angle(outline)
+        cx, cy = _deepest_point(outline)
+        slab = affinity.translate(affinity.rotate(box(-length / 2, -w / 2, length / 2, w / 2), angle, origin=(0, 0)), cx, cy)
+        clipped = slab.intersection(outline)
+        plate = _largest_polygon(clipped) if clipped.area >= 0.85 * target else slab
+        notes["towerPlate"] = f"{plate.area:.0f} m², {length:.0f} x {w:.0f} m slab along the plot's long axis ({angle:.0f}°)"
 
     core = None
     if spec.core is not None:
-        # The core sits at the end of the slab that faces into the plot (away from the street edge).
-        half = length / 2
-        ends = []
-        for sign in (-1, 1):
-            strip = box(sign * half - (CORE_SHARE * length if sign > 0 else 0), -w / 2,
-                        sign * half + (CORE_SHARE * length if sign < 0 else 0), w / 2)
-            strip = affinity.translate(affinity.rotate(strip, angle, origin=(0, 0)), cx, cy)
-            ends.append(strip)
-        oc = outline.centroid
-        core = min(ends, key=lambda s: s.centroid.distance(oc)).intersection(plate)
-        core = _largest_polygon(core)
-        notes["core"] = f"{core.area:.0f} m² at the inner end of the slab (inferred position)"
+        # Work in the slab's own frame: long axis along x.
+        c = plate.centroid
+        flat = affinity.rotate(plate, -angle, origin=c)
+        minx, miny, maxx, maxy = flat.bounds
+        length = maxx - minx
+        core_len = CORE_SHARE * length
+        ends = {
+            -1: box(minx + LOUNGE_STRIP_M, miny, minx + LOUNGE_STRIP_M + core_len, maxy),
+            1: box(maxx - LOUNGE_STRIP_M - core_len, miny, maxx - LOUNGE_STRIP_M, maxy),
+        }
+        placed = {k: affinity.rotate(v, angle, origin=c) for k, v in ends.items()}
+        side = spec.core.get("side")
+        if side:
+            axis, sign = {"east": (0, 1), "west": (0, -1), "north": (1, 1), "south": (1, -1)}[side]
+            key = max(placed, key=lambda k: sign * placed[k].centroid.coords[0][axis])
+            notes["core"] = f"{side} end of the slab (given), {LOUNGE_STRIP_M} m glass lounge strip beyond it"
+        else:
+            oc = outline.centroid
+            key = min(placed, key=lambda k: placed[k].centroid.distance(oc))
+            notes["core"] = "inner end of the slab (inferred position)"
+        core = _largest_polygon(placed[key].intersection(plate))
     return plate, core, notes
 
 
@@ -389,20 +429,35 @@ def build_massing(spec: MassingSpec) -> tuple[bytes, BoundingBox, dict[str, str]
         roof_h = spec.height_m - PENTHOUSE_HEIGHT_M  # main roof; the plant goes to the cap
         tower, core, tnotes = infer_tower(outline, spec)
         provenance.update(tnotes)
+        # The base fills the rest of the lot (e.g. a dining wing); the tower stands on the ground beside it.
         podium_wall = spec.facades.get("podium")
-        for m in _extrude(outline, podium_h):
+        for m in _extrude(outline.difference(tower.buffer(0.01)), podium_h):
             parts.append(_paint(m, spec.facades, podium_wall))
         body = tower.difference(core) if core is not None else tower
-        for m in _extrude(body, roof_h - podium_h, base=podium_h):
-            parts.append(_paint(m, spec.facades))
-        plant = body.buffer(-PENTHOUSE_INSET_M, join_style="mitre")
-        for m in _extrude(plant, PENTHOUSE_HEIGHT_M, base=roof_h):
-            parts.append(_paint(m, spec.facades, {"material": "metal"}))
+        if spec.crown:
+            # A glassy top floor under a thin canopy; the core rises past it.
+            crown_h = spec.floor_height_m
+            for m in _extrude(body, roof_h - crown_h):
+                parts.append(_paint(m, spec.facades))
+            for m in _extrude(body.buffer(-0.4, join_style="mitre"), crown_h, base=roof_h - crown_h):
+                parts.append(_paint(m, spec.facades, {"material": "tile", "glass": 0.9}))
+            canopy = body.buffer(CROWN_OVERHANG_M, join_style="mitre")
+            if core is not None:
+                canopy = canopy.difference(core)
+            for m in _extrude(canopy, CROWN_CANOPY_M, base=roof_h):
+                parts.append(_paint(m, spec.facades, {"material": "tile"}))
+            provenance["crown"] = f"glass top floor under a {CROWN_OVERHANG_M} m canopy; core rises {PENTHOUSE_HEIGHT_M:.0f} m above"
+        else:
+            for m in _extrude(body, roof_h):
+                parts.append(_paint(m, spec.facades))
+            plant = body.buffer(-PENTHOUSE_INSET_M, join_style="mitre")
+            for m in _extrude(plant, PENTHOUSE_HEIGHT_M, base=roof_h):
+                parts.append(_paint(m, spec.facades, {"material": "metal"}))
+            provenance["rooftopPlant"] = f"{PENTHOUSE_HEIGHT_M:.0f} m, inset {PENTHOUSE_INSET_M:.0f} m (inferred)"
         if core is not None:
-            for m in _extrude(core, spec.height_m - podium_h, base=podium_h):  # the core runs up past the roof
+            for m in _extrude(core, spec.height_m):  # the core runs from the ground up past the roof
                 parts.append(_paint(m, spec.facades, spec.core))
-        provenance["podium"] = f"{spec.podium_floors} floors, {podium_h:.1f} m, fills the outline"
-        provenance["rooftopPlant"] = f"{PENTHOUSE_HEIGHT_M:.0f} m, inset {PENTHOUSE_INSET_M:.0f} m (inferred)"
+        provenance["podium"] = f"{spec.podium_floors} floors, {podium_h:.1f} m, fills the lot around the tower"
     elif spec.typology == "courtyard" and spec.floors >= 4:
         lower = spec.floor_height_m * (spec.floors - 1)
         meshes = _extrude(plate, lower)

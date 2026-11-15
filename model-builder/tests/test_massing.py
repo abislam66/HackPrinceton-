@@ -206,6 +206,24 @@ def test_tower_plate_is_an_oblong_of_the_given_area():
     assert plate.contains(core.representative_point())
 
 
+def test_tower_footprint_core_side_and_crown(tmp_path):
+    from model_builder.massing import _local_outline, infer_tower
+
+    north_half = [[LNG - 0.0008, LAT + 0.0002], [LNG + 0.0008, LAT + 0.0002],
+                  [LNG + 0.0008, LAT + 0.0004], [LNG - 0.0008, LAT + 0.0004]]
+    data = {**MORGAN, "towerFootprint": north_half, "core": {"material": "charcoal", "side": "west"}, "crown": True}
+    spec = parse_spec(data)
+    site = _local_outline(spec.footprint)
+    plate, core, _ = infer_tower(site, spec)
+    assert plate.centroid.y > 15  # the tower sits on the north part of the site, as given
+    assert core.centroid.x < plate.centroid.x  # west end
+    assert core.bounds[0] > plate.bounds[0] + 2  # a glass lounge strip past the core
+    out = tmp_path / "out"
+    build_model(make_project(tmp_path, data), out)
+    mesh = trimesh.load(out / "model.glb", file_type="glb", force="mesh")
+    assert mesh.bounds[1][1] == pytest.approx(92.0, abs=0.01)  # the core reaches the cap above the crown
+
+
 def test_podium_must_be_shorter_than_the_building():
     with pytest.raises(ValueError):
         parse_spec({**MORGAN, "podiumFloors": 27})
