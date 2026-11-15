@@ -1,6 +1,7 @@
 /*
  * Sample projects for Discover and the Projects list. Every name is invented and every location is
- * neighbourhood-level only: none of these is a real building or company. Shown with a quiet "Sample" tag.
+ * neighbourhood-level only: none of these is a real building or company. Shown without a "Sample" label;
+ * their actions stay disabled, because only Morgan Hall North is loaded.
  */
 
 export type SampleProject = {

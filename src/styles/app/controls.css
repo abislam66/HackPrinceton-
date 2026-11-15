@@ -1,104 +1,1132 @@
-/* App control skin: "Cone-led". Decided by Rafiat from /proto/controls on 2026-11-14.
-   The brand button frame, rolling label and arrow cell stay. Only the fills change: Cone carries the
-   one main action, and nothing else is filled black. Loaded after the brand components.css in the same
-   layer, so these rules win at equal specificity. The brand files stay untouched. */
+/* The internal app's component styles, for src/components/ui. Rafiat's picks from the prototype pages, 2026-11-14
+   (docs/internal-app-redesign-audit.md, "Decisions"): Buttons Solid, Tags Tint, Tabs Segmented, Rows Media,
+   Surfaces Sheets. Tokens are in ./tokens.css.
 
-/* ------------------------------------------------------------------ buttons */
+   Every class is app-*; the brand tm-* classes stay as the brand kit ships them, for the client proposal page.
+   Loaded into the components layer, so a Tailwind utility passed through `className` wins.
+   Rules everywhere: hover only on fine pointers; press is scale(.97) at 120 ms; focus is a 2 px Cone ring;
+   disabled uses tokens, never opacity; every control reaches a 44 px hit area; motion stops under reduced motion. */
 
-/* Primary: Cone fill, Asphalt label. On hover the arrow cell slides in Asphalt with a Cone arrow. */
-.tm-btn--primary { background: var(--tm-cone); border-color: var(--tm-cone); color: var(--tm-asphalt); }
-.tm-btn--primary .tm-btn__icon { border-color: var(--tm-asphalt); }
-.tm-btn--primary .tm-btn__cell--in { background: var(--tm-asphalt); }
-.tm-btn--primary .tm-btn__cell--in .tm-arrow { fill: var(--tm-cone); }
+/* ================================================================== shared */
 
-/* Ghost (secondary): an Asphalt frame on transparent. The Cone arrow cell still slides in on hover. */
-.tm-btn--ghost .tm-btn__cell--in .tm-arrow { fill: var(--tm-asphalt); }
+/* Measurements and data: Geist Mono, tabular. Never on interface words. */
+.app-num {
+  font-family: var(--tm-f-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
 
-/* Press feedback on every button. */
-.tm-btn { transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.12s ease-out; }
-.tm-btnlink:active .tm-btn { transform: scale(0.97); }
+/* A section heading inside a panel or column: 14 px/600, sentence case. */
+.app-h-section {
+  font-family: var(--tm-f-body);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: -0.01em;
+}
+
+.app-missing {
+  color: var(--app-muted);
+}
+
+/* ================================================================== button (Solid) */
+
+/* 32 px tall, 12 px padding, 13 px Geist 500, square. Weight comes from fill: Cone, Sheet plus a hairline, text. */
+.app-btn {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  height: 32px;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--tm-asphalt);
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms ease-out,
+    border-color 150ms ease-out,
+    color 150ms ease-out,
+    transform 120ms var(--app-ease-out);
+}
+
+/* 32 px drawn, 44 px to touch: 6 px above and below, never sideways into a neighbour. */
+.app-btn::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
+
+.app-btn svg {
+  flex: none;
+}
+
+.app-btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* A trailing icon (the new-tab arrow) takes 2 px less padding on its side, so the pair reads centred. */
+.app-btn--trail {
+  padding-right: 10px;
+}
+
+.app-btn--primary {
+  background-color: var(--tm-cone);
+  color: var(--tm-asphalt);
+}
+
+.app-btn--secondary {
+  background-color: var(--tm-sheet);
+  border-color: var(--app-hairline);
+}
+
+/* The icon button: a 32×32 tertiary. Its hit area grows on every side. */
+.app-btn--icon {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+.app-btn--icon::before {
+  inset: -6px;
+}
+.app-btn--icon.app-btn--tertiary {
+  color: var(--app-muted);
+}
+.app-btn-icon {
+  display: grid;
+  place-items: center;
+}
+.app-btn-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
+}
+
+/* On the Asphalt viewer: secondary is Tar with a Slate edge, tertiary is Stucco text. */
+.tm-ground-asphalt .app-btn--secondary {
+  background-color: var(--tm-tar);
+  color: var(--tm-stucco);
+}
+.tm-ground-asphalt .app-btn--tertiary {
+  color: var(--tm-stucco);
+}
+.tm-ground-asphalt .app-btn--icon.app-btn--tertiary {
+  color: var(--tm-concrete);
+}
 
 @media (hover: hover) and (pointer: fine) {
-  .tm-btnlink:hover .tm-btn {
-    transition: background-color 0.6s var(--tm-ease-handle), color 0.6s var(--tm-ease-handle), transform 0.12s ease-out;
+  .app-btn--primary:not(:disabled, [aria-disabled="true"]):hover {
+    background-color: var(--app-cone-hover);
   }
-  /* Hover tints instead of filling black. */
-  .tm-btnlink:hover .tm-btn--primary {
-    background: color-mix(in oklch, var(--tm-cone) 90%, var(--tm-asphalt));
-    border-color: color-mix(in oklch, var(--tm-cone) 90%, var(--tm-asphalt));
+  .app-btn--secondary:not(:disabled, [aria-disabled="true"]):hover {
+    background-color: var(--tm-stucco);
+  }
+  .app-btn--tertiary:not(:disabled, [aria-disabled="true"]):hover {
+    background-color: var(--app-tint);
     color: var(--tm-asphalt);
   }
-  .tm-btnlink:hover .tm-btn--ghost { background: rgba(var(--tm-asphalt-rgb), 0.06); border-color: var(--tm-asphalt); color: var(--tm-asphalt); }
-  .tm-btnlink:hover .tm-btn--ghost-light { background: rgba(var(--tm-stucco-rgb), 0.12); color: var(--tm-sheet); }
+  .tm-ground-asphalt .app-btn--secondary:not(:disabled, [aria-disabled="true"]):hover {
+    background-color: var(--tm-basalt);
+  }
+  .tm-ground-asphalt .app-btn--tertiary:not(:disabled, [aria-disabled="true"]):hover {
+    color: var(--tm-sheet);
+  }
 }
 
-/* Disabled: tokens, not opacity, so it reads the same on every ground. */
-.tm-btnlink:disabled,
-.tm-btnlink[aria-disabled="true"] { opacity: 1; cursor: not-allowed; }
-.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--primary { background: var(--tm-stucco); border-color: var(--tm-stucco); color: var(--tm-mortar); }
-.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--ghost { border-color: var(--tm-limestone); color: var(--tm-mortar); }
-.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--ghost .tm-btn__icon,
-.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--primary .tm-btn__icon { border-color: var(--tm-limestone); }
+.app-btn:not(:disabled, [aria-disabled="true"]):active {
+  transform: scale(0.97);
+}
 
-/* ------------------------------------------------------------------ tabs */
+.app-btn:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
 
-/* Framed cells. The active tab is Sheet with Asphalt text and a 2 px Cone bar along its bottom edge. */
-.app-tab {
-  align-items: center;
-  border: 1px solid var(--tm-concrete);
-  box-sizing: border-box;
-  color: var(--tm-mortar);
+/* Disabled: muted tokens, never opacity. Pending is busy, not unavailable, so it keeps its fill. */
+.app-btn:is(:disabled, [aria-disabled="true"]):not([data-pending]) {
+  color: var(--app-disabled-ink);
+  cursor: not-allowed;
+}
+.app-btn--primary:is(:disabled, [aria-disabled="true"]):not([data-pending]) {
+  background-color: var(--app-disabled-fill);
+}
+.app-btn--secondary:is(:disabled, [aria-disabled="true"]):not([data-pending]) {
+  background-color: transparent;
+  border-color: var(--app-line);
+}
+.app-btn--icon.app-btn--tertiary:is(:disabled, [aria-disabled="true"]) {
+  color: var(--app-disabled-icon);
+}
+.app-btn[data-pending] {
+  cursor: progress;
+}
+
+/* Why a button is disabled, as text beside or under it. */
+.app-btn-field {
   display: inline-flex;
-  min-height: 44px;
-  padding: 10px 16px;
-  position: relative;
-  font-family: var(--tm-f-mono);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.app-btn-field[data-reason="beside"] {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.app-page-actions .app-btn-field:not([data-reason="beside"]) {
+  align-items: flex-end;
+  text-align: right;
+}
+.app-btn-reason {
+  max-width: 32ch;
+  font-family: var(--tm-f-body);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.04em;
-  line-height: 1.2;
-  text-transform: uppercase;
-  touch-action: manipulation;
-  transition: background-color 0.2s var(--tm-ease-link), color 0.2s var(--tm-ease-link);
+  line-height: 16px;
+  color: var(--app-muted);
+  white-space: normal;
 }
-.app-tab[aria-current="page"] { background: var(--tm-sheet); color: var(--tm-asphalt); }
-.app-tab[aria-current="page"]::after {
-  background: var(--tm-cone);
-  bottom: -1px;
-  content: "";
-  height: 2px;
-  left: -1px;
+
+/* A label that changes (Send → Sending…): every face sits in one grid cell; the widest sets the width. */
+.app-btn-stack {
+  display: inline-grid;
+  justify-items: center;
+}
+.app-btn-stack > * {
+  grid-area: 1 / 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-btn-sizer {
+  visibility: hidden;
+}
+
+.app-spin {
+  animation: app-spin 700ms linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ================================================================== tooltip (IconButton) */
+
+/* Sheet with a hairline; it waits 400 ms on hover, shows at once on keyboard focus, never on touch. */
+.app-tip {
   position: absolute;
-  right: -1px;
-}
-@media (hover: hover) and (pointer: fine) {
-  .app-tab:not([aria-current]):hover { background: rgba(var(--tm-asphalt-rgb), 0.06); color: var(--tm-asphalt); }
-}
-.app-tab:not([aria-current]):active { background: rgba(var(--tm-asphalt-rgb), 0.1); }
-.app-tab:focus-visible { outline: 2px solid var(--tm-cone); outline-offset: 3px; }
-
-/* ------------------------------------------------------------------ tags */
-
-/* Framed in Concrete with Mortar text. A leading 8 px square carries the state; nothing is filled. */
-.app-tag {
-  align-items: center;
-  border: 1px solid var(--tm-concrete);
-  color: var(--tm-mortar);
+  z-index: var(--app-z-tooltip);
   display: inline-flex;
+  align-items: center;
   gap: 8px;
-  padding: 6px 9px;
-  font-family: var(--tm-f-mono);
+  padding: 4px 8px;
+  border: 1px solid var(--app-hairline);
+  background: var(--tm-sheet);
+  color: var(--tm-asphalt);
+  font-family: var(--tm-f-body);
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  visibility: hidden;
+}
+.app-tip[data-side="bottom"] {
+  top: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+}
+.app-tip[data-side="top"] {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  translate: -50% 0;
+}
+.app-tip[data-side="right"] {
+  top: 50%;
+  left: calc(100% + 8px);
+  translate: 0 -50%;
+}
+.app-tip[data-side="left"] {
+  top: 50%;
+  right: calc(100% + 8px);
+  translate: 0 -50%;
+}
+.app-tip-key {
+  color: var(--app-muted);
+  font-family: var(--tm-f-mono);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.tm-ground-asphalt .app-tip {
+  background: var(--tm-tar);
+  color: var(--tm-stucco);
+}
+
+.app-btn--icon:focus-visible .app-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-btn--icon:hover .app-tip {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity 125ms ease-out 400ms,
+      visibility 0s linear 400ms;
+  }
+  /* Warm: one tooltip has just shown, so the next opens at once. */
+  .app-btn--icon[data-warm]:hover .app-tip {
+    transition: none;
+  }
+}
+
+/* ================================================================== tag (Tint) */
+
+/* A 22 px block filled with its tone. The fill sits on ::before so Running breathes it without touching the text. */
+.app-tag {
+  --app-tag-fill: var(--app-status-neutral-fill);
+  --app-tag-ink: var(--app-status-neutral-ink);
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  box-sizing: border-box;
+  height: 22px;
+  padding: 0 8px;
+  color: var(--app-tag-ink);
+  font-family: var(--tm-f-body);
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1;
-  text-transform: uppercase;
+  letter-spacing: 0;
   white-space: nowrap;
 }
-.app-tag--strong { color: var(--tm-asphalt); }
-.app-tag__sq { display: block; flex: none; height: 8px; width: 8px; }
+.app-tag::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--app-tag-fill);
+}
+
+.app-tag[data-tone="ready"] {
+  --app-tag-fill: var(--app-status-ready-fill);
+  --app-tag-ink: var(--app-status-ready-ink);
+}
+.app-tag[data-tone="running"] {
+  --app-tag-fill: var(--app-status-running-fill);
+  --app-tag-ink: var(--app-status-running-ink);
+}
+.app-tag[data-tone="pass"] {
+  --app-tag-fill: var(--app-status-pass-fill);
+  --app-tag-ink: var(--app-status-pass-ink);
+}
+.app-tag[data-tone="fail"] {
+  --app-tag-fill: var(--app-status-fail-fill);
+  --app-tag-ink: var(--app-status-fail-ink);
+}
+
+.tm-ground-asphalt .app-tag {
+  --app-tag-fill: var(--app-status-neutral-fill-dark);
+  --app-tag-ink: var(--app-status-neutral-ink-dark);
+}
+.tm-ground-asphalt .app-tag[data-tone="ready"] {
+  --app-tag-fill: var(--app-status-ready-fill-dark);
+  --app-tag-ink: var(--app-status-ready-ink-dark);
+}
+.tm-ground-asphalt .app-tag[data-tone="running"] {
+  --app-tag-fill: var(--app-status-running-fill-dark);
+  --app-tag-ink: var(--app-status-running-ink-dark);
+}
+.tm-ground-asphalt .app-tag[data-tone="pass"] {
+  --app-tag-fill: var(--app-status-pass-fill-dark);
+  --app-tag-ink: var(--app-status-pass-ink-dark);
+}
+.tm-ground-asphalt .app-tag[data-tone="fail"] {
+  --app-tag-fill: var(--app-status-fail-fill-dark);
+  --app-tag-ink: var(--app-status-fail-ink-dark);
+}
+
+/* Running breathes its fill. Opacity only: the text stays put and only gains contrast as the fill thins. */
+.app-tag[data-tone="running"]::before {
+  animation: app-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes app-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* ================================================================== filter chip */
+
+/* Row gap 16: each chip's 44 px hit area bleeds 8 px above and below, so wrapped rows never overlap. */
+.app-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 8px;
+}
+
+/* Off: Stucco, muted text. On: Limestone, Asphalt text and a check. Off pads 18 a side; on pads 8 + 12 check
+   + 4 gap on the left and 12 on the right, so pressing never changes the width. */
+.app-chip {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 18px;
+  border: 0;
+  background: var(--tm-stucco);
+  color: var(--app-muted);
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color 150ms ease-out,
+    color 150ms ease-out,
+    transform 120ms var(--app-ease-out);
+}
+.app-chip::before {
+  content: "";
+  position: absolute;
+  inset: -8px 0;
+}
+.app-chip[aria-pressed="true"] {
+  padding: 0 12px 0 8px;
+  background: var(--tm-limestone);
+  color: var(--tm-asphalt);
+}
+.app-chip svg {
+  flex: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-chip[aria-pressed="false"]:hover {
+    background: oklch(0.896 0.02 78); /* Stucco 55% toward Limestone */
+    color: var(--tm-asphalt);
+  }
+}
+.app-chip:active {
+  transform: scale(0.97);
+}
+.app-chip:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
+
+/* ================================================================== tabs (Segmented) */
+
+/* A 32 px track at 6 % Asphalt with a 2 px inset. Corners: 2 px outside, 0 inside. No Cone in the control. */
+.app-tabs {
+  position: relative;
+  display: inline-flex;
+  align-self: flex-start;
+  box-sizing: border-box;
+  max-width: 100%;
+  height: 32px;
+  padding: 2px;
+  border-radius: 2px;
+  background: var(--app-tint);
+}
+
+/* The 360 px panel: full width, equal segments. */
+.app-tabs--full {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  align-self: stretch;
+  width: 100%;
+}
+
+.app-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-width: 0;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  color: var(--app-muted);
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-decoration: none;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 28 px to see, 44 px to hit: 8 px above and below, never sideways into a neighbour. */
+.app-tab::before {
+  content: "";
+  position: absolute;
+  inset: -8px 0;
+}
+
+.app-tab-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Active: a Sheet segment with a 12 % hairline. Same weight as the rest: fill and colour carry the state. */
+.app-tab[aria-current="page"] {
+  border-color: rgba(var(--tm-asphalt-rgb), 0.12);
+  background: var(--tm-sheet);
+  color: var(--tm-asphalt);
+}
+
+.app-tab-count {
+  color: var(--app-muted);
+  font-family: var(--tm-f-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.app-tab:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-tab {
+    transition:
+      background-color 150ms ease-out,
+      color 150ms ease-out;
+  }
+  .app-tab:not([aria-current="page"]):hover {
+    background: var(--app-hover);
+    color: var(--tm-asphalt);
+  }
+}
+
+/* ================================================================== panel (Sheets) */
+
+/* One raised step: Sheet behind a 10 % border on Plaster. Only dividers inside. Never a panel in a panel. */
+.app-panel {
+  min-width: 0;
+  border: 1px solid var(--app-line);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+}
+
+/* Every titled panel opens with this row: a 14 px/600 title, a count or action on the right, a divider under it. */
+.app-panel-head {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--app-divider);
+}
+.app-panel-title {
+  min-width: 0;
+}
+.app-panel-end {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+}
+.app-panel-count {
+  color: var(--app-muted);
+  font-family: var(--tm-f-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.app-panel-body {
+  padding: 20px;
+}
+
+/* ================================================================== stat strip */
+
+/* Measurements in a row: cells share the spare width but never shrink below their value. */
+.app-stats {
+  display: flex;
+  min-width: 0;
+}
+.app-stat {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 20px;
+}
+.app-stat + .app-stat {
+  border-left: 1px solid var(--app-divider);
+}
+.app-stat-label {
+  color: var(--app-muted);
+  font-family: var(--tm-f-body);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+.app-stat-value {
+  font-family: var(--tm-f-mono);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* ================================================================== page header */
+
+.app-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding-bottom: 24px;
+}
+.app-page-main {
+  display: flex;
+  flex: 1 1 320px;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.app-crumbs {
+  color: var(--app-muted);
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.app-crumbs a {
+  position: relative;
+  color: inherit;
+  text-decoration: none;
+  transition: color 150ms ease-out;
+}
+/* 18 px of text, 40 px to hit; 4 px sideways, so neighbours across the " / " never overlap. */
+.app-crumbs a::before {
+  content: "";
+  position: absolute;
+  inset: -11px -4px;
+}
+.app-crumbs a:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .app-crumbs a:hover {
+    color: var(--tm-asphalt);
+  }
+}
+/* Rigid Square: page titles only. Long generated titles wrap and balance; nothing truncates them. */
+.app-page-title {
+  font-family: var(--tm-f-head);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.app-page-desc {
+  max-width: 66ch;
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 20px;
+  text-wrap: pretty;
+}
+.app-page-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ================================================================== avatar */
+
+.app-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: var(--tm-stucco);
+  color: var(--tm-asphalt);
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+}
+.app-avatar[data-size="24"] {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+
+/* ================================================================== media rows */
+
+.app-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  container-type: inline-size;
+}
+.app-rows > li + li {
+  border-top: 1px solid var(--app-divider);
+}
+
+/* Two lines led by a visual; the whole row is the target. 64 px, or 72 px for shots. */
+.app-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 64px;
+  padding: 0 20px;
+  border: 0;
+  background-color: transparent;
+  color: var(--tm-asphalt);
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: -0.005em;
+  text-align: left;
+  text-decoration: none;
+}
+.app-row[data-size="72"] {
+  gap: 12px;
+  height: 72px;
+}
+:is(a, button).app-row {
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 150ms ease-out;
+}
+.app-row:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :is(a, button).app-row:not([aria-pressed="true"], [aria-current="true"]):hover {
+    background-color: var(--app-hover);
+  }
+  a.app-row:hover .app-row-chev {
+    color: var(--tm-asphalt);
+  }
+}
+
+/* Selected: Stucco and a 2 px Cone bar on the left edge. */
+.app-row:is([aria-pressed="true"], [aria-current="true"]) {
+  background-color: var(--tm-stucco);
+}
+.app-row:is([aria-pressed="true"], [aria-current="true"])::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background-color: var(--tm-cone);
+}
+
+.app-row-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.app-row-title,
+.app-row-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-row-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+  letter-spacing: -0.01em;
+}
+.app-row-meta {
+  color: var(--app-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.app-row-end {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 16px;
+}
+.app-row-chev {
+  display: grid;
+  flex: 0 0 16px;
+  place-items: center;
+  color: var(--app-muted);
+  transition: color 150ms ease-out;
+}
+
+/* ---- camera-path plan: footprint, aim line, path, start dot, end arrow. North is up. */
+.app-plan {
+  flex: 0 0 auto;
+  outline: 1px solid rgba(var(--tm-concrete-rgb), 0.4);
+  outline-offset: -1px;
+  pointer-events: none;
+}
+.app-plan-footprint {
+  fill: rgba(var(--tm-asphalt-rgb), 0.06);
+  stroke: rgba(var(--tm-asphalt-rgb), 0.35);
+  stroke-width: 1;
+}
+.app-plan-aim {
+  stroke: var(--tm-mortar);
+  stroke-width: 0.75;
+  stroke-dasharray: 1.5 1.5;
+  opacity: 0.6;
+}
+.app-plan-path {
+  fill: none;
+  stroke: var(--tm-mortar);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.app-plan-start,
+.app-plan-arrow {
+  fill: var(--tm-mortar);
+}
+:is([aria-pressed="true"], [aria-current="true"]) .app-plan-path {
+  stroke: var(--tm-cone);
+}
+:is([aria-pressed="true"], [aria-current="true"]) :is(.app-plan-start, .app-plan-arrow) {
+  fill: var(--tm-cone);
+}
+
+/* ---- elevation: one hairline bar per floor, one scale for every building. An empty frame when unknown. */
+.app-elev {
+  flex: 0 0 auto;
+  outline: 1px solid rgba(var(--tm-concrete-rgb), 0.4);
+  outline-offset: -1px;
+  fill: var(--tm-mortar);
+  pointer-events: none;
+}
+
+/* ---- progress bar, 2 px. Done fills, queued stays empty, running is indeterminate, a failure fills in Halt. */
+.app-bar {
+  position: relative;
+  display: block;
+  height: 2px;
+  overflow: hidden;
+  background-color: rgba(var(--tm-concrete-rgb), 0.3);
+}
+.app-bar-fill {
+  position: absolute;
+  inset: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.app-bar[data-status="done"] .app-bar-fill {
+  transform: none;
+  background-color: var(--tm-asphalt);
+}
+.app-bar[data-status="error"] .app-bar-fill {
+  transform: none;
+  background-color: var(--tm-halt);
+}
+.app-bar[data-status="running"] {
+  background-color: rgba(var(--tm-cone-rgb), 0.2);
+}
+.app-bar[data-status="running"] .app-bar-fill {
+  right: auto;
+  width: 30%;
+  transform: translateX(-100%);
+  background-color: var(--tm-cone);
+  animation: app-indeterminate 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes app-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+/* ================================================================== table */
+
+.app-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-family: var(--tm-f-body);
+  font-size: 14px;
+  line-height: 20px;
+}
+/* Headers: sentence case, 12 px, muted. */
+.app-table th {
+  height: 40px;
+  padding: 0 20px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.app-table tbody tr {
+  border-top: 1px solid var(--app-divider);
+}
+.app-table td {
+  height: 40px;
+  padding: 8px 20px;
+  vertical-align: middle;
+}
+.app-table :is(th, td)[data-num] {
+  text-align: right;
+}
+.app-table td[data-num] {
+  font-family: var(--tm-f-mono);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* ================================================================== dialog */
+
+/* A Sheet with an 18 % edge over an 80 % Plaster scrim. Enters in 200 ms; closes at once. */
+.app-dialog {
+  box-sizing: border-box;
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--app-line-strong);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  color: var(--tm-asphalt);
+  color-scheme: light;
+  opacity: 1;
+  scale: 1;
+  transition:
+    opacity 200ms var(--app-ease-out),
+    scale 200ms var(--app-ease-out);
+}
+.app-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.app-dialog::backdrop {
+  background: var(--app-scrim);
+  opacity: 1;
+  transition: opacity 200ms var(--app-ease-out);
+}
+@starting-style {
+  .app-dialog[open] {
+    opacity: 0;
+    scale: 0.98;
+  }
+  .app-dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+.app-dialog-head {
+  flex: none;
+  padding-right: 12px;
+}
+.app-dialog-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 20px;
+}
+.app-dialog-foot {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--app-divider);
+}
+/* The actions sit right whether or not a note comes first. */
+.app-dialog-foot > :last-child {
+  margin-inline-start: auto;
+}
+
+/* ================================================================== field */
+
+.app-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-field + .app-field {
+  margin-top: 20px;
+}
+.app-field-label {
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+/* 16 px text, so iOS never zooms on focus. */
+.app-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--app-field-line);
+  border-radius: 2px;
+  background: var(--tm-sheet);
+  color: var(--tm-asphalt);
+  font-family: var(--tm-f-body);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  appearance: none;
+  transition: border-color 150ms ease-out;
+}
+textarea.app-input {
+  min-height: 7.5em;
+  resize: vertical;
+}
+.app-input::placeholder {
+  color: var(--app-muted);
+}
+.app-input:focus-visible {
+  border-color: var(--tm-asphalt);
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
+.app-input:disabled {
+  border-color: var(--app-line);
+  background: transparent;
+  color: var(--app-muted);
+  cursor: not-allowed;
+}
+.app-input[aria-invalid="true"] {
+  border-color: var(--app-status-fail-ink);
+}
+.app-field-error {
+  color: var(--app-status-fail-ink);
+  font-family: var(--tm-f-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+/* ================================================================== empty state */
+
+/* Pinned top-left, never centred: a title, one line on why it is empty, one action. */
+.app-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 20px;
+}
+.app-empty-title {
+  font-family: var(--tm-f-body);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.01em;
+}
+.app-empty-body {
+  max-width: 66ch;
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 20px;
+  text-wrap: pretty;
+}
+.app-empty-action {
+  margin-top: 16px;
+}
+
+/* ================================================================== reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
-  .tm-btn, .app-tab { transition: none !important; }
-  .tm-btnlink:active .tm-btn { transform: none; }
+  .app-btn,
+  .app-chip,
+  .app-tab,
+  .app-row,
+  .app-dialog,
+  .app-dialog::backdrop,
+  .app-input {
+    transition: none;
+  }
+  .app-btn:not(:disabled, [aria-disabled="true"]):active,
+  .app-chip:active {
+    transform: none;
+  }
+  /* The tooltip still waits 400 ms; it appears instead of fading. */
+  .app-btn--icon:hover .app-tip {
+    transition: visibility 0s linear 400ms;
+  }
+  .app-spin,
+  .app-tag[data-tone="running"]::before {
+    animation: none;
+  }
+  .app-bar[data-status="running"] .app-bar-fill {
+    width: 100%;
+    transform: none;
+    animation: none;
+    opacity: 0.5;
+  }
 }

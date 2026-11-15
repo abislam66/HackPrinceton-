@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Eyebrow } from "@/components/ui/Eyebrow";
-import { Heading } from "@/components/ui/Heading";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Panel } from "@/components/ui/Panel";
 import { Tabs } from "@/components/ui/Tabs";
 import { Tag } from "@/components/ui/Tag";
 import type { ModelInfo } from "@/features/model/schema";
@@ -19,10 +18,9 @@ import type { Stage } from "@/features/workspace/status";
 import { BriefPanel } from "./BriefPanel";
 import { BuildPanel } from "./BuildPanel";
 import { EngagementPanel } from "./EngagementPanel";
-import { PitchForm } from "./PitchForm";
 import { ShotList } from "./ShotList";
 
-export type WorkspaceTab = "shots" | "pitch" | "engagement";
+export type WorkspaceTab = "shots" | "engagement";
 
 type Props = {
   basePath: string;
@@ -45,7 +43,13 @@ function buildStep(state: BuildState): string {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** The workspace body: the viewer (the page's one Asphalt moment) on the left, a 360 px side panel on the right. */
+/** The side panel: a column that fills the row. Its header stays put; the body below decides what scrolls. */
+const SIDE_PANEL = "flex min-h-0 flex-col overflow-hidden";
+
+/**
+ * The workspace body: the viewer (the page's one Asphalt surface) on the left, a 360 px panel on the right.
+ * Captions under the canvas use `text-muted` and `Tag`, which switch to their dark values on Asphalt by themselves.
+ */
 export function Workspace({ basePath, stage, tab, model, client, proposal, engagement, events, sentAt }: Props) {
   const build = useProposalBuild({ clientId: client.id, company: client.company, basePath });
   const { state } = build;
@@ -75,15 +79,9 @@ export function Workspace({ basePath, stage, tab, model, client, proposal, engag
             className="absolute inset-0"
           />
         </div>
-        <div className="flex shrink-0 flex-col items-start gap-2 p-5">
-          {state.phase === "error" ? (
-            <Tag variant="halt">{buildStep(state)}</Tag>
-          ) : (
-            <Tag variant="cone" pulse>
-              {buildStep(state)}
-            </Tag>
-          )}
-          <p className="tm-text--s text-concrete">
+        <div className="flex shrink-0 flex-col items-start gap-2 border-t border-divider p-5">
+          <Tag tone={state.phase === "error" ? "fail" : "running"}>{buildStep(state)}</Tag>
+          <p className="text-[13px] leading-[18px] text-muted">
             {state.kind === "regenerate"
               ? `New shots and pitch for ${client.company}.`
               : `${client.company}'s own 3D model, drone shots and pitch.`}
@@ -97,80 +95,89 @@ export function Workspace({ basePath, stage, tab, model, client, proposal, engag
         <div className="relative min-h-0 flex-1">
           <ModelViewer model={model} path={selected.camera} loop className="absolute inset-0" />
         </div>
-        {/* Sits under the canvas, not over it, so it never covers ModelViewer's own overlays. */}
-        <div className="flex min-h-[112px] shrink-0 flex-col gap-1 p-5">
-          <span className="tm-label tm-num text-cone">
-            Shot {pad(selectedIndex + 1)} / {pad(shots.length)}
-          </span>
-          <p className="tm-text--m truncate text-stucco">{selected.name}</p>
-          {caption ? <p className="tm-text--s line-clamp-2 text-concrete">{caption}</p> : null}
+        {/* Sits under the canvas, not over it, so it never covers ModelViewer's own overlays. A fixed 80 px of
+            content (label, name, two caption lines), so switching shots never resizes the canvas. */}
+        <div className="box-content flex h-20 shrink-0 flex-col gap-1 border-t border-divider p-5">
+          <p className="text-xs leading-4 text-muted">
+            Shot{" "}
+            <span className="app-num">
+              {pad(selectedIndex + 1)} / {pad(shots.length)}
+            </span>
+          </p>
+          <p className="truncate text-sm leading-5 font-semibold" title={selected.name}>
+            {selected.name}
+          </p>
+          {caption ? <p className="line-clamp-2 text-[13px] leading-[18px] text-muted">{caption}</p> : null}
         </div>
       </>
     );
   } else {
     viewer = (
-      <div className="grid flex-1 place-items-center p-8">
-        <div className="flex w-full max-w-[440px] flex-col gap-4">
-          <Eyebrow>No model yet</Eyebrow>
-          <Heading size="s">Build the proposal</Heading>
-          <p className="tm-text--m text-concrete">
-            The agents build {client.company}&apos;s own 3D model, drone shots and pitch.
-          </p>
-          <div className="mt-4">
-            <Button variant="primary" onClick={build.start}>
-              Build proposal
-            </Button>
-          </div>
-        </div>
-      </div>
+      <EmptyState
+        title="No proposal yet"
+        description={`The agents build ${client.company}'s own 3D model, drone shots and pitch.`}
+        action={
+          <Button variant="primary" onClick={build.start}>
+            Build proposal
+          </Button>
+        }
+      />
     );
   }
 
   let panel;
   if (building) {
-    panel = <BuildPanel build={build} />;
-  } else if (built && proposal) {
-    const tabs = [
-      { label: "Shots", href: `${basePath}?tab=shots`, active: tab === "shots" },
-      { label: "Pitch", href: `${basePath}?tab=pitch`, active: tab === "pitch" },
-      ...(stage === "sent"
-        ? [{ label: "Engagement", href: `${basePath}?tab=engagement`, active: tab === "engagement" }]
-        : []),
-    ];
     panel = (
-      <>
-        <div className="mb-6">
-          <Tabs items={tabs} />
-        </div>
-        {tab === "pitch" ? (
-          <PitchForm
-            key={JSON.stringify(proposal.pitch)}
-            clientId={client.id}
-            pitch={proposal.pitch}
-            readOnly={stage === "sent"}
-          />
-        ) : tab === "engagement" ? (
-          <EngagementPanel engagement={engagement} events={events} sentAt={sentAt} />
-        ) : (
-          <ShotList
-            shots={shots}
-            selectedId={selected?.id}
-            onSelect={setSelectedId}
-            onRegenerate={stage === "ready" ? build.regenerate : undefined}
-          />
-        )}
-      </>
+      <Panel title={state.phase === "error" ? "Build stopped" : "Building"} flush className={SIDE_PANEL}>
+        <BuildPanel build={build} />
+      </Panel>
     );
+  } else if (built && proposal) {
+    const shotList = (
+      <ShotList
+        shots={shots}
+        selectedId={selected?.id}
+        onSelect={setSelectedId}
+        onRegenerate={stage === "ready" ? build.regenerate : undefined}
+      />
+    );
+    // Tabs only appear once there is a second view (Engagement, after sending). They take the header row's place.
+    panel =
+      stage === "sent" ? (
+        <Panel flush className={SIDE_PANEL}>
+          <div className="flex min-h-12 shrink-0 items-center border-b border-divider px-5 py-2">
+            <Tabs
+              full
+              label="Proposal views"
+              items={[
+                { label: "Shots", href: `${basePath}?tab=shots`, active: tab === "shots", count: shots.length },
+                { label: "Engagement", href: `${basePath}?tab=engagement`, active: tab === "engagement" },
+              ]}
+            />
+          </div>
+          {tab === "engagement" ? (
+            <EngagementPanel engagement={engagement} events={events} sentAt={sentAt} />
+          ) : (
+            shotList
+          )}
+        </Panel>
+      ) : (
+        <Panel title="Shots" count={shots.length} flush className={SIDE_PANEL}>
+          {shotList}
+        </Panel>
+      );
   } else {
-    panel = <BriefPanel client={client} />;
+    panel = (
+      <Panel title="Brief" flush className={SIDE_PANEL}>
+        <BriefPanel client={client} />
+      </Panel>
+    );
   }
 
   return (
     <div className="grid min-h-[560px] flex-1 grid-cols-[minmax(0,1fr)_360px] grid-rows-[minmax(0,1fr)] gap-6">
-      <div className="tm-ground-asphalt flex min-h-0 flex-col overflow-hidden">{viewer}</div>
-      <Card className="flex min-h-0 flex-col overflow-hidden">
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">{panel}</div>
-      </Card>
+      <div className="tm-ground-asphalt flex min-h-0 flex-col overflow-hidden rounded-xs">{viewer}</div>
+      {panel}
     </div>
   );
 }

@@ -1,75 +1,65 @@
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Eyebrow } from "@/components/ui/Eyebrow";
+import { MediaList, MediaRow } from "@/components/ui/MediaRow";
+import { Panel } from "@/components/ui/Panel";
 import { Tag } from "@/components/ui/Tag";
-import { DOSSIER_SUMMARY } from "@/features/demo/building";
+import { SOURCES } from "@/features/demo/building";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { loadStakeholders, type StakeholderStatus } from "@/features/workspace/status";
 import { NEED_LABEL, ROLE_LABEL } from "@/lib/labels";
+import { DOSSIER_PEEK } from "./facts";
 
-/** The stage → Tag mapping from docs/internal-app-ui.md. */
+/** The stage as a status: not built is neutral, ready is ready, opened is pass, sent but not opened is neutral. */
 function StageTag({ status }: { status: StakeholderStatus }) {
-  if (status.stage === "not-built") return <Tag variant="quiet">Not built</Tag>;
-  if (status.stage === "ready") return <Tag variant="ink">Ready to send</Tag>;
+  if (status.stage === "not-built") return <Tag>Not built</Tag>;
+  if (status.stage === "ready") return <Tag tone="ready">Ready to send</Tag>;
   const { opens } = status.engagement;
-  return opens > 0 ? (
-    <Tag variant="go">
-      <span className="tm-num">Opened · {opens}</span>
-    </Tag>
-  ) : (
-    <Tag variant="quiet">Sent · not opened</Tag>
-  );
+  return opens > 0 ? <Tag tone="pass">{`Opened · ${opens}`}</Tag> : <Tag>Sent · not opened</Tag>;
 }
 
 export default async function ProjectStakeholdersPage() {
   const stakeholders = await loadStakeholders();
-  const primaryId = stakeholders.find((s) => s.stage !== "sent")?.client.id;
+  const sent = stakeholders.filter((s) => s.stage === "sent").length;
+  const base = `/projects/${PROJECT_SLUG}`;
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6">
-      <Card>
-        <ul>
+    <div className="grid items-start gap-6 @4xl:grid-cols-[minmax(0,1fr)_320px]">
+      <Panel title="Proposals" count={`${sent} of ${stakeholders.length} sent`} flush>
+        <MediaList>
           {stakeholders.map((s) => (
-            <li key={s.client.id} className="flex items-center gap-5 border-b border-rule/40 p-5 last:border-b-0">
-              <Avatar name={s.client.company} />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <p className="tm-text--m truncate font-semibold">{s.client.company}</p>
-                <p className="tm-text--s tm-muted truncate">{ROLE_LABEL[s.client.role]}</p>
-                <p className="tm-text--s">Needs: {NEED_LABEL[s.client.need]}</p>
-              </div>
-              <StageTag status={s} />
-              <Button
-                href={`/projects/${PROJECT_SLUG}/stakeholders/${s.client.id}`}
-                variant={s.client.id === primaryId ? "primary" : "ghost"}
-                compact
-              >
-                Open workspace
-              </Button>
-            </li>
+            <MediaRow
+              key={s.client.id}
+              href={`${base}/stakeholders/${s.client.id}`}
+              media={<Avatar name={s.client.company} />}
+              title={s.client.company}
+              meta={`${ROLE_LABEL[s.client.role]} · Needs: ${NEED_LABEL[s.client.need]}`}
+            >
+              {/* One width for every status, so the tags line up down the list. */}
+              <span className="flex w-32">
+                <StageTag status={s} />
+              </span>
+            </MediaRow>
           ))}
-        </ul>
-      </Card>
+        </MediaList>
+      </Panel>
 
-      <Card className="flex flex-col gap-6 p-5">
-        <div className="flex flex-col gap-2">
-          <Eyebrow>Dossier</Eyebrow>
-          <p className="tm-text--s tm-muted">Research the agent gathered</p>
-        </div>
-        <dl className="flex flex-col gap-4">
-          {DOSSIER_SUMMARY.map((fact) => (
+      {/* Its own container: one column in the 320 px rail, two or three when the page folds it under the list. */}
+      <Panel title="Dossier" action={<Button href={`${base}/dossier`}>Open dossier</Button>} className="@container">
+        <dl className="grid gap-x-6 gap-y-4 @md:grid-cols-2 @2xl:grid-cols-3">
+          {DOSSIER_PEEK.map((fact) => (
             <div key={fact.label} className="flex flex-col gap-1">
-              <dt className="tm-label tm-muted">{fact.label}</dt>
-              <dd className="tm-text--m tm-num">{fact.value}</dd>
+              <dt className="text-xs text-muted">{fact.label}</dt>
+              <dd className="text-sm text-pretty">{fact.value}</dd>
             </div>
           ))}
+          <div className="flex flex-col gap-1">
+            <dt className="text-xs text-muted">Sources</dt>
+            <dd className="text-sm">
+              <span className="app-num">{SOURCES.length}</span> public sources
+            </dd>
+          </div>
         </dl>
-        <div>
-          <Button href={`/projects/${PROJECT_SLUG}/dossier`} variant="ghost" compact>
-            Open dossier
-          </Button>
-        </div>
-      </Card>
+      </Panel>
     </div>
   );
 }

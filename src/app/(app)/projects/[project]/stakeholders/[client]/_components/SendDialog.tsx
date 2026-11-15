@@ -17,6 +17,9 @@ type Props = {
   basePath: string;
 };
 
+/** The 13 px/500 label a Field draws, for the read-only parts of the form. */
+const LABEL = "text-[13px] leading-[18px] font-medium";
+
 function defaultMessage(contactName: string, projectName: string, company: string): string {
   return [
     `Hi ${contactName},`,
@@ -56,17 +59,19 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
       locked={pending}
       title="Send proposal"
       footer={
-        <div className="flex items-center justify-between gap-6">
-          <p className="tm-text--s tm-muted">Gmail isn&apos;t connected yet. Sending marks the proposal as sent.</p>
+        <>
+          <p className="text-[13px] leading-[18px] text-muted">
+            Gmail isn&apos;t connected yet. Sending marks the proposal as sent.
+          </p>
           <div className="flex shrink-0 items-center gap-2">
-            <Button variant="ghost" compact arrow={false} onClick={onClose} disabled={pending}>
+            <Button variant="tertiary" onClick={onClose} disabled={pending}>
               Cancel
             </Button>
-            <Button variant="primary" compact type="submit" form={formId} disabled={pending}>
-              {pending ? "Sending" : "Send proposal"}
+            <Button variant="primary" type="submit" form={formId} pending={pending} pendingLabel="Sending…">
+              Send proposal
             </Button>
           </div>
-        </div>
+        </>
       }
     >
       <form
@@ -77,15 +82,15 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
         }}
         className="flex flex-col"
       >
-        <div className="mb-6 flex flex-col gap-3">
-          <span className="tm-label tm-muted">To</span>
+        <div className="mb-5 flex flex-col gap-2">
+          <p className={LABEL}>To</p>
           <div className="flex items-center gap-3">
             <Avatar name={client.contact.name} />
-            <div className="flex min-w-0 flex-col">
-              <span className="tm-text--m font-semibold">{client.contact.name}</span>
-              <span className="tm-text--s tm-muted">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <p className="truncate text-sm leading-5 font-semibold">{client.contact.name}</p>
+              <p className="truncate text-[13px] leading-[18px] text-muted">
                 {client.contact.title} · {client.company}
-              </span>
+              </p>
             </div>
           </div>
         </div>
@@ -100,13 +105,13 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
           disabled={pending}
         />
 
-        <div className="mt-6 flex flex-col gap-2 bg-stucco p-4">
-          <span className="tm-label">Proposal link</span>
-          <span className="truncate font-mono text-sm">/proposals/{client.id}</span>
+        <div className="mt-5 flex flex-col gap-2">
+          <p className={LABEL}>Proposal link</p>
+          <p className="truncate font-mono text-[13px] leading-[18px] text-muted">/proposals/{client.id}</p>
         </div>
 
         {error ? (
-          <p role="alert" className="tm-text--s mt-4 text-halt">
+          <p role="alert" className="mt-4 text-[13px] leading-[18px] text-status-fail-ink">
             {error}
           </p>
         ) : null}

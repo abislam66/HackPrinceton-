@@ -1,41 +1,43 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
 
-export type TagVariant = "line" | "ink" | "cone" | "quiet" | "go" | "halt";
+export type TagTone = "neutral" | "ready" | "running" | "pass" | "fail";
 
 export type TagProps = {
+  /** The status in words; the fill only reinforces it. Digits are set in mono tabular figures. */
   children: ReactNode;
   /**
-   * Every tag is framed in Concrete; the variant sets a leading 8 px square and the text weight.
-   * `line` (default): no square, Asphalt text, for categories, counts and filters.
-   * `ink`: an Asphalt square, for a state that is set (Ready to send, In outreach).
-   * `quiet`: no square, Mortar text, for not-started or inactive items (Not built, Sample, Waiting).
-   * `cone`: a Cone square, only while the agents run. `go` and `halt`: pass and fail only.
+   * `neutral` (default): not started or waiting (Not built, Queued, Sent · not opened).
+   * `ready`: a state that is set (Ready to send, In outreach). `running`: only while agents work; it breathes.
+   * `pass` and `fail`: outcomes only (Done, Opened, Failed).
    */
-  variant?: TagVariant;
-  /** Blink the square (for `cone`, while running). Still under reduced motion. */
-  pulse?: boolean;
+  tone?: TagTone;
   className?: string;
 };
 
-const SQUARE: Record<TagVariant, string | null> = {
-  line: null,
-  ink: "bg-asphalt",
-  cone: "bg-cone",
-  quiet: null,
-  go: "bg-go",
-  halt: "bg-halt",
-};
+/** "Opened · 12" → the words in Geist, the 12 in Geist Mono tabular. */
+function withMonoDigits(text: string): ReactNode {
+  return text.split(/(\d+)/).map((part, i) =>
+    /^\d+$/.test(part) ? (
+      <span key={i} className="app-num">
+        {part}
+      </span>
+    ) : (
+      <Fragment key={i}>{part}</Fragment>
+    ),
+  );
+}
 
-/** A small mono caps tag: a state, a category, a count. Not clickable; a clickable option is a Cell. Styles in src/styles/app/controls.css. */
-export function Tag({ children, variant = "line", pulse = false, className }: TagProps) {
-  const square = SQUARE[variant];
+/**
+ * A status: a 22 px block filled with its tone, 12 px text. Not clickable (a filter is a `FilterChip`), and only for
+ * states, never for categories. Adapts on the Asphalt viewer.
+ */
+export function Tag({ children, tone = "neutral", className }: TagProps) {
+  const text = typeof children === "string" || typeof children === "number" ? withMonoDigits(String(children)) : children;
   return (
-    <span className={cx("app-tag", variant !== "quiet" && "app-tag--strong", className)}>
-      {square ? (
-        <span aria-hidden="true" className={cx("app-tag__sq", square, pulse && "motion-safe:animate-pulse")} />
-      ) : null}
-      {children}
+    <span className={cx("app-tag", className)} data-tone={tone}>
+      {/* One inline run: as bare flex items, "Opened · " would lose its trailing space before the number. */}
+      <span>{text}</span>
     </span>
   );
 }

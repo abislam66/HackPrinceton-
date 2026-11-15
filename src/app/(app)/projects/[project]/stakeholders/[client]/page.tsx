@@ -8,7 +8,7 @@ import { NEED_LABEL } from "@/lib/labels";
 import { StakeholderActions } from "./_components/StakeholderActions";
 import { Workspace, type WorkspaceTab } from "./_components/Workspace";
 
-const TABS: WorkspaceTab[] = ["shots", "pitch", "engagement"];
+const TABS: WorkspaceTab[] = ["shots", "engagement"];
 
 /** 4 Stakeholder workspace: build, review and send one stakeholder's proposal. */
 export default async function StakeholderPage({

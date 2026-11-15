@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Eyebrow } from "@/components/ui/Eyebrow";
-import { Metric } from "@/components/ui/Metric";
+import { StatStrip } from "@/components/ui/StatStrip";
 import type { StoredEvent } from "@/features/tracking/record";
 import type { ClientSummary } from "@/features/tracking/summary";
 import { formatRelative, formatWatch } from "@/features/workspace/format";
+import { cx } from "@/lib/cx";
 
 const REFRESH_MS = 5000;
 
@@ -20,13 +20,12 @@ function describe(event: StoredEvent): string {
   return typeof target === "string" && target ? `Clicked ${target}` : "Clicked a link";
 }
 
-function ActivityRow({ marker, text, at, now }: { marker: string; text: string; at: string | null; now: number }) {
+function ActivityRow({ text, at, now, muted }: { text: string; at: string | null; now: number; muted?: boolean }) {
   return (
-    <li className="flex items-center gap-3 border-b border-rule/40 py-3 last:border-b-0">
-      <span aria-hidden className={`size-2 shrink-0 ${marker}`} />
-      <span className="tm-text--m min-w-0 flex-1 truncate">{text}</span>
+    <li className="flex items-baseline gap-3 px-5 py-3">
+      <span className={cx("min-w-0 flex-1 truncate text-sm leading-5", muted && "text-muted")}>{text}</span>
       {at ? (
-        <time dateTime={at} suppressHydrationWarning className="tm-label tm-muted tm-num shrink-0">
+        <time dateTime={at} suppressHydrationWarning className="app-num shrink-0 text-xs leading-4 text-muted">
           {formatRelative(at, now)}
         </time>
       ) : null}
@@ -34,6 +33,7 @@ function ActivityRow({ marker, text, at, now }: { marker: string; text: string; 
   );
 }
 
+/** The side panel's Engagement view, under the tabs: three figures, then every event, newest first. */
 export function EngagementPanel({
   engagement,
   events,
@@ -57,23 +57,29 @@ export function EngagementPanel({
   }, [router]);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="grid grid-cols-3 gap-2 whitespace-nowrap">
-        <Metric label="Opens" value={engagement.opens} />
-        <Metric label="Watch time" value={formatWatch(engagement.watchSeconds)} />
-        <Metric label="Clicks" value={engagement.clicks} />
-      </div>
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Cells size to their values and share the spare width, so "12m 48s" stays on one line in 360 px. */}
+      <StatStrip
+        label="Engagement"
+        items={[
+          { label: "Opens", value: engagement.opens },
+          { label: "Watch time", value: formatWatch(engagement.watchSeconds) },
+          { label: "Clicks", value: engagement.clicks },
+        ]}
+      />
 
-      <section className="flex flex-col gap-2">
-        <Eyebrow>Activity</Eyebrow>
+      <section className="border-t border-divider">
+        <h3 className="app-h-section px-5 pt-4 pb-1">Activity</h3>
         {events.length === 0 ? (
-          <p className="tm-text--s tm-muted py-2">Not opened yet. Opens show up here within a few seconds.</p>
+          <p className="px-5 pt-1 text-[13px] leading-[18px] text-pretty text-muted">
+            Not opened yet. Opens show up here within a few seconds.
+          </p>
         ) : null}
-        <ol className="flex flex-col">
+        <ol className="divide-y divide-divider pb-1">
           {events.map((event) => (
-            <ActivityRow key={event.id} marker="bg-asphalt" text={describe(event)} at={event.createdAt} now={now} />
+            <ActivityRow key={event.id} text={describe(event)} at={event.createdAt} now={now} />
           ))}
-          <ActivityRow marker="border border-rule" text="Sent" at={sentAt} now={now} />
+          <ActivityRow text="Sent" at={sentAt} now={now} muted />
         </ol>
       </section>
     </div>

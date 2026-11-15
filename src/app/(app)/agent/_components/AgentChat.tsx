@@ -2,7 +2,9 @@
 
 import { ArrowUp } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { Button } from "@/components/ui/Button";
 import { Heading } from "@/components/ui/Heading";
+import { IconButton } from "@/components/ui/IconButton";
 // Type only: erased at build time, so the server-only module never reaches the browser.
 import type { AgentEvent } from "@/features/agent/chat";
 import { loadChats, newChat, saveChat, threadFor, titleFor, type Chat } from "@/features/agent/history";
@@ -11,7 +13,7 @@ import { cx } from "@/lib/cx";
 /** A turn in the thread. "error" turns are shown but never sent back to the model. */
 type Turn = { id: number; role: "user" | "assistant" | "error"; text: string };
 
-const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt";
+const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cone";
 
 /** "14:05" for today, else "Nov 14". */
 function formatWhen(ms: number): string {
@@ -192,8 +194,12 @@ export function AgentChat() {
       <nav aria-label="Chats" className="flex flex-none items-center justify-between gap-3 pt-6">
         {chats.length > 0 ? (
           <details ref={historyRef} className="relative">
-            <summary className={cx("tm-label tm-muted cursor-pointer select-none", focusRing)}>Past chats ({chats.length})</summary>
-            <ul className="absolute left-0 z-10 mt-2 flex max-h-[60vh] w-[min(480px,85vw)] flex-col overflow-y-auto border border-rule/40 bg-sheet p-1">
+            <summary
+              className={cx("cursor-pointer text-[13px] leading-5 font-medium text-muted select-none hover:text-ink", focusRing)}
+            >
+              Past chats (<span className="app-num">{chats.length}</span>)
+            </summary>
+            <ul className="absolute left-0 z-10 mt-2 flex max-h-[60vh] w-[min(480px,85vw)] flex-col overflow-y-auto rounded-[2px] border border-line bg-sheet p-1">
               {chats.map((chat) => (
                 <li key={chat.id}>
                   <button
@@ -210,8 +216,8 @@ export function AgentChat() {
                       focusRing,
                     )}
                   >
-                    <span className="tm-text--s truncate">{chat.title}</span>
-                    <span className="tm-label tm-muted tm-num shrink-0">{formatWhen(chat.updatedAt)}</span>
+                    <span className="truncate text-[13px] leading-5">{chat.title}</span>
+                    <span className="app-num shrink-0 text-xs text-muted">{formatWhen(chat.updatedAt)}</span>
                   </button>
                 </li>
               ))}
@@ -220,33 +226,28 @@ export function AgentChat() {
         ) : (
           <span aria-hidden />
         )}
-        <button
-          type="button"
-          onClick={startNewChat}
-          disabled={pending || !hasThread}
-          className={cx("tm-label border border-asphalt/55 px-3 py-1.5 hover:bg-stucco disabled:cursor-not-allowed disabled:opacity-50", focusRing)}
-        >
+        <Button variant="secondary" onClick={startNewChat} disabled={pending || !hasThread}>
           New chat
-        </button>
+        </Button>
       </nav>
       {hasThread ? (
         <ol aria-label="Prompts" className="flex flex-1 flex-col gap-6 pt-12 pb-6">
           {prompts.map((turn) =>
             turn.role === "error" ? (
-              <li key={turn.id} role="alert" className="tm-text--s tm-muted px-5">
+              <li key={turn.id} role="alert" className="px-5 text-[13px] leading-[18px] text-muted">
                 {turn.text}
               </li>
             ) : (
               <li key={turn.id}>
-                <article className={cx("p-5", turn.role === "user" ? "border border-rule/40 bg-sheet" : "px-5")}>
-                  <p className="tm-label tm-muted">{turn.role === "user" ? "You" : "Agent"}</p>
-                  <p className="tm-text--m mt-2 break-words whitespace-pre-wrap">{turn.text}</p>
+                <article className={cx("p-5", turn.role === "user" ? "rounded-[2px] border border-line bg-sheet" : "px-5")}>
+                  <p className="text-xs leading-4 text-muted">{turn.role === "user" ? "You" : "Agent"}</p>
+                  <p className="mt-2 text-[15px] leading-6 break-words whitespace-pre-wrap">{turn.text}</p>
                 </article>
               </li>
             ),
           )}
           {pending ? (
-            <li aria-live="polite" className="tm-text--s tm-muted px-5">
+            <li aria-live="polite" className="px-5 text-[13px] leading-[18px] text-muted">
               {working ?? "Thinking…"}
             </li>
           ) : null}
@@ -286,30 +287,24 @@ export function AgentChat() {
             aria-describedby={hintId}
             placeholder="Describe a task for the agent"
             className={cx(
-              "tm-body block max-h-[calc(10lh+24px)] w-full resize-none overflow-y-auto bg-transparent px-5 py-3 text-ink",
+              // A fixed 16 px at every width, so iOS never zooms on focus (the fluid brand body size grew to 19 px).
+              "block max-h-[calc(10lh+24px)] w-full resize-none overflow-y-auto bg-transparent px-5 py-3 text-base leading-6 text-ink",
               "placeholder:text-asphalt/45 focus:outline-none",
             )}
           />
           <div className="flex items-center justify-between gap-4 border-t border-rule/40 py-2 pr-2 pl-5">
-            <p id={hintId} className="tm-label tm-muted">
-              Enter to send · Shift+Enter for a new line
+            <p id={hintId} className="text-xs leading-4 text-muted">
+              <kbd className="app-num">Enter</kbd> to send · <kbd className="app-num">Shift+Enter</kbd> for a new line
             </p>
-            <button
+            <IconButton
               type="submit"
-              aria-label="Send"
-              title="Send (Enter)"
+              variant="primary"
+              icon={<ArrowUp />}
+              label="Send"
+              shortcut="↵"
+              tooltipSide="top"
               disabled={blocked}
-              className={cx(
-                "grid size-10 shrink-0 place-items-center",
-                "transition-[background-color,color,transform] duration-150 ease-out motion-reduce:transition-none",
-                focusRing,
-                blocked
-                  ? "cursor-not-allowed bg-stucco text-concrete"
-                  : "bg-cone text-asphalt hover:bg-[color-mix(in_oklab,var(--tm-cone),var(--tm-asphalt)_14%)] active:scale-[0.97] motion-reduce:active:scale-100",
-              )}
-            >
-              <ArrowUp size={16} strokeWidth={1.5} aria-hidden />
-            </button>
+            />
           </div>
         </form>
       </div>
