@@ -3,6 +3,7 @@ import { z } from "zod";
 import { generatePitch } from "@/features/pitch/generate";
 import { loadClient, loadProject } from "@/features/project/load";
 import { needCategories, stakeholderRoles, type Client, type Project } from "@/features/project/schema";
+import type { ModelInfo } from "@/features/model/schema";
 import { generateShots } from "@/features/shots/generate";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { callStructured } from "./llm";
@@ -51,7 +52,22 @@ export async function applyScenario(clientId: string, change: string): Promise<S
   const client = await loadClient(clientId);
   if (!client) return null;
   const [project, model] = await Promise.all([loadProject(), loadStakeholderModel(clientId)]);
+  const result = await planScenario({ project, client, model, change });
+  await saveProposal(result.proposal);
+  return result;
+}
 
+/**
+ * Reads the change, updates the brief, and regenerates shots and pitch, without saving anything.
+ * The project agent uses this to build drafts the user approves later.
+ */
+export async function planScenario(input: {
+  project: Project;
+  client: Client;
+  model: ModelInfo;
+  change: string;
+}): Promise<ScenarioResult> {
+  const { project, client, model, change } = input;
   const run = (async () => {
     const scenario = await callStructured(
       scenarioSchema,
@@ -66,15 +82,70 @@ export async function applyScenario(clientId: string, change: string): Promise<S
       needsNotes: scenario.needsNotes,
       focusElements: scenario.focusElements,
     };
-    const scenarioProject = withUpdate(project, scenario.projectUpdate);
-    const shots = await generateShots({ project: scenarioProject, client: updated, model });
-    const pitch = await generatePitch({ project: scenarioProject, client: updated, shots });
-    const proposal: Proposal = { clientId, projectSlug: project.slug, status: "draft", pitch, shots };
-    await saveProposal(proposal);
+    const proposal = await proposalFor(withUpdate(project, scenario.projectUpdate), updated, model);
     return { scenario, client: updated, proposal };
   })();
-
   return withTimeout(run, SCENARIO_BUDGET_MS);
+}
+
+/** A new stakeholder described in plain words: the brief the model derives, plus a one-line summary. */
+export const newStakeholderSchema = z.object({
+  summary: z.string().min(1),
+  company: z.string().min(1),
+  contactTitle: z.string().min(1),
+  role: z.enum(stakeholderRoles),
+  need: z.enum(needCategories),
+  needsNotes: z.string().min(1),
+  focusElements: z.array(z.string().min(1)).min(1).max(4),
+  projectUpdate: z.string(),
+});
+
+const NEW_STAKEHOLDER_SYSTEM = `You write the brief for a new stakeholder on a construction project for Tradesmark's proposal system. Tradesmark films and documents construction projects. The team describes the stakeholder in plain words.
+
+Rules:
+- company: the name the team gave; if none, a short placeholder like "New general contractor (placeholder)". Never invent a real company.
+- contactTitle: the contact's likely title, or "Placeholder title".
+- need must be one of the allowed categories.
+- focusElements: 1 to 4 parts of the building, named the way the project facts name them. Never invent building parts.
+- needsNotes: two or three plain sentences on their situation and what footage helps them.
+- projectUpdate: if the description also changes the project itself, restate it in one sentence; otherwise "".
+- summary: one line, e.g. "New stakeholder: a general contractor bidding on campus towers (sales-and-bids)."`;
+
+/** Builds a brief and a proposal for a new stakeholder with id `clientId`, without saving anything. */
+export async function planNewStakeholder(input: {
+  project: Project;
+  clientId: string;
+  model: ModelInfo;
+  description: string;
+}): Promise<ScenarioResult> {
+  const { project, clientId, model, description } = input;
+  const run = (async () => {
+    const brief = await callStructured(
+      newStakeholderSchema,
+      NEW_STAKEHOLDER_SYSTEM,
+      JSON.stringify({ project, allowedRoles: stakeholderRoles, allowedNeeds: needCategories, description }, null, 2),
+      { effort: "low", maxTokens: 4000 },
+    );
+    const client: Client = {
+      id: clientId,
+      company: brief.company,
+      role: brief.role,
+      contact: { name: "Placeholder Contact", title: brief.contactTitle },
+      need: brief.need,
+      needsNotes: brief.needsNotes,
+      focusElements: brief.focusElements,
+    };
+    const proposal = await proposalFor(withUpdate(project, brief.projectUpdate), client, model);
+    const { summary, role, need, needsNotes, focusElements, projectUpdate } = brief;
+    return { scenario: { summary, role, need, needsNotes, focusElements, projectUpdate }, client, proposal };
+  })();
+  return withTimeout(run, SCENARIO_BUDGET_MS);
+}
+
+async function proposalFor(project: Project, client: Client, model: ModelInfo): Promise<Proposal> {
+  const shots = await generateShots({ project, client, model });
+  const pitch = await generatePitch({ project, client, shots });
+  return { clientId: client.id, projectSlug: project.slug, status: "draft", pitch, shots };
 }
 
 function briefOf(client: Client) {

@@ -6,6 +6,11 @@
  */
 
 export const STORAGE_KEY = "tradesmark.agent.chats.v1";
+
+/** Storage key for one project's agent chats, kept apart from the Agent tab and other projects. */
+export function projectChatKey(projectSlug: string): string {
+  return `tradesmark.project-agent.${projectSlug}.v1`;
+}
 export const MAX_CHATS = 20;
 export const MAX_TURNS = 40;
 const TITLE_CHARS = 60;
@@ -22,10 +27,10 @@ export type Chat = {
 };
 
 /** All saved chats, newest first. Returns [] when storage is unavailable or the data is unreadable. */
-export function loadChats(storage: Storage | null = safeStorage()): Chat[] {
+export function loadChats(storage: Storage | null = safeStorage(), key: string = STORAGE_KEY): Chat[] {
   if (!storage) return [];
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(key);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -39,19 +44,19 @@ export function loadChats(storage: Storage | null = safeStorage()): Chat[] {
  * Inserts or replaces `chat` and saves, keeping the newest MAX_CHATS and the last MAX_TURNS
  * turns of each. Chats with no turns are not saved. Returns the saved list, newest first.
  */
-export function saveChat(chat: Chat, storage: Storage | null = safeStorage()): Chat[] {
+export function saveChat(chat: Chat, storage: Storage | null = safeStorage(), key: string = STORAGE_KEY): Chat[] {
   const trimmed: Chat = { ...chat, turns: chat.turns.slice(-MAX_TURNS) };
-  const others = loadChats(storage).filter((c) => c.id !== chat.id);
+  const others = loadChats(storage, key).filter((c) => c.id !== chat.id);
   const chats = (trimmed.turns.length > 0 ? [trimmed, ...others] : others)
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, MAX_CHATS);
-  write(chats, storage);
+  write(chats, storage, key);
   return chats;
 }
 
-export function deleteChat(id: string, storage: Storage | null = safeStorage()): Chat[] {
-  const chats = loadChats(storage).filter((c) => c.id !== id);
-  write(chats, storage);
+export function deleteChat(id: string, storage: Storage | null = safeStorage(), key: string = STORAGE_KEY): Chat[] {
+  const chats = loadChats(storage, key).filter((c) => c.id !== id);
+  write(chats, storage, key);
   return chats;
 }
 
@@ -75,10 +80,10 @@ export function threadFor(turns: ChatTurn[]): { role: "user" | "assistant"; cont
   return start === -1 ? [] : recent.slice(start);
 }
 
-function write(chats: Chat[], storage: Storage | null): void {
+function write(chats: Chat[], storage: Storage | null, key: string): void {
   if (!storage) return;
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(chats));
+    storage.setItem(key, JSON.stringify(chats));
   } catch {
     // Full or blocked storage: keep chatting without history rather than failing.
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deleteChat, loadChats, MAX_CHATS, MAX_TURNS, newChat, saveChat, STORAGE_KEY, threadFor, titleFor, type Chat, type ChatTurn } from "./history";
+import { deleteChat, loadChats, MAX_CHATS, MAX_TURNS, newChat, projectChatKey, saveChat, STORAGE_KEY, threadFor, titleFor, type Chat, type ChatTurn } from "./history";
 
 /** A minimal in-memory Storage. */
 function memory(): Storage {
@@ -86,5 +86,17 @@ describe("agent chat history", () => {
     const thread = threadFor([...long, { role: "user", text: "last" }]);
     expect(thread.length).toBeLessThan(MAX_TURNS);
     expect(thread[0].role).toBe("user");
+  });
+});
+
+describe("per-project chat history", () => {
+  it("keeps each project's chats apart from the Agent tab and from other projects", () => {
+    const s = memory();
+    saveChat(chat("tab", 1), s);
+    saveChat(chat("p1", 2), s, projectChatKey("demo-project"));
+    saveChat(chat("p2", 3), s, projectChatKey("demo-project-2"));
+    expect(loadChats(s).map((c) => c.id)).toEqual(["tab"]);
+    expect(loadChats(s, projectChatKey("demo-project")).map((c) => c.id)).toEqual(["p1"]);
+    expect(loadChats(s, projectChatKey("demo-project-2")).map((c) => c.id)).toEqual(["p2"]);
   });
 });
