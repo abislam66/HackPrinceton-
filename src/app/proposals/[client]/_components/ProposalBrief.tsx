@@ -118,7 +118,8 @@ function Opening({
     [reduced, teaser],
   );
   return (
-    <section ref={sectionRef} className="tm-ground-asphalt proposal-open">
+    // A built model plays on the light house stage, so the copy over it is dark; the gray-box stand-in stays on asphalt.
+    <section ref={sectionRef} className={`tm-ground-asphalt proposal-open${model.url ? " proposal-open--light" : ""}`}>
       {live ? <ModelViewer model={model} path={path} loop={false} interactive={false} className="proposal-viewer" /> : null}
       <div className="tm-wrap proposal-open-overlay">
         <Wordmark className="proposal-logo" title="Tradesmark" />

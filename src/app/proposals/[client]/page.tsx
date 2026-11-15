@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import { loadModelInfo } from "@/features/model/load";
 import { loadProjectFacts } from "@/features/project-agent/store";
 import { getProposal } from "@/features/proposal/store";
 import { loadShotObstacles } from "@/features/shots/generate";
 import { ProposalTracker } from "@/features/tracking/ProposalTracker";
+import { loadStakeholderModel } from "@/features/workspace/model";
 import { findStakeholder } from "@/features/workspace/status";
 import { ProposalBrief } from "./_components/ProposalBrief";
 import { buildProposalData } from "./_components/proposal-data";
@@ -24,11 +24,12 @@ export default async function ProposalPage({ params, searchParams }: PageProps<"
 
   const [project, model, proposal] = await Promise.all([
     loadProjectFacts(projectSlug),
-    loadModelInfo(),
+    loadStakeholderModel(clientId, projectSlug),
     getProposal(clientId, projectSlug),
   ]);
   if (!project) notFound();
-  const obstacles = await loadShotObstacles(model.boundingBox);
+  // The demo's neighbors belong to Morgan Hall; a generated building brings its own (same rule as generateShots).
+  const obstacles = model.generated ? (model.obstacles ?? []) : await loadShotObstacles(model.boundingBox);
 
   const data = buildProposalData({ client, project, model, proposal, obstacles });
   return (

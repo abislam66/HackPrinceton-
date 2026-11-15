@@ -3,7 +3,7 @@ import { loadStakeholderModel } from "@/features/workspace/model";
 import { generatePitch } from "@/features/pitch/generate";
 import { loadProjectClient, loadProjectFacts } from "@/features/project-agent/store";
 import { PROJECT_SLUG } from "@/features/project/schema";
-import { generateShots } from "@/features/shots/generate";
+import { generateShots, shotCountFor } from "@/features/shots/generate";
 import type { Proposal } from "./schema";
 import { getProposal, saveProposal } from "./store";
 
@@ -30,7 +30,7 @@ export async function generateProposal(clientId: string, projectSlug: string = P
 
   const live = (async () => {
     const model = await loadStakeholderModel(clientId, projectSlug);
-    const shots = await generateShots({ project, client, model });
+    const shots = await generateShots({ project, client, model, shotCount: shotCountFor(model) });
     const pitch = await generatePitch({ project, client, shots });
     const proposal: Proposal = { clientId, projectSlug, status: "draft", pitch, shots };
     await saveProposal(proposal);

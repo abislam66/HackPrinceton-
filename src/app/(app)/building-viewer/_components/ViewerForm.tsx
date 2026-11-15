@@ -23,12 +23,16 @@ type Result = Extract<ViewerEvent, { type: "result" }>;
 
 /** What the form starts with when it is opened from a project. Every field stays editable. */
 export type ViewerPrefill = {
+  /** The project the form was opened from; the generated model is saved to it. */
+  projectSlug?: string;
   address: string;
   buildingName: string;
   knownFacts: string;
   /** The project's first reference photo, fetched into the photo field on load. */
   photo?: { url: string; name: string };
 };
+
+type ModelState = { status: "idle" | "working" | "saved" | "failed"; message?: string };
 
 /** A message already written for the person reading it, shown as is. */
 class ShownError extends Error {}
@@ -42,7 +46,7 @@ function failureText(step: string, message: string): string {
     geocode: "The address could not be located. Try a fuller street address.",
     context: "Nearby buildings could not be loaded. Try again in a minute.",
     model: "The viewer could not be drafted. Try again.",
-    assemble: "The model's page did not pass the checks. Try again.",
+    assemble: "The building description did not pass the checks. Try again.",
   };
   return `${message} ${hint[step] ?? ""}`.trim();
 }
@@ -74,6 +78,8 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
   const [elapsed, setElapsed] = useState(0);
   const [steps, setSteps] = useState<Partial<Record<ViewerStep, StepState>>>({});
   const [result, setResult] = useState<Result | null>(null);
+  /** The 3D model for the Shots tab: exported from the viewer's building, then saved to the project. */
+  const [modelState, setModelState] = useState<ModelState>({ status: "idle" });
   const [error, setError] = useState<string | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
@@ -162,6 +168,7 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
     setAddressError(undefined);
     setError(null);
     setResult(null);
+    setModelState({ status: "idle" });
     setSteps({});
     if (address.trim().length < 5) return setAddressError("Enter a street address.");
     if (photoError) return;
@@ -171,6 +178,7 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
     body.set("buildingName", buildingName);
     body.set("knownFacts", knownFacts);
     body.set("notes", notes);
+    if (prefill?.projectSlug) body.set("projectSlug", prefill.projectSlug);
     if (photo) body.set("photo", photo);
 
     setRunning(true);
@@ -196,6 +204,16 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
         } else if (event.type === "result") {
           finished = true;
           setResult(event);
+          // The server builds the GLB and saves it on the project when the form names one.
+          if (event.model_saved) {
+            setModelState({ status: "saved" });
+          } else if (prefill?.projectSlug === "demo-project") {
+            setModelState({ status: "failed", message: "The demo project keeps the model the model builder made." });
+          } else if (prefill?.projectSlug) {
+            setModelState({ status: "failed", message: "The save failed. Generate again." });
+          } else {
+            setModelState({ status: "failed", message: "Open this form from a project to save its 3D model for the Shots tab." });
+          }
         } else {
           throw new ShownError(failureText(event.step, event.error));
         }
@@ -328,6 +346,11 @@ export function ViewerForm({ prefill }: { prefill?: ViewerPrefill }) {
             <Panel title="What the model says">
               <div className="flex flex-col gap-3 tm-text--s">
                 <p className="whitespace-pre-wrap">{result.reply}</p>
+                <p className="text-muted" role="status">
+                  {modelState.status === "working" ? "Saving the 3D model for the Shots tab…" : null}
+                  {modelState.status === "saved" ? "3D model saved. The Shots tab uses it for this project." : null}
+                  {modelState.status === "failed" ? `3D model not saved: ${modelState.message}` : null}
+                </p>
                 <p className="text-muted">
                   Geocode: {result.geocode_status}. Nearby buildings: {result.context_status}.
                   {result.drift ? " The model changed locked code, so the locked scaffold was used." : ""}

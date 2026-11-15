@@ -1,15 +1,17 @@
 import { notFound } from "next/navigation";
-import { loadModelInfo } from "@/features/model/load";
-import { loadClient } from "@/features/project/load";
 import { getProposal } from "@/features/proposal/store";
 import { ShotPreview } from "@/features/shots/ShotPreview";
+import { findStakeholder } from "@/features/workspace/status";
+import { loadStakeholderModel } from "@/features/workspace/model";
 
 export default async function ShotPreviewPage({ params }: PageProps<"/proposals/[client]/shots">) {
   const { client: clientId } = await params;
-  const client = await loadClient(clientId);
-  if (!client) notFound();
+  // The URL carries only the client; its project is the one that holds this stakeholder id.
+  const found = await findStakeholder(clientId);
+  if (!found) notFound();
+  const { client, projectSlug } = found;
 
-  const [model, proposal] = await Promise.all([loadModelInfo(), getProposal(clientId)]);
+  const [model, proposal] = await Promise.all([loadStakeholderModel(clientId, projectSlug), getProposal(clientId, projectSlug)]);
   const shots = proposal?.shots ?? [];
 
   return (

@@ -1,14 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DraftView } from "@/components/project-agent/draft-view";
 import { ProjectAgent } from "@/components/project-agent/ProjectAgent";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
 import { Tag } from "@/components/ui/Tag";
-import type { ModelInfo } from "@/features/model/schema";
+import type { ModelInfo, ModelObstacle } from "@/features/model/schema";
+import { cutAt, planReel, type Reel } from "@/features/shots/reel";
 import type { Client } from "@/features/project/schema";
 import type { Proposal } from "@/features/proposal/schema";
 import type { StoredEvent } from "@/features/tracking/record";
@@ -21,7 +22,7 @@ import type { Stage } from "@/features/workspace/status";
 import { BriefPanel } from "./BriefPanel";
 import { BuildPanel } from "./BuildPanel";
 import { EngagementPanel } from "./EngagementPanel";
-import { ShotList } from "./ShotList";
+import { PITCH_VIDEO_ID, ShotList } from "./ShotList";
 
 /** `shots` is the Brief before anything is built. `agent` is the project agent, scoped to this stakeholder. */
 export type WorkspaceTab = "shots" | "engagement" | "agent";
@@ -32,6 +33,8 @@ type Props = {
   stage: Stage;
   tab: WorkspaceTab;
   model: ModelInfo;
+  /** The neighbours the proposal page's film avoids, so the Pitch video here flies the same route. */
+  reelObstacles: ModelObstacle[];
   client: Client;
   proposal: Proposal | null;
   engagement: ClientSummary;
@@ -65,6 +68,7 @@ export function Workspace({
   stage,
   tab,
   model,
+  reelObstacles,
   client,
   proposal,
   engagement,
@@ -81,8 +85,12 @@ export function Workspace({
   const building =
     state.phase === "running" || state.phase === "error" || (state.phase === "done" && stage === "not-built");
   const built = stage !== "not-built" && proposal !== null;
-  const shots = proposal?.shots ?? [];
-  const selected = shots.find((s) => s.id === selectedId) ?? shots[0];
+  const shots = useMemo(() => proposal?.shots ?? [], [proposal]);
+  // The proposal page's film, planned the same way (ProposalBrief's FilmSection), so it plays the same flight.
+  const reel = useMemo(() => planReel(shots, model.boundingBox, { obstacles: reelObstacles }), [shots, model.boundingBox, reelObstacles]);
+  const playingReel = selectedId === PITCH_VIDEO_ID && reel.path !== null;
+  const reelIndex = useReelCut(reel, playingReel);
+  const selected = playingReel ? reel.cuts[reelIndex]?.shot : (shots.find((s) => s.id === selectedId) ?? shots[0]);
   const selectedIndex = selected ? shots.indexOf(selected) : -1;
   const caption = selected ? proposal?.pitch.shotCaptions.find((c) => c.shotId === selected.id)?.caption : undefined;
   const modelRunning = state.steps.some((s) => s.id === "model" && s.status === "running");
@@ -115,15 +123,15 @@ export function Workspace({
     viewer = (
       <>
         <div className="relative min-h-0 flex-1">
-          <ModelViewer model={model} path={selected.camera} loop className="absolute inset-0" />
+          <ModelViewer model={model} path={playingReel && reel.path ? reel.path : selected.camera} loop className="absolute inset-0" />
         </div>
         {/* Sits under the canvas, not over it, so it never covers ModelViewer's own overlays. A fixed 80 px of
             content (label, name, two caption lines), so switching shots never resizes the canvas. */}
         <div className="box-content flex h-20 shrink-0 flex-col gap-1 border-t border-divider p-5">
           <p className="text-xs leading-4 text-muted">
-            Shot{" "}
+            {playingReel ? "Pitch video · shot " : "Shot "}
             <span className="app-num">
-              {pad(selectedIndex + 1)} / {pad(shots.length)}
+              {playingReel ? `${pad(reelIndex + 1)} / ${pad(reel.cuts.length)}` : `${pad(selectedIndex + 1)} / ${pad(shots.length)}`}
             </span>
           </p>
           <p className="truncate text-sm leading-5 font-semibold" title={selected.name}>
@@ -177,7 +185,8 @@ export function Workspace({
       view = (
         <ShotList
           shots={shots}
-          selectedId={selected?.id}
+          reel={reel.path ? { path: reel.path, duration: reel.duration, cuts: reel.cuts.map((c) => c.duration) } : null}
+          selectedId={playingReel ? PITCH_VIDEO_ID : selected?.id}
           onSelect={setSelectedId}
           onRegenerate={stage === "ready" ? build.regenerate : undefined}
         />
@@ -210,4 +219,26 @@ export function Workspace({
       {panel}
     </div>
   );
+}
+
+/**
+ * Which cut of the reel is on screen, following the reel's clock while it plays (as ShotReel does). The viewer plays
+ * the path on its own clock; both start when the reel is picked and share its duration, and the reel loops.
+ */
+function useReelCut(reel: Reel, playing: boolean): number {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (!playing || reel.duration <= 0) return;
+    const started = performance.now();
+    const tick = window.setInterval(() => {
+      const t = ((performance.now() - started) / 1000) % reel.duration;
+      const cut = cutAt(reel, t);
+      setIndex(cut ? reel.cuts.indexOf(cut) : 0);
+    }, 100);
+    return () => {
+      window.clearInterval(tick);
+      setIndex(0);
+    };
+  }, [reel, playing]);
+  return index;
 }

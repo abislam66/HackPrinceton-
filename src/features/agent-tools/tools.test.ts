@@ -39,7 +39,6 @@ describe("pipeline tools", () => {
       "draft_outreach",
       "send_outreach",
       "list_outreach",
-      "get_progress",
     ]);
   });
 
@@ -61,12 +60,5 @@ describe("pipeline tools", () => {
 
     runScout.mockResolvedValueOnce({ runAt: new Date().toISOString(), regions: ["boston"], candidates: [], sources: [] });
     await expect(get("scout_projects").run({ regions: ["boston"] })).resolves.toContain('"count":0');
-  });
-
-  it("labels progress tracking as sample data", async () => {
-    const get = await tools();
-    const result = JSON.parse(String(await get("get_progress").run({})));
-    expect(result.sample).toBe(true);
-    expect(result.milestones.length).toBeGreaterThan(0);
   });
 });

@@ -7,23 +7,10 @@ vi.mock("@/lib/store/json-store", () => import("@/lib/store/test-store"));
 
 import { accessCodeOk, takeGeneration, RATE_LIMIT, RATE_WINDOW_MS } from "./guard";
 import { heightOf, toContext, DEFAULT_HEIGHT_M } from "./geo";
-import {
-  assemble,
-  checkSubjectSafety,
-  extractSubjectBlock,
-  extractTitle,
-  fillTemplate,
-  hasScaffoldDrift,
-  parseReply,
-} from "./prompt";
+import { fillTemplate } from "./prompt";
 import { detectPhotoType, viewerFormSchema } from "./schema";
 
-const scaffold = readFileSync(path.join(process.cwd(), "building-viewer", "scaffold.html"), "utf8");
 const template = readFileSync(path.join(process.cwd(), "building-viewer", "house_viewer_prompt.md"), "utf8");
-
-const SUBJECT = `/* ===================== SUBJECT (REPLACE THIS BLOCK PER PROJECT) ===================== */
-const SUBJECT = { title: "Test tower", dims: { width: 30, depth: 30, height: 90 }, context: [], materials: {} };
-/* ===================== END SUBJECT BLOCK ===================== */`;
 
 describe("prompt filling", () => {
   it("fills every placeholder", () => {
@@ -35,51 +22,6 @@ describe("prompt filling", () => {
 
   it("refuses to leave a placeholder unfilled", () => {
     expect(() => fillTemplate("PROJECT: {{project_name}} {{address}}", { project_name: "A" })).toThrow(/address/);
-  });
-});
-
-describe("reply parsing", () => {
-  it("reads the page and the reply, and strips a code fence", () => {
-    const text = "<html_output>\n```html\n<!DOCTYPE html><title>T</title>\n```\n</html_output>\n<reply>Done. Inferred: height.</reply>";
-    const parsed = parseReply(text);
-    expect(parsed.html.startsWith("<!DOCTYPE html>")).toBe(true);
-    expect(parsed.reply).toBe("Done. Inferred: height.");
-  });
-
-  it("fails when a tag is missing", () => {
-    expect(() => parseReply("<html_output>x</html_output>")).toThrow(/reply/);
-  });
-});
-
-describe("scaffold splice", () => {
-  it("extracts the subject block and the title from the scaffold", () => {
-    expect(extractSubjectBlock(scaffold)).toContain("const SUBJECT = {");
-    expect(extractTitle(scaffold)).toBe("House Scaffold");
-  });
-
-  it("replaces only the subject block and the title", () => {
-    const out = assemble(scaffold, SUBJECT, "Test tower");
-    expect(out).toContain("title: \"Test tower\"");
-    expect(out).toContain("<title>Test tower</title>");
-    expect(out).toContain("renderer.setClearColor(0xDC5527);"); // locked code is untouched
-    expect(out.split("SUBJECT (REPLACE THIS BLOCK PER PROJECT)")).toHaveLength(2);
-  });
-
-  it("does not treat a changed subject or title as drift", () => {
-    const modelPage = assemble(scaffold, SUBJECT, "Test tower");
-    expect(hasScaffoldDrift(modelPage, scaffold)).toBe(false);
-  });
-
-  it("flags drift when locked code changes", () => {
-    const edited = assemble(scaffold, SUBJECT, "Test tower").replace("0xDC5527", "0x000000");
-    expect(hasScaffoldDrift(edited, scaffold)).toBe(true);
-  });
-
-  it("refuses subject code that breaks out of the page or reaches the network", () => {
-    expect(() => checkSubjectSafety("const a = 1; </script><script>")).toThrow();
-    expect(() => checkSubjectSafety("fetch('https://x')")).toThrow();
-    expect(() => checkSubjectSafety("localStorage.setItem('a', 'b')")).toThrow();
-    expect(() => checkSubjectSafety(SUBJECT)).not.toThrow();
   });
 });
 

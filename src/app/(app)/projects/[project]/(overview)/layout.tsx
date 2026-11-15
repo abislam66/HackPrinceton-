@@ -49,12 +49,12 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
           description={scouted ? `${scoutPlace(scouted)} · ${scouted.buildingType}` : shortAddress(project.address)}
           facts={scouted ? scoutFacts(scouted, { fit: false }) : KEY_FACTS}
           tabs={
-            <ProjectTabs base={base} kind={scouted ? "scouted" : "demo"} counts={{ stakeholders: clients.length }} />
+            <ProjectTabs base={base} counts={{ stakeholders: clients.length }} />
           }
           actions={
             <>
-              {/* A scouted building generates its viewer in its Model tab. */}
-              {scouted ? null : <Button href={`/building-viewer?project=${slug}`}>Generate 3D viewer</Button>}
+              {/* The standalone building viewer is hidden; a scouted building generates its model in its Model tab. */}
+              {/* {scouted ? null : <Button href={`/building-viewer?project=${slug}`}>Generate 3D viewer</Button>} */}
               <Button href="#project-agent" className="@min-[1100px]/project:hidden">
                 Project agent
               </Button>

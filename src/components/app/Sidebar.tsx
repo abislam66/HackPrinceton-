@@ -1,13 +1,12 @@
 "use client";
 
-import { Bot, Box, Compass, FolderKanban, LogOut, PanelLeftClose, PanelLeftOpen, RotateCcw, Send, type LucideIcon } from "lucide-react";
+import { Bot, Compass, FolderKanban, LogOut, PanelLeftClose, PanelLeftOpen, Send, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
 import { Logomark, Wordmark } from "@/components/ui/Logo";
-import { resetDemo } from "@/features/workspace/actions";
 import { cx } from "@/lib/cx";
 import { SIDEBAR_COOKIE } from "./sidebar-cookie";
 
@@ -15,7 +14,9 @@ const NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Agent", href: "/agent", icon: Bot },
   { label: "Discover", href: "/discover", icon: Compass },
   { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "Building viewer", href: "/building-viewer", icon: Box },
+  // Hidden: generated models now run by themselves and show on each project's Model tab. Uncomment to bring the
+  // standalone generator back (and remove the notFound() in src/app/(app)/building-viewer/page.tsx).
+  // { label: "Building viewer", href: "/building-viewer", icon: Box },
   { label: "Outreach", href: "/outreach", icon: Send },
 ];
 
@@ -132,7 +133,7 @@ export function Sidebar({ defaultCollapsed = false, userEmail = null }: { defaul
       <div className="mt-auto flex flex-col">
         {userEmail ? (
           // Sign-in is on: who is signed in, and a POST form so a link can't sign anyone out.
-          <form action="/auth/signout" method="post" className={cx("flex flex-col pt-3", collapsed ? "items-center" : "px-2")}>
+          <form action="/auth/signout" method="post" className={cx("flex flex-col py-5", collapsed ? "items-center" : "px-2")}>
             {collapsed ? (
               <IconButton type="submit" icon={<LogOut />} label={`Sign out (${userEmail})`} tooltipSide="right" />
             ) : (
@@ -147,7 +148,7 @@ export function Sidebar({ defaultCollapsed = false, userEmail = null }: { defaul
             )}
           </form>
         ) : null}
-        {/* Expanded, the 8 px inset plus the button's 12 px padding puts "Reset demo" on the 20 px line of the logo and icons. */}
+        {/* Reset demo is hidden. To bring it back, uncomment the form below and its imports (RotateCcw, resetDemo).
         <form
           className={cx("flex py-5", collapsed ? "justify-center" : "px-2")}
           action={async () => {
@@ -157,12 +158,12 @@ export function Sidebar({ defaultCollapsed = false, userEmail = null }: { defaul
           {collapsed ? (
             <IconButton type="submit" icon={<RotateCcw />} label="Reset demo" tooltipSide="right" />
           ) : (
-            // Quiet: muted at rest like the inactive nav rows, Asphalt on hover.
             <Button type="submit" variant="quiet">
               Reset demo
             </Button>
           )}
         </form>
+        */}
       </div>
     </aside>
   );

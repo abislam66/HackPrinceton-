@@ -4,11 +4,19 @@ import { ContactShadows, Edges, Grid, OrbitControls, useGLTF } from "@react-thre
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { type RefObject, Suspense, useMemo, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { PerspectiveCamera, Vector3 } from "three";
+import { Box3, DirectionalLight, PerspectiveCamera, Sphere, Vector3 } from "three";
+import { GROUND_TOON } from "@/features/model/scene";
 import type { ModelInfo } from "@/features/model/schema";
 import { poseAt } from "@/features/shots/motion";
 import type { CameraPath } from "@/features/shots/schema";
 import { boxCenter, fitDistance, pathDuration, presetViews, VIEW_FOV } from "./camera-paths";
+import { applyHouseLook, toonMaterial } from "./house-look";
+
+/** The building viewer's house stage (building-viewer/scaffold.html): its background, sun direction and ground. */
+const HOUSE_BACKGROUND = "#DC5527";
+const HOUSE_SUN = new Vector3(0.55, 0.75, 0.35).normalize();
+/** Covers the neighbours and streets, which reach 220 m from the building (geo.ts). */
+const HOUSE_GROUND_RADIUS = 260;
 
 type Props = {
   model: ModelInfo;
@@ -39,6 +47,9 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
   const center = boxCenter(box);
   const span = fitDistance(box, VIEW_FOV);
   const views = useMemo(() => presetViews(box), [box]);
+  // Every built model (the model builder's or a generated one) gets the building viewer's look. The gray-box
+  // stand-in, shown before any model exists, keeps the dark studio stage.
+  const house = Boolean(model.url);
 
   const takeControl = () => setUserControl(true);
   const goTo = (name: string) => {
@@ -50,18 +61,36 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
   return (
     <div className={className}>
       <div className="relative h-full w-full overflow-hidden">
-        <Canvas camera={{ fov: path.fov, near: 0.5, far: 20000 }} dpr={[1, 2]} className="!absolute inset-0">
-          <color attach="background" args={["#0d1015"]} />
-          <fog attach="fog" args={["#0d1015", span * 2.5, span * 7]} />
-          <hemisphereLight args={["#e4ecf7", "#3a404a", 1.3]} />
-          <directionalLight position={[center[0] + span, span * 1.2, center[2] + span * 0.6]} intensity={1.6} />
-          {/* Fill from the north-west, so the side away from the sun still reads */}
-          <directionalLight position={[center[0] - span, span * 0.8, center[2] - span]} intensity={0.9} />
-          <Ground box={box} span={span} />
-          <Suspense fallback={<Massing box={box} />}>
-            {model.url ? <BuiltModel url={model.url} /> : <Massing box={box} />}
-          </Suspense>
-          <ContactShadows position={[0, 0.02, 0]} scale={span * 1.6} far={box.max[1]} blur={2.5} opacity={0.55} resolution={1024} />
+        <Canvas
+          key={house ? "house" : "studio"}
+          shadows={house ? "percentage" : false}
+          camera={{ fov: path.fov, near: 0.5, far: 20000 }}
+          dpr={[1, 2]}
+          className="!absolute inset-0"
+        >
+          {house && model.url ? (
+            <>
+              <color attach="background" args={[HOUSE_BACKGROUND]} />
+              {/* Outside Suspense, so the stand-in is lit while the GLB loads */}
+              <HouseSun box={box} />
+              <HouseGround />
+              <Suspense fallback={<Massing box={box} />}>
+                <HouseModel url={model.url} />
+              </Suspense>
+            </>
+          ) : (
+            <>
+              <color attach="background" args={["#0d1015"]} />
+              <fog attach="fog" args={["#0d1015", span * 2.5, span * 7]} />
+              <hemisphereLight args={["#e4ecf7", "#3a404a", 1.3]} />
+              <directionalLight position={[center[0] + span, span * 1.2, center[2] + span * 0.6]} intensity={1.6} />
+              {/* Fill from the north-west, so the side away from the sun still reads */}
+              <directionalLight position={[center[0] - span, span * 0.8, center[2] - span]} intensity={0.9} />
+              <Ground box={box} span={span} />
+              <Massing box={box} />
+              <ContactShadows position={[0, 0.02, 0]} scale={span * 1.6} far={box.max[1]} blur={2.5} opacity={0.55} resolution={1024} />
+            </>
+          )}
           {interactive && <CompassDriver onHeading={turnDial} />}
           {interactive && (
             <OrbitControls
@@ -124,9 +153,58 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
   );
 }
 
-function BuiltModel({ url }: { url: string }) {
+/**
+ * A built model in the building viewer's look: toon materials and outlines on the GLB, lit by the house sun alone
+ * (the toon split needs the shaded side to be dark).
+ */
+function HouseModel({ url }: { url: string }) {
   const { scene } = useGLTF(url);
+  useMemo(() => applyHouseLook(scene), [scene]);
   return <primitive object={scene} />;
+}
+
+/** Neighbours come from within 220 m of the building (geo.ts), so the sun's shadow covers that much around it. */
+const NEIGHBOUR_REACH_M = 240;
+
+/** The house sun: fixed direction, its shadow fitted to the building and the ring of neighbours around it. */
+function HouseSun({ box }: { box: Box }) {
+  const sun = useMemo(() => {
+    const light = new DirectionalLight(0xffffff, Math.PI);
+    const sphere = new Box3(new Vector3(...box.min), new Vector3(...box.max)).getBoundingSphere(new Sphere());
+    sphere.center.y = 0;
+    const r = Math.max(sphere.radius, NEIGHBOUR_REACH_M);
+    light.position.copy(sphere.center).addScaledVector(HOUSE_SUN, r * 2);
+    light.target.position.copy(sphere.center);
+    light.castShadow = true;
+    light.shadow.mapSize.set(4096, 4096);
+    light.shadow.bias = -0.0006;
+    light.shadow.normalBias = Math.min(0.35, r / 900);
+    const cam = light.shadow.camera;
+    cam.left = -r;
+    cam.right = r;
+    cam.top = r;
+    cam.bottom = -r;
+    cam.near = 0.1;
+    cam.far = r * 4;
+    cam.updateProjectionMatrix();
+    return light;
+  }, [box]);
+  return (
+    <>
+      <primitive object={sun} />
+      <primitive object={sun.target} />
+    </>
+  );
+}
+
+/** The house ground: a toon disc in the locked ground colours, catching the sun's shadows. */
+function HouseGround() {
+  const material = useMemo(() => toonMaterial(GROUND_TOON), []);
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow material={material}>
+      <circleGeometry args={[HOUSE_GROUND_RADIUS, 96]} />
+    </mesh>
+  );
 }
 
 /** Gray-box stand-in shown until the model builder has produced a GLB. */

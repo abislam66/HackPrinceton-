@@ -3,6 +3,7 @@ import { draftView } from "@/components/project-agent/draft-view";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { senderFor } from "@/features/outreach/gmail";
 import { listDrafts, loadProjectFacts } from "@/features/project-agent/store";
+import { loadShotObstacles } from "@/features/shots/generate";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { loadStakeholder } from "@/features/workspace/status";
 import { getSessionEmail } from "@/lib/auth/session";
@@ -32,6 +33,8 @@ export default async function StakeholderPage({
   if (!project || !status) notFound();
 
   const { client, stage, proposal, engagement, events, sentAt } = status;
+  // The neighbours the proposal page's film flies over, by the same rule, so the Pitch video here plays the same flight.
+  const reelObstacles = model.generated ? (model.obstacles ?? []) : await loadShotObstacles(model.boundingBox);
   const projectPath = `/projects/${projectSlug}`;
   const pending = drafts.filter((d) => d.status === "pending" && d.clientId === client.id).map(draftView);
   const basePath = `${projectPath}/stakeholders/${client.id}`;
@@ -72,6 +75,7 @@ export default async function StakeholderPage({
         stage={stage}
         tab={tab}
         model={model}
+        reelObstacles={reelObstacles}
         client={client}
         proposal={proposal}
         engagement={engagement}

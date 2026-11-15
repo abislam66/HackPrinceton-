@@ -45,6 +45,12 @@ function responseSchema(knownSides: [Side, ...Side[]], count: ShotCount) {
   });
 }
 
+/** Generated buildings get 4 to 6 shots; every other model keeps the default 3 to 5. */
+export const GENERATED_SHOT_COUNT: ShotCount = { min: 4, max: 6 };
+export function shotCountFor(model: Pick<ModelInfo, "generated">): ShotCount | undefined {
+  return model.generated ? GENERATED_SHOT_COUNT : undefined;
+}
+
 /** Clamps a requested count to 3..6 with min <= max. */
 export function normalizeShotCount(count: ShotCount = DEFAULT_SHOT_COUNT): ShotCount {
   const clampInt = (v: number) => Math.min(Math.max(Math.round(v), FLOOR_SHOTS), MAX_SHOT_COUNT);
@@ -69,7 +75,8 @@ export async function generateShots(input: {
   const [firstSide, ...otherSides] = model.knownSides;
   if (!firstSide) throw new Error("The model has no side with real reference, so no shot can be framed");
   const schema = responseSchema([firstSide, ...otherSides], count);
-  const obstacles = await loadShotObstacles(model.boundingBox);
+  // The demo's neighbors (data/demo-project/project.json) belong to Morgan Hall. A generated building brings its own.
+  const obstacles = model.generated ? (model.obstacles ?? []) : await loadShotObstacles(model.boundingBox);
 
   const [minX, minY, minZ] = model.boundingBox.min;
   const [maxX, maxY, maxZ] = model.boundingBox.max;

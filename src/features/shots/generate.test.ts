@@ -7,7 +7,7 @@ vi.mock("node:fs/promises", () => ({ readFile: vi.fn(async () => { throw new Err
 const callStructured = vi.fn();
 vi.mock("@/features/proposal/llm", () => ({ callStructured: (...args: unknown[]) => callStructured(...args) }));
 
-const { generateShots, normalizeShotCount } = await import("./generate");
+const { generateShots, normalizeShotCount, shotCountFor } = await import("./generate");
 
 // Abrar's synthetic generated building: 30 x 70 x 40 m, all four sides, no neighbors.
 const model = {
@@ -71,5 +71,14 @@ describe("shot count", () => {
     expect(normalizeShotCount()).toEqual({ min: 3, max: 5 });
     expect(normalizeShotCount({ min: 1, max: 10 })).toEqual({ min: 3, max: 6 });
     expect(normalizeShotCount({ min: 6, max: 4 })).toEqual({ min: 6, max: 6 });
+  });
+});
+
+describe("shotCountFor", () => {
+  it("asks for 4 to 6 only for a generated model, so the demo keeps 3 to 5", () => {
+    expect(shotCountFor({ generated: true })).toEqual({ min: 4, max: 6 });
+    expect(shotCountFor({ generated: false })).toBeUndefined();
+    expect(shotCountFor({})).toBeUndefined();
+    expect(normalizeShotCount(shotCountFor({}))).toEqual({ min: 3, max: 5 });
   });
 });

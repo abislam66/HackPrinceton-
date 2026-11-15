@@ -4,7 +4,6 @@ import {
   Compass,
   FileText,
   FolderOpen,
-  LineChart,
   Mail,
   Presentation,
   UserRound,
@@ -37,7 +36,6 @@ const RUN_NAMES: Record<string, string> = {
   edit_outreach_draft: "Draft edit",
   send_outreach: "Outreach send",
   list_outreach: "Outbox",
-  get_progress: "Progress",
   regenerate_proposal: "Re-pitch",
   list_projects: "Projects",
   add_project_from_scout: "Add to Projects",
@@ -68,7 +66,6 @@ export const OPEN_LABEL: Record<DestinationKind, string> = {
   stakeholder: "Open stakeholder",
   outreach: "Open draft",
   proposal: "Open proposal",
-  progress: "Open progress",
 };
 
 export const KIND_ICON: Record<DestinationKind, LucideIcon> = {
@@ -80,7 +77,6 @@ export const KIND_ICON: Record<DestinationKind, LucideIcon> = {
   stakeholder: UserRound,
   outreach: Mail,
   proposal: Presentation,
-  progress: LineChart,
 };
 
 export const elapsedOf = (run: Run, now: number) => Math.max(0, (run.endedAt ?? now) - run.startedAt);

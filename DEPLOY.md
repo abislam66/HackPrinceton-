@@ -24,6 +24,7 @@ Enable the Google Geocoding API on the key, and restrict the key to that API.
 ## Limits to know
 
 - The rate limit (5 per client per hour) and the map cache (24 h per coordinate) live in the app's store (`src/lib/store/json-store.ts`). With `SUPABASE_SECRET_KEY` set, every instance shares them; without it they are per instance.
+- Generated models (the viewer's GLB and model.json) are kept in Supabase when `SUPABASE_SECRET_KEY` is set: model.json in `records` (collection `generated-models`), the GLB in the private `models` bucket (migration `20261115120000_models_bucket.sql`, 4 MB per file). Without the key they live in `.data/` or process memory and vanish on a redeploy. The bucket must exist before the first save, or saving a model returns 502.
 - The access code is one shared value, not a user login. Rotate it if it leaks.
 
 ## Smoke test after deploy

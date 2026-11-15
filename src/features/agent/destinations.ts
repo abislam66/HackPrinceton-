@@ -16,7 +16,6 @@ export const destinationKinds = [
   "stakeholder",
   "outreach",
   "proposal",
-  "progress",
 ] as const;
 export type DestinationKind = (typeof destinationKinds)[number];
 
@@ -76,7 +75,7 @@ const SLUG = "[a-z0-9-]+";
 const ROUTES: RegExp[] = [
   /^\/projects$/,
   new RegExp(`^/projects/${SLUG}$`),
-  new RegExp(`^/projects/${SLUG}/(dossier|progress)$`),
+  new RegExp(`^/projects/${SLUG}/dossier$`),
   new RegExp(`^/projects/${SLUG}/stakeholders/${SLUG}(\\?tab=[a-z]+)?$`),
   /^\/discover$/,
   new RegExp(`^/discover/${SLUG}$`),
@@ -209,7 +208,6 @@ function kindOf(href: string): DestinationKind {
   if (href.startsWith("/proposals/")) return "proposal";
   if (href.includes("/stakeholders/")) return "stakeholder";
   if (href.endsWith("/dossier")) return "dossier";
-  if (href.endsWith("/progress")) return "progress";
   if (href.startsWith("/discover/")) return "candidate";
   if (href === "/discover") return "discover";
   if (href.startsWith("/outreach")) return "outreach";
@@ -276,17 +274,6 @@ export function destinationsFor(tool: string, input: unknown, resultText: string
     case "draft_outreach":
     case "edit_outreach_draft":
       found = obj ? outreachDestinations(obj, args) : [];
-      break;
-    case "get_progress":
-      found = [
-        {
-          kind: "progress",
-          label: `${DEMO_NAME} progress`,
-          href: `/projects/${DEMO}/progress`,
-          subject: DEMO_NAME,
-          summary: "Sample data",
-        },
-      ];
       break;
     case "get_project_model":
     case "generate_project_model":

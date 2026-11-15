@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { getProjectRecord, loadProjectFacts } from "@/features/project-agent/store";
 import { PROJECT_SLUG, type Project } from "@/features/project/schema";
@@ -48,6 +49,7 @@ async function loadPrefill(slug: string): Promise<{ name: string; prefill: Viewe
   return {
     name: project.name,
     prefill: {
+      projectSlug: slug,
       address: geocodableAddress(project.address),
       buildingName: project.name,
       knownFacts: factsLine(project),
@@ -56,7 +58,11 @@ async function loadPrefill(slug: string): Promise<{ name: string; prefill: Viewe
   };
 }
 
+/** Hidden from the app: generated models run by themselves and show on each project's Model tab. */
+const HIDDEN = true;
+
 export default async function BuildingViewerPage({ searchParams }: PageProps<"/building-viewer">) {
+  if (HIDDEN) notFound();
   const { project } = await searchParams;
   const slug = typeof project === "string" ? project : null;
   const loaded = slug ? await loadPrefill(slug) : null;

@@ -1,6 +1,8 @@
 # How to test the building viewer API
 
-**What it does:** an address (and optionally a photo) goes in. The backend geocodes it and fetches nearby buildings from OpenStreetMap. Claude then fills the scaffold's SUBJECT block, following `building-viewer/house_viewer_prompt.md`. You get back one HTML viewer file and Claude's reply.
+**What it does:** an address (and optionally a photo) goes in. The backend geocodes it and fetches nearby buildings from OpenStreetMap while Claude researches the building and describes it as a JSON scene (`src/features/model/scene.ts`, prompt in `building-viewer/house_viewer_prompt.md`). The server builds the GLB from that scene plus the neighbours, and embeds it in the locked scaffold page. You get back one HTML viewer file and Claude's reply. With a `projectSlug` that names a project (not the demo), the GLB is also saved as that project's model (`model_saved: true`).
+
+Projects added from scouting don't need this page: adding one from Discover (or the agent's `add_project_from_scout`) starts the same run on the server, and the Model tab shows it. `GET /api/model/generated?project=<slug>` reports `ready`, `generating`, `failed` or `none`.
 
 ## Option A: browser
 
@@ -94,9 +96,9 @@ Errors after the run starts arrive as the last NDJSON line:
 
 | Case | Last line |
 |---|---|
-| Model call failed or timed out (270 s) | `{"type":"error","error":"The model call failed. Try again in a minute.","step":"model"}` |
-| Output cut off | `{"type":"error","error":"The model's page was cut off. Try again, or give it fewer notes.","step":"model"}` |
-| SUBJECT block failed the checks | `{"type":"error","error":"…","step":"assemble"}` |
+| Model call failed or timed out (whole run capped at 270 s) | `{"type":"error","error":"The model call failed. Try again in a minute.","step":"model"}` |
+| Output cut off | `{"type":"error","error":"The model's answer was cut off. Try again, or give it fewer notes.","step":"model"}` |
+| Scene invalid after one retry, wrong size, or GLB over 4 MB | `{"type":"error","error":"…","step":"assemble"}` |
 
 If the host stops the function at 300 s, the stream ends with no `result` line.
 
