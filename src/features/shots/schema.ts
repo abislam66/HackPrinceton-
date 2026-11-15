@@ -9,6 +9,8 @@ export const cameraKeyframeSchema = z.object({
   t: z.number().min(0),
   position: vec3,
   target: vec3,
+  /** Vertical field of view at this keyframe, in degrees. Defaults to the path's fov. */
+  fov: z.number().min(5).max(120).optional(),
 });
 export type CameraKeyframe = z.infer<typeof cameraKeyframeSchema>;
 

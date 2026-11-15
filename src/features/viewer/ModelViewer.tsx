@@ -4,8 +4,9 @@ import { ContactShadows, Edges, Grid, OrbitControls, useGLTF } from "@react-thre
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { type RefObject, Suspense, useMemo, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { MathUtils, PerspectiveCamera, Vector3 } from "three";
+import { PerspectiveCamera, Vector3 } from "three";
 import type { ModelInfo } from "@/features/model/schema";
+import { poseAt } from "@/features/shots/motion";
 import type { CameraPath } from "@/features/shots/schema";
 import { boxCenter, fitDistance, pathDuration, presetViews, VIEW_FOV } from "./camera-paths";
 
@@ -228,15 +229,6 @@ function CameraRig({
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const start = useRef<number | null>(null); // clock time when this playback began, so Replay starts at t = 0
   const finished = useRef(false);
-  const frames = useMemo(
-    () =>
-      path.keyframes.map((k) => ({
-        t: k.t,
-        position: new Vector3(...k.position),
-        target: new Vector3(...k.target),
-      })),
-    [path],
-  );
   const scratch = useMemo(() => ({ position: new Vector3(), target: new Vector3() }), []);
 
   useFrame(({ camera, clock }) => {
@@ -245,22 +237,16 @@ function CameraRig({
     const elapsed = clock.getElapsedTime() - start.current;
     const t = duration === 0 ? 0 : loop ? elapsed % duration : Math.min(elapsed, duration);
 
-    let next = frames.findIndex((f) => f.t >= t);
-    if (next === -1) next = frames.length - 1;
-    const a = frames[Math.max(next - 1, 0)];
-    const b = frames[next];
-    const span = b.t - a.t;
-    const raw = span === 0 ? 1 : (t - a.t) / span;
-    const eased = MathUtils.smootherstep(raw, 0, 1);
-
-    scratch.position.lerpVectors(a.position, b.position, eased);
-    scratch.target.lerpVectors(a.target, b.target, eased);
+    // A smooth spline through the keyframes, easing only at the ends of the path (no stop at each keyframe).
+    const pose = poseAt(path, t);
+    scratch.position.set(...pose.position);
+    scratch.target.set(...pose.target);
     camera.position.copy(scratch.position);
     camera.lookAt(scratch.target);
     // Keep the orbit pivot on the path's target, so grabbing the model mid-flight orbits around what was in view.
     if (controls) controls.target.copy(scratch.target);
-    if (camera instanceof PerspectiveCamera && camera.fov !== path.fov) {
-      camera.fov = path.fov;
+    if (camera instanceof PerspectiveCamera && Math.abs(camera.fov - pose.fov) > 0.01) {
+      camera.fov = pose.fov;
       camera.updateProjectionMatrix();
     }
     if (!loop && elapsed >= duration) {
