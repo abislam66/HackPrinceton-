@@ -125,3 +125,10 @@ export function slugFrom(text: string): string {
     .replace(/-+$/, "");
   return slug || "generated-building";
 }
+
+/** "north (photo), south (photo), east (inferred), west (inferred)": every side, labelled by its evidence. */
+export function sideSummary(sides: { photo: string[]; inferred: string[] }): string {
+  return buildingSides
+    .map((side) => `${side} (${sides.photo.includes(side) ? "photo" : "inferred"})`)
+    .join(", ");
+}

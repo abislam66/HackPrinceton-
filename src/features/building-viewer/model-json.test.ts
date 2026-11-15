@@ -9,6 +9,7 @@ import {
   MODEL_FILE,
   parseModelJsonBlock,
   retryPrompt,
+  sideSummary,
   slugFrom,
   validateModelJson,
 } from "./model-json";
@@ -91,5 +92,16 @@ describe("retry prompt and slug", () => {
   it("makes a project slug from a name", () => {
     expect(slugFrom("CHOP Morgan Center for Research & Innovation")).toBe("chop-morgan-center-for-research-innovation");
     expect(slugFrom("***")).toBe("generated-building");
+  });
+});
+
+describe("side labels", () => {
+  it("labels every side by its evidence, in compass order", () => {
+    expect(sideSummary({ photo: ["south", "north"], inferred: ["east", "west"] })).toBe(
+      "north (photo), east (inferred), south (photo), west (inferred)",
+    );
+    expect(sideSummary({ photo: [], inferred: ["north", "east", "south", "west"] })).toBe(
+      "north (inferred), east (inferred), south (inferred), west (inferred)",
+    );
   });
 });

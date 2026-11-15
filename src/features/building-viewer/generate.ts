@@ -2,12 +2,14 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
+import { buildingSides } from "@/features/model/schema";
 import { fetchContext, geocodeAddress, type ContextItem } from "./geo";
 import {
   fallbackModelJson,
   MODEL_JSON_RULES,
   parseModelJsonBlock,
   retryPrompt,
+  sideSummary,
   slugFrom,
   validateModelJson,
   type ModelJsonStatus,
@@ -139,16 +141,26 @@ export async function generateViewer(input: ViewerInput, photo: { bytes: Uint8Ar
   logStep("model_json", modelJsonStatus, t4);
   emit({ type: "step", step: "assemble", status: "done" });
 
+  // Generated projects allow shots on every side. The photo backs only some; the reply says which.
+  const photoSides = photo && model.ok ? model.model.knownSides : [];
+  const sides = {
+    photo: buildingSides.filter((side) => photoSides.includes(side)),
+    inferred: buildingSides.filter((side) => !photoSides.includes(side)),
+  };
+
   return {
     type: "result" as const,
     html,
-    reply: parsed.reply,
+    reply: `${parsed.reply}
+
+Sides for shots: ${sideSummary(sides)}.`,
     geocode_status: geo.status,
     context_status: context.status,
     drift,
     model_json: model.ok ? model.model : null,
     model_json_status: modelJsonStatus,
     project_slug: projectSlug,
+    sides,
   };
 }
 

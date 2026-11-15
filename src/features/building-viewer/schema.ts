@@ -42,6 +42,8 @@ export type ViewerEvent =
       model_json_status: string;
       /** The project this viewer belongs to: the form's projectSlug, else made from the name or address. */
       project_slug: string;
+      /** Which sides the photo backs and which are inferred. Shots may frame all of them; the reply says so. */
+      sides: { photo: ModelMetadata["knownSides"]; inferred: ModelMetadata["knownSides"] };
     }
   | { type: "error"; error: string; step: string };
 
