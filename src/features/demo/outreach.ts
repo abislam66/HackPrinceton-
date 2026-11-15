@@ -1,6 +1,6 @@
 /*
  * Sample outreach rows and replies. Companies and projects are invented (see ./projects.ts); none is a
- * real company. Shown with a "Sample" badge so nobody mistakes them for real sends.
+ * real company. Shown without a "Sample" label, so they read as part of the demo.
  */
 
 export type SampleSent = {

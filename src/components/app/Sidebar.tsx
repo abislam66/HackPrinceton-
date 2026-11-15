@@ -4,6 +4,8 @@ import { Bot, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, RotateCcw, S
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/Button";
+import { IconButton } from "@/components/ui/IconButton";
 import { Logomark, Wordmark } from "@/components/ui/Logo";
 import { resetDemo } from "@/features/workspace/actions";
 import { cx } from "@/lib/cx";
@@ -53,9 +55,6 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
     return () => window.removeEventListener("keydown", onKey);
   }, [toggle]);
 
-  const toggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
-  const ToggleIcon = collapsed ? PanelLeftOpen : PanelLeftClose;
-
   return (
     <aside
       className={cx(
@@ -64,28 +63,25 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
       )}
     >
       {collapsed ? (
-        // Collapsed: only the mark shows. Hovering or focusing it swaps in the expand button in the same spot.
+        // Collapsed: only the mark shows. Hovering it, or focusing the button, swaps in the expand button in the same spot.
         <div className="flex justify-center py-3">
           <div className="group relative grid size-8 place-items-center">
             <Logomark
               className="h-3.5 w-auto text-cone transition-opacity duration-150 ease-out group-focus-within:opacity-0 group-hover:opacity-0 motion-reduce:transition-none"
               title=""
             />
-            <button
-              type="button"
-              onClick={toggle}
-              aria-label={toggleLabel}
-              aria-expanded={false}
-              aria-controls="app-nav"
-              title={`${toggleLabel} (⌘B)`}
-              className={cx(
-                "absolute inset-0 grid place-items-center text-ink opacity-0 group-hover:bg-ground/60 group-hover:opacity-100 focus-visible:opacity-100",
-                "transition-opacity duration-150 ease-out motion-reduce:transition-none",
-                focusRing,
-              )}
-            >
-              <ToggleIcon size={16} strokeWidth={1.5} aria-hidden />
-            </button>
+            {/* The fade sits on a wrapper so the button keeps its own hover and press transitions. */}
+            <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-150 ease-out group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none">
+              <IconButton
+                icon={<PanelLeftOpen />}
+                label="Expand sidebar"
+                shortcut="⌘B"
+                tooltipSide="right"
+                onClick={toggle}
+                aria-expanded={false}
+                aria-controls="app-nav"
+              />
+            </span>
           </div>
         </div>
       ) : (
@@ -93,17 +89,14 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
           <Link href="/discover" className={cx("block", focusRing)} aria-label="Tradesmark, home">
             <Wordmark className="h-3.5 w-auto text-cone" title="" />
           </Link>
-          <button
-            type="button"
+          <IconButton
+            icon={<PanelLeftClose />}
+            label="Collapse sidebar"
+            shortcut="⌘B"
             onClick={toggle}
-            aria-label={toggleLabel}
             aria-expanded
             aria-controls="app-nav"
-            title={`${toggleLabel} (⌘B)`}
-            className={cx("grid size-8 place-items-center text-muted hover:bg-ground/60 hover:text-ink", hoverable, focusRing)}
-          >
-            <ToggleIcon size={16} strokeWidth={1.5} aria-hidden />
-          </button>
+          />
         </div>
       )}
 
@@ -122,44 +115,33 @@ export function Sidebar({ defaultCollapsed = false }: { defaultCollapsed?: boole
                 collapsed ? "justify-center" : "gap-3 px-5",
                 hoverable,
                 focusRing,
-                active ? "bg-ground text-ink" : "text-muted hover:bg-ground/60",
+                // Active: a 2 px Cone bar flush on the left edge, Asphalt icon and label, no fill.
+                active
+                  ? "text-ink before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-cone"
+                  : "text-muted hover:bg-ground/60",
               )}
             >
               <Icon size={16} strokeWidth={1.5} aria-hidden />
               {collapsed ? null : <span className="flex-1">{label}</span>}
-              {active ? (
-                <span
-                  aria-hidden
-                  className={cx("size-2 shrink-0 bg-asphalt", collapsed && "absolute top-1/2 right-1.5 -translate-y-1/2")}
-                />
-              ) : null}
             </Link>
           );
         })}
       </nav>
 
+      {/* Expanded, the 8 px inset plus the button's 12 px padding puts "Reset demo" on the 20 px line of the logo and icons. */}
       <form
-        className={cx("mt-auto", collapsed ? "flex justify-center py-5" : "p-5")}
+        className={cx("mt-auto flex py-5", collapsed ? "justify-center" : "px-2")}
         action={async () => {
           await resetDemo();
         }}
       >
         {collapsed ? (
-          <button
-            type="submit"
-            aria-label="Reset demo"
-            title="Reset demo"
-            className={cx("grid size-8 place-items-center text-muted hover:bg-ground/60 hover:text-ink", hoverable, focusRing)}
-          >
-            <RotateCcw size={16} strokeWidth={1.5} aria-hidden />
-          </button>
+          <IconButton type="submit" icon={<RotateCcw />} label="Reset demo" tooltipSide="right" />
         ) : (
-          <button
-            type="submit"
-            className={cx("tm-label tm-muted -mx-2 px-2 py-2 hover:bg-ground/60 hover:text-ink", hoverable, focusRing)}
-          >
+          // Muted at rest like the inactive nav rows; a utility outranks the tertiary's own hover colour, so it is restated.
+          <Button type="submit" variant="tertiary" className="text-muted hover:text-ink">
             Reset demo
-          </button>
+          </Button>
         )}
       </form>
     </aside>

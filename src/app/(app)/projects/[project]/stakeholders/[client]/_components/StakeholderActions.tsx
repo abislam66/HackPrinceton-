@@ -1,5 +1,6 @@
 "use client";
 
+import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Tag } from "@/components/ui/Tag";
@@ -15,12 +16,12 @@ type Props = {
   sentAt: string | null;
 };
 
-/** PageHeader actions for a built stakeholder. Not-built has none: its one CTA is in the viewer. */
+/** PageHeader actions for a built stakeholder. Not-built has none: its one primary is in the viewer. */
 export function StakeholderActions({ stage, client, projectName, basePath, opens }: Props) {
   const [sendOpen, setSendOpen] = useState(false);
 
   const preview = (
-    <Button variant="ghost" compact href={`/proposals/${client.id}?preview=1`} target="_blank" rel="noopener noreferrer">
+    <Button variant="secondary" href={`/proposals/${client.id}?preview=1`} target="_blank">
       Preview proposal
     </Button>
   );
@@ -29,7 +30,7 @@ export function StakeholderActions({ stage, client, projectName, basePath, opens
     return (
       <>
         {preview}
-        <Button variant="primary" compact onClick={() => setSendOpen(true)}>
+        <Button variant="primary" onClick={() => setSendOpen(true)}>
           Send proposal
         </Button>
         <SendDialog
@@ -45,12 +46,14 @@ export function StakeholderActions({ stage, client, projectName, basePath, opens
 
   return (
     <>
-      {opens > 0 ? <Tag variant="go">{`Opened · ${opens}`}</Tag> : <Tag variant="quiet">Sent · not opened</Tag>}
+      {opens > 0 ? <Tag tone="pass">{`Opened · ${opens}`}</Tag> : <Tag tone="neutral">Sent · not opened</Tag>}
       <CopyLinkButton clientId={client.id} />
       {preview}
     </>
   );
 }
+
+const ICON = { size: 14, strokeWidth: 1.75, "aria-hidden": true } as const;
 
 function CopyLinkButton({ clientId }: { clientId: string }) {
   const [copied, setCopied] = useState(false);
@@ -68,9 +71,33 @@ function CopyLinkButton({ clientId }: { clientId: string }) {
     timer.current = setTimeout(() => setCopied(false), 1500);
   };
 
+  const idle = (
+    <>
+      <Copy {...ICON} />
+      Copy link
+    </>
+  );
+  const done = (
+    <>
+      <Check {...ICON} />
+      Copied
+    </>
+  );
+
+  // Both faces share one grid cell, so the button keeps the wider one's width when the label swaps.
   return (
-    <Button variant="ghost" compact arrow={false} onClick={copy} aria-live="polite">
-      {copied ? "Copied" : "Copy link"}
+    <Button variant="tertiary" onClick={copy}>
+      <span className="inline-grid justify-items-center">
+        <span aria-hidden className="invisible col-start-1 row-start-1 inline-flex items-center gap-1.5">
+          {idle}
+        </span>
+        <span aria-hidden className="invisible col-start-1 row-start-1 inline-flex items-center gap-1.5">
+          {done}
+        </span>
+        <span aria-live="polite" className="col-start-1 row-start-1 inline-flex items-center gap-1.5">
+          {copied ? done : idle}
+        </span>
+      </span>
     </Button>
   );
 }

@@ -1,28 +1,23 @@
 import type { ReactNode } from "react";
 import { cx } from "@/lib/cx";
-import { Eyebrow } from "./Eyebrow";
-import { Heading } from "./Heading";
 
 export type EmptyStateProps = {
-  eyebrow?: string;
+  /** What is missing: "No drafts". */
   title: string;
-  /** One line saying why it's empty. */
+  /** One line on why it's empty or what fills it. */
   description: string;
-  /** One action, usually a `<Button>` (the one place a non-compact button is fine). */
+  /** One action that fills it, usually a `Button`. */
   action?: ReactNode;
   className?: string;
 };
 
-/** Pinned top-left, never centered. */
-export function EmptyState({ eyebrow, title, description, action, className }: EmptyStateProps) {
+/** An empty view, pinned top-left (never centred): a 16 px/600 title, one muted line, one action. Sits in a Panel. */
+export function EmptyState({ title, description, action, className }: EmptyStateProps) {
   return (
-    <div className={cx("flex flex-col items-start gap-3 p-5", className)}>
-      {eyebrow ? <Eyebrow square={false}>{eyebrow}</Eyebrow> : null}
-      <Heading size="xs" as="p">
-        {title}
-      </Heading>
-      <p className="tm-text--m tm-muted max-w-[66ch]">{description}</p>
-      {action ? <div className="mt-3">{action}</div> : null}
+    <div className={cx("app-empty", className)}>
+      <p className="app-empty-title">{title}</p>
+      <p className="app-empty-body">{description}</p>
+      {action ? <div className="app-empty-action">{action}</div> : null}
     </div>
   );
 }

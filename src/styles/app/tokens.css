@@ -1,0 +1,81 @@
+/* Internal app tokens: the product-UI layer over the Tradesmark brand tokens (src/styles/tradesmark/tokens.css).
+   Values come from Rafiat's picks, recorded in docs/internal-app-redesign-audit.md ("Decisions").
+   Colours are fixed values: never a color-mix on a near-neutral token, because Chrome drops its hue in oklch.
+   The brand files stay untouched; the client proposal page uses those alone. */
+
+:root {
+  /* ---------------------------------------------------------------- text */
+
+  /* Muted text: 5.1:1 on Stucco, 5.4:1 on Plaster, 5.8:1 on Sheet. Mortar is 4.0:1 on Stucco and fails. */
+  --app-muted: oklch(0.49 0.022 60);
+
+  /* Disabled: muted tokens, never opacity, so a disabled control reads the same on every ground. */
+  --app-disabled-ink: var(--tm-concrete);
+  --app-disabled-fill: var(--tm-stucco);
+  /* A resting icon is already muted, so a locked one steps further: Concrete 55% toward Limestone. */
+  --app-disabled-icon: oklch(0.725 0.02 63);
+
+  /* ---------------------------------------------------------------- lines */
+
+  --app-line: rgba(var(--tm-asphalt-rgb), 0.1); /* a panel's border */
+  --app-divider: rgba(var(--tm-asphalt-rgb), 0.06); /* rows and sections inside a panel */
+  --app-hairline: rgba(var(--tm-asphalt-rgb), 0.16); /* the secondary button */
+  --app-line-strong: rgba(var(--tm-asphalt-rgb), 0.18); /* the dialog, floating over the scrim */
+  --app-field-line: rgba(var(--tm-asphalt-rgb), 0.45); /* a text field's edge: 3.1:1 on Sheet */
+
+  /* ---------------------------------------------------------------- fills */
+
+  --app-hover: rgba(var(--tm-asphalt-rgb), 0.04); /* a row under the pointer */
+  --app-tint: rgba(var(--tm-asphalt-rgb), 0.06); /* a tertiary button under the pointer; the tab track */
+  /* Primary hover: Cone 88% toward Sheet. Darkening toward Asphalt (solid.css) left the label at 4.2:1; this is 6.2:1. */
+  --app-cone-hover: #ff541d;
+  --app-scrim: rgba(var(--tm-plaster-rgb), 0.8); /* behind a dialog */
+
+  /* ---------------------------------------------------------------- motion and stacking */
+
+  --app-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --app-z-tooltip: 30;
+
+  /* ---------------------------------------------------------------- status palette (Tags: Tint)
+
+     Decided with Rafiat on 2026-11-14. Each tone takes its hue from a Tradesmark token at one lightness and chroma,
+     so no tag outweighs another. Every ink-on-fill pair passes 5.3:1; on Asphalt, 8.6:1.
+     neutral: Cone's hue (31). ready: Tarp's (248). running: Gold's (88). pass: Go's (149). fail: crimson (5). */
+
+  --app-status-neutral-fill: oklch(0.9 0.05 31);
+  --app-status-neutral-ink: oklch(0.47 0.13 31);
+  --app-status-ready-fill: oklch(0.93 0.034 248);
+  --app-status-ready-ink: oklch(0.44 0.105 248);
+  --app-status-running-fill: oklch(0.93 0.045 88);
+  --app-status-running-ink: oklch(0.44 0.09 88);
+  --app-status-pass-fill: oklch(0.93 0.034 149);
+  --app-status-pass-ink: oklch(0.44 0.105 149);
+  --app-status-fail-fill: oklch(0.93 0.034 5);
+  --app-status-fail-ink: oklch(0.44 0.13 5);
+
+  /* On Asphalt (the 3D viewer): the same hues, dark fills and light ink. */
+  --app-status-neutral-fill-dark: oklch(0.31 0.065 31);
+  --app-status-neutral-ink-dark: oklch(0.86 0.07 31);
+  --app-status-ready-fill-dark: oklch(0.31 0.055 248);
+  --app-status-ready-ink-dark: oklch(0.87 0.06 248);
+  --app-status-running-fill-dark: oklch(0.31 0.05 88);
+  --app-status-running-ink-dark: oklch(0.87 0.08 88);
+  --app-status-pass-fill-dark: oklch(0.31 0.055 149);
+  --app-status-pass-ink-dark: oklch(0.87 0.075 149);
+  --app-status-fail-fill-dark: oklch(0.31 0.06 5);
+  --app-status-fail-ink-dark: oklch(0.87 0.06 5);
+}
+
+/* On the Asphalt viewer the same names resolve to light-on-dark values, so `text-muted`, `border-line` and every
+   component that uses them adapt without a separate class. Concrete is 5.3:1 on Asphalt. */
+.tm-ground-asphalt {
+  --app-muted: var(--tm-concrete);
+  --app-disabled-ink: var(--tm-mortar);
+  --app-disabled-fill: var(--tm-basalt);
+  --app-disabled-icon: var(--tm-slate);
+  --app-line: rgba(var(--tm-stucco-rgb), 0.14);
+  --app-divider: rgba(var(--tm-stucco-rgb), 0.08);
+  --app-hairline: var(--tm-slate);
+  --app-hover: rgba(var(--tm-stucco-rgb), 0.06);
+  --app-tint: rgba(var(--tm-stucco-rgb), 0.08);
+}

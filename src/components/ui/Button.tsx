@@ -1,20 +1,29 @@
+"use client";
+
+import { ArrowUpRight, LoaderCircle } from "lucide-react";
 import Link from "next/link";
-import type { ComponentProps, ReactNode } from "react";
+import { useId, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
 
-export type ButtonVariant = "primary" | "ghost" | "ghost-light";
+export type ButtonVariant = "primary" | "secondary" | "tertiary";
 
 type Shared = {
-  /** Plain text. It is drawn twice for the rolling hover, so no icons or markup. */
-  children: string;
-  /** `primary` (Cone) is the one main action in a view. `ghost` (default) is everything else. `ghost-light` is `ghost` on Asphalt. */
+  children: ReactNode;
+  /**
+   * `primary` (Cone): the one main action in a view, never two. `secondary` (default): a Sheet fill with a hairline.
+   * `tertiary`: text only, for low-stakes actions beside others (Cancel, Back, Copy link).
+   */
   variant?: ButtonVariant;
-  /** The arrow cell (default on). On for actions that go somewhere, off for in-place actions such as Save. */
-  arrow?: boolean;
-  /** Drop the 240 px minimum width. Always on in the app, except the lone CTA of an empty state. */
-  compact?: boolean;
-  /** Fill the width of the parent. */
-  full?: boolean;
+  /** Can't be used. A button leaves the tab order unless `disabledReason` is set. */
+  disabled?: boolean;
+  /** Why it's disabled, shown as text under the button (or beside it). The button stays focusable and reads it. */
+  disabledReason?: string;
+  /** Where `disabledReason` sits. Under the button by default; in a PageHeader it aligns to the right edge. */
+  reasonPosition?: "below" | "beside";
+  /** Busy: a 12 px spinner and `pendingLabel`, at the idle width. Clicks do nothing while it's true. */
+  pending?: boolean;
+  /** The label while pending, e.g. "Sending…". Defaults to `children`. */
+  pendingLabel?: ReactNode;
   className?: string;
 };
 
@@ -23,77 +32,126 @@ type AsButton = Shared & { href?: undefined } & Omit<ComponentProps<"button">, k
 
 export type ButtonProps = AsLink | AsButton;
 
-const Arrow = () => (
-  <svg className="tm-arrow" viewBox="0 0 12 12">
-    <path d="M6.9 1.1 11.5 6l-4.6 4.9H5.1l3.9-4.1H.5V5.2h8.5L5.1 1.1z" />
-  </svg>
-);
+const STROKE = 1.75;
 
-function Face({ children, variant = "ghost", arrow = true, compact, full }: Shared): ReactNode {
-  return (
-    <span
-      className={cx(
-        "tm-btn",
-        `tm-btn--${variant}`,
-        !arrow && "tm-btn--noicon",
-        compact && "tm-btn--compact",
-        full && "tm-btn--full",
-      )}
-    >
-      <span className="tm-btn__label">
-        <span className="tm-roll">{children}</span>
-        <span className="tm-roll" aria-hidden="true">
-          {children}
-        </span>
-      </span>
-      {arrow ? (
-        <span className="tm-btn__icon" aria-hidden="true">
-          <span className="tm-btn__cell">
-            <Arrow />
-          </span>
-          <span className="tm-btn__cell tm-btn__cell--in">
-            <Arrow />
-          </span>
-        </span>
+/**
+ * The app's button, 32 px tall, square, 13 px Geist 500 in sentence case.
+ * With `href` it renders a Next `Link` (an `<a>` for external URLs); `target="_blank"` adds a 14 px arrow and
+ * "(opens in a new tab)" for screen readers. Otherwise a `<button type="button">`.
+ */
+export function Button(props: ButtonProps) {
+  const {
+    children,
+    variant = "secondary",
+    disabled = false,
+    disabledReason,
+    reasonPosition = "below",
+    pending,
+    pendingLabel,
+    className,
+    ...rest
+  } = props;
+  const reasonId = useId();
+  const newTab = "target" in rest && rest.target === "_blank";
+  const busy = pending === true;
+  // An unavailable button that explains itself stays focusable, so its reason is read with it.
+  const explained = disabled && Boolean(disabledReason);
+
+  const classes = cx(
+    "app-btn",
+    `app-btn--${variant}`,
+    newTab && "app-btn--trail",
+    // A lone button carries the caller's layout classes; one with a reason gives them to the wrapper.
+    !explained && className,
+  );
+
+  const idle = (
+    <>
+      {children}
+      {newTab ? (
+        <>
+          <ArrowUpRight size={14} strokeWidth={STROKE} aria-hidden />
+          <span className="sr-only"> (opens in a new tab)</span>
+        </>
       ) : null}
+    </>
+  );
+
+  // A button that can go pending keeps both faces in one grid cell, so its width never changes.
+  const content =
+    pending === undefined ? (
+      <span className="app-btn-label">{idle}</span>
+    ) : (
+      <PendingStack idle={idle} pendingLabel={pendingLabel ?? children} pending={busy} />
+    );
+
+  let control: ReactNode;
+  if (typeof rest.href === "string" && !disabled && !busy) {
+    const { href, ...anchor } = rest as Omit<AsLink, keyof Shared>;
+    const rel = newTab ? (anchor.rel ?? "noopener noreferrer") : anchor.rel;
+    const external = !(href.startsWith("/") || href.startsWith("#") || href.startsWith("?"));
+    control = external ? (
+      <a href={href} {...anchor} rel={rel} className={classes}>
+        {content}
+      </a>
+    ) : (
+      <Link href={href} {...anchor} rel={rel} className={classes}>
+        {content}
+      </Link>
+    );
+  } else {
+    // A disabled or pending link has nowhere to go, so it renders as an unavailable button.
+    const button = (typeof rest.href === "string" ? {} : rest) as Omit<AsButton, keyof Shared>;
+    const { type = "button", onClick, ...native } = button;
+    // Pending and explained stay focusable (aria-disabled) and swallow clicks; plain disabled leaves the tab order.
+    const inert = busy || explained;
+    control = (
+      <button
+        type={type}
+        {...native}
+        className={classes}
+        disabled={disabled && !inert ? true : undefined}
+        aria-disabled={inert ? true : native["aria-disabled"]}
+        aria-describedby={cx(native["aria-describedby"], explained && reasonId) || undefined}
+        data-pending={busy ? "" : undefined}
+        onClick={
+          inert
+            ? (event: MouseEvent<HTMLButtonElement>) => event.preventDefault() // also stops a form submit
+            : onClick
+        }
+      >
+        {content}
+      </button>
+    );
+  }
+
+  if (!explained) return control;
+  return (
+    <span className={cx("app-btn-field", className)} data-reason={reasonPosition}>
+      {control}
+      <span id={reasonId} className="app-btn-reason">
+        {disabledReason}
+      </span>
     </span>
   );
 }
 
-/**
- * The Tradesmark button: a 1 px frame, a rolling label and an arrow cell, 40 px tall.
- * With `href` it renders a link (Next `Link` for internal paths); otherwise a `<button type="button">`.
- * Disable a button with `disabled`, a link with `aria-disabled` (it also leaves the tab order).
- */
-export function Button(props: ButtonProps) {
-  const { children, variant, arrow, compact, full, className, ...rest } = props;
-  const wrap = cx("tm-btnlink", full && "tm-btnlink--full", className);
-  const face = (
-    <Face variant={variant} arrow={arrow} compact={compact} full={full}>
-      {children}
-    </Face>
+function PendingStack({ idle, pendingLabel, pending }: { idle: ReactNode; pendingLabel: ReactNode; pending: boolean }) {
+  const busyFace = (
+    <>
+      <LoaderCircle size={12} strokeWidth={STROKE} className="app-spin" aria-hidden />
+      {pendingLabel}
+    </>
   );
-
-  if (typeof rest.href === "string") {
-    const { href, ...anchor } = rest as Omit<AsLink, keyof Shared>;
-    const disabled = anchor["aria-disabled"] === true || anchor["aria-disabled"] === "true";
-    const linkProps = { ...anchor, className: wrap, tabIndex: disabled ? -1 : anchor.tabIndex };
-    const internal = href.startsWith("/") || href.startsWith("#");
-    return internal ? (
-      <Link href={href} {...linkProps}>
-        {face}
-      </Link>
-    ) : (
-      <a href={href} {...linkProps}>
-        {face}
-      </a>
-    );
-  }
-
-  const { type = "button", ...button } = rest as Omit<AsButton, keyof Shared>;
   return (
-    <button type={type} className={wrap} {...button}>
-      {face}
-    </button>
+    <span className="app-btn-stack">
+      <span className="app-btn-sizer" aria-hidden="true">
+        {idle}
+      </span>
+      <span className="app-btn-sizer" aria-hidden="true">
+        {busyFace}
+      </span>
+      <span aria-live="polite">{pending ? busyFace : idle}</span>
+    </span>
   );
 }

@@ -2,7 +2,9 @@
 @import "../styles/tradesmark/tokens.css";
 @import "../styles/tradesmark/type.css" layer(components);
 @import "../styles/tradesmark/components.css" layer(components);
-/* The app's control skin (Cone-led buttons, tabs, tags). After the brand components so it wins at equal specificity. */
+/* The internal app's tokens and component styles (src/components/ui). The app-* classes never touch the brand
+   tm-* classes, so the client proposal page keeps the brand kit alone. */
+@import "../styles/app/tokens.css";
 @import "../styles/app/controls.css" layer(components);
 
 /* The Tradesmark design system. Rules and usage: DESIGN.md at the repo root.
@@ -15,8 +17,24 @@
   --color-ground: var(--tm-ground); /* Plaster: the page */
   --color-ink: var(--tm-ink); /* Asphalt: text */
   --color-accent: var(--tm-accent); /* Cone: whatever should be seen first */
-  --color-muted: var(--tm-mortar); /* secondary text on Plaster or Sheet */
+  --color-muted: var(--app-muted); /* secondary text: 5.1:1 or better on Stucco, Plaster and Sheet; Concrete on Asphalt */
   --color-rule: var(--tm-concrete); /* hairlines on Plaster */
+
+  /* The internal app's lines and status palette (src/styles/app/tokens.css). Each adapts on .tm-ground-asphalt. */
+  --color-line: var(--app-line); /* a panel's border: border-line */
+  --color-divider: var(--app-divider); /* rows and sections inside a panel: border-divider */
+  --color-hairline: var(--app-hairline); /* the secondary button's edge */
+  --color-line-strong: var(--app-line-strong); /* a floating surface's edge (the dialog) */
+  --color-status-neutral-fill: var(--app-status-neutral-fill);
+  --color-status-neutral-ink: var(--app-status-neutral-ink);
+  --color-status-ready-fill: var(--app-status-ready-fill);
+  --color-status-ready-ink: var(--app-status-ready-ink);
+  --color-status-running-fill: var(--app-status-running-fill);
+  --color-status-running-ink: var(--app-status-running-ink);
+  --color-status-pass-fill: var(--app-status-pass-fill);
+  --color-status-pass-ink: var(--app-status-pass-ink);
+  --color-status-fail-fill: var(--app-status-fail-fill);
+  --color-status-fail-ink: var(--app-status-fail-ink);
 
   /* Every named brand color. */
   --color-cone: var(--tm-cone);

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Eyebrow } from "@/components/ui/Eyebrow";
 import type { Client } from "@/features/project/schema";
 import { NEED_LABEL, ROLE_LABEL } from "@/lib/labels";
 
@@ -9,51 +8,63 @@ const AGENT_OUTPUTS = [
   "A pitch, problem then solution",
 ];
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h3 className="tm-label tm-muted">{label}</h3>
-      <div className="tm-text--m">{children}</div>
+    <div className="flex flex-col gap-1">
+      <dt className="text-xs leading-4 text-muted">{label}</dt>
+      <dd className="text-sm leading-5">{children}</dd>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3 border-t border-divider px-5 py-4">
+      <h3 className="app-h-section">{title}</h3>
+      {children}
     </section>
   );
 }
 
-/** The not-built side panel: who this is and what the agents will make for them. */
+/** The not-built side panel's body: who this is and what the agents will make for them. Sits under a "Brief" header. */
 export function BriefPanel({ client }: { client: Client }) {
   return (
-    <div className="flex flex-col gap-6">
-      <Eyebrow>Brief</Eyebrow>
-      <Row label="Who">
-        {ROLE_LABEL[client.role]} · {client.company}
-      </Row>
-      <Row label="Contact">
-        {client.contact.name}
-        <span className="tm-text--s tm-muted block">{client.contact.title}</span>
-      </Row>
-      <Row label="Needs">
-        {NEED_LABEL[client.need]}
-        <p className="tm-text--s mt-2">{client.needsNotes}</p>
-      </Row>
-      <Row label="Cares about">
-        <ul className="flex flex-col gap-2">
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <dl className="flex flex-col gap-4 px-5 py-4">
+        <Fact label="Who">
+          {ROLE_LABEL[client.role]} · {client.company}
+        </Fact>
+        <Fact label="Contact">
+          {client.contact.name}
+          <span className="block text-[13px] leading-[18px] text-muted">{client.contact.title}</span>
+        </Fact>
+        <Fact label="Needs">
+          {NEED_LABEL[client.need]}
+          <span className="mt-1 block text-[13px] leading-5 text-pretty text-muted">{client.needsNotes}</span>
+        </Fact>
+      </dl>
+
+      <Section title="Cares about">
+        <ul className="flex flex-col gap-2 text-sm leading-5">
           {client.focusElements.map((element) => (
             <li key={element} className="flex items-start gap-3">
-              <span aria-hidden className="mt-2 size-2 shrink-0 bg-asphalt" />
+              <span aria-hidden className="mt-2 size-1 shrink-0 bg-muted" />
               <span className="min-w-0">{element}</span>
             </li>
           ))}
         </ul>
-      </Row>
-      <Row label="The agents will make">
-        <ol className="flex flex-col gap-2">
+      </Section>
+
+      <Section title="The agents will make">
+        <ol className="flex flex-col gap-2 text-sm leading-5">
           {AGENT_OUTPUTS.map((item, i) => (
             <li key={item} className="flex items-baseline gap-3">
-              <span className="tm-label tm-num shrink-0">{String(i + 1).padStart(2, "0")}</span>
+              <span className="app-num shrink-0 text-xs text-muted">{String(i + 1).padStart(2, "0")}</span>
               <span className="min-w-0">{item}</span>
             </li>
           ))}
         </ol>
-      </Row>
+      </Section>
     </div>
   );
 }

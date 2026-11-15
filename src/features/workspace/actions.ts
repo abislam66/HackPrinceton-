@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { pitchSchema, type Pitch } from "@/features/pitch/schema";
 import { loadClient, loadClients } from "@/features/project/load";
 import { canTransition } from "@/features/proposal/status";
 import { getProposal, saveProposal } from "@/features/proposal/store";
@@ -51,26 +50,6 @@ export async function sendProposal(clientId: string): Promise<ActionResult> {
     }
     markBuilt(id);
     markSent(id, new Date().toISOString());
-    refresh();
-    return { ok: true };
-  } catch (error) {
-    return fail(error);
-  }
-}
-
-/** Replaces the pitch of a stored proposal. Refused once the proposal is sent. */
-export async function savePitch(clientId: string, pitch: Pitch): Promise<ActionResult> {
-  const id = await requireClient(clientId);
-  if (!id) return { ok: false, error: "Unknown stakeholder." };
-  const parsed = pitchSchema.safeParse(pitch);
-  if (!parsed.success) return { ok: false, error: "The pitch is not valid." };
-  try {
-    const proposal = await getProposal(id);
-    if (!proposal) return { ok: false, error: "Build the proposal before editing the pitch." };
-    if (proposal.status === "sent") return { ok: false, error: "A sent proposal can't be edited." };
-    if ((await saveProposal({ ...proposal, pitch: parsed.data })) === "none") {
-      return { ok: false, error: "Could not save the pitch." };
-    }
     refresh();
     return { ok: true };
   } catch (error) {
