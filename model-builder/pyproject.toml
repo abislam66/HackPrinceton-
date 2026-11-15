@@ -10,6 +10,7 @@ dependencies = [
     "trimesh>=5.2.1",
     "shapely>=2.2.0",
     "numpy>=2.4.6",
+    "mapbox-earcut>=2.1.0",
 ]
 
 [project.scripts]

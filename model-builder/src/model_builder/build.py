@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .contract import METADATA_FILE, MODEL_FILE, BoundingBox, ModelMetadata
 from .glb import box_glb
+from .massing import build_massing, parse_spec
 from .reference import known_sides
 
 # Gray-box size until project.json carries real footprint and height facts.
@@ -49,13 +50,18 @@ def build_model(project_dir: Path, out_dir: Path) -> ModelMetadata:
     metadata_path = out_dir / METADATA_FILE
     version = _next_version(metadata_path)
 
-    _replace_atomic(out_dir / MODEL_FILE, box_glb(STAND_IN_BOX, name=slug))
+    spec = parse_spec(project)
+    if spec is None:
+        glb, box = box_glb(STAND_IN_BOX, name=slug), STAND_IN_BOX
+    else:
+        glb, box = build_massing(spec)
+    _replace_atomic(out_dir / MODEL_FILE, glb)
 
     metadata = ModelMetadata(
         projectSlug=slug,
         file=MODEL_FILE,
         version=version,
-        boundingBox=STAND_IN_BOX,
+        boundingBox=box,
         knownSides=known_sides(project_dir / "images"),
     )
     _replace_atomic(metadata_path, metadata.model_dump_json(indent=2).encode("utf-8"))
