@@ -1,0 +1,104 @@
+/* App control skin: "Cone-led". Decided by Rafiat from /proto/controls on 2026-11-14.
+   The brand button frame, rolling label and arrow cell stay. Only the fills change: Cone carries the
+   one main action, and nothing else is filled black. Loaded after the brand components.css in the same
+   layer, so these rules win at equal specificity. The brand files stay untouched. */
+
+/* ------------------------------------------------------------------ buttons */
+
+/* Primary: Cone fill, Asphalt label. On hover the arrow cell slides in Asphalt with a Cone arrow. */
+.tm-btn--primary { background: var(--tm-cone); border-color: var(--tm-cone); color: var(--tm-asphalt); }
+.tm-btn--primary .tm-btn__icon { border-color: var(--tm-asphalt); }
+.tm-btn--primary .tm-btn__cell--in { background: var(--tm-asphalt); }
+.tm-btn--primary .tm-btn__cell--in .tm-arrow { fill: var(--tm-cone); }
+
+/* Ghost (secondary): an Asphalt frame on transparent. The Cone arrow cell still slides in on hover. */
+.tm-btn--ghost .tm-btn__cell--in .tm-arrow { fill: var(--tm-asphalt); }
+
+/* Press feedback on every button. */
+.tm-btn { transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, transform 0.12s ease-out; }
+.tm-btnlink:active .tm-btn { transform: scale(0.97); }
+
+@media (hover: hover) and (pointer: fine) {
+  .tm-btnlink:hover .tm-btn {
+    transition: background-color 0.6s var(--tm-ease-handle), color 0.6s var(--tm-ease-handle), transform 0.12s ease-out;
+  }
+  /* Hover tints instead of filling black. */
+  .tm-btnlink:hover .tm-btn--primary {
+    background: color-mix(in oklch, var(--tm-cone) 90%, var(--tm-asphalt));
+    border-color: color-mix(in oklch, var(--tm-cone) 90%, var(--tm-asphalt));
+    color: var(--tm-asphalt);
+  }
+  .tm-btnlink:hover .tm-btn--ghost { background: rgba(var(--tm-asphalt-rgb), 0.06); border-color: var(--tm-asphalt); color: var(--tm-asphalt); }
+  .tm-btnlink:hover .tm-btn--ghost-light { background: rgba(var(--tm-stucco-rgb), 0.12); color: var(--tm-sheet); }
+}
+
+/* Disabled: tokens, not opacity, so it reads the same on every ground. */
+.tm-btnlink:disabled,
+.tm-btnlink[aria-disabled="true"] { opacity: 1; cursor: not-allowed; }
+.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--primary { background: var(--tm-stucco); border-color: var(--tm-stucco); color: var(--tm-mortar); }
+.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--ghost { border-color: var(--tm-limestone); color: var(--tm-mortar); }
+.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--ghost .tm-btn__icon,
+.tm-btnlink:is(:disabled, [aria-disabled="true"]) .tm-btn--primary .tm-btn__icon { border-color: var(--tm-limestone); }
+
+/* ------------------------------------------------------------------ tabs */
+
+/* Framed cells. The active tab is Sheet with Asphalt text and a 2 px Cone bar along its bottom edge. */
+.app-tab {
+  align-items: center;
+  border: 1px solid var(--tm-concrete);
+  box-sizing: border-box;
+  color: var(--tm-mortar);
+  display: inline-flex;
+  min-height: 44px;
+  padding: 10px 16px;
+  position: relative;
+  font-family: var(--tm-f-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  touch-action: manipulation;
+  transition: background-color 0.2s var(--tm-ease-link), color 0.2s var(--tm-ease-link);
+}
+.app-tab[aria-current="page"] { background: var(--tm-sheet); color: var(--tm-asphalt); }
+.app-tab[aria-current="page"]::after {
+  background: var(--tm-cone);
+  bottom: -1px;
+  content: "";
+  height: 2px;
+  left: -1px;
+  position: absolute;
+  right: -1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .app-tab:not([aria-current]):hover { background: rgba(var(--tm-asphalt-rgb), 0.06); color: var(--tm-asphalt); }
+}
+.app-tab:not([aria-current]):active { background: rgba(var(--tm-asphalt-rgb), 0.1); }
+.app-tab:focus-visible { outline: 2px solid var(--tm-cone); outline-offset: 3px; }
+
+/* ------------------------------------------------------------------ tags */
+
+/* Framed in Concrete with Mortar text. A leading 8 px square carries the state; nothing is filled. */
+.app-tag {
+  align-items: center;
+  border: 1px solid var(--tm-concrete);
+  color: var(--tm-mortar);
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px 9px;
+  font-family: var(--tm-f-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.app-tag--strong { color: var(--tm-asphalt); }
+.app-tag__sq { display: block; flex: none; height: 8px; width: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-btn, .app-tab { transition: none !important; }
+  .tm-btnlink:active .tm-btn { transform: none; }
+}
