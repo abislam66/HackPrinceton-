@@ -19,7 +19,7 @@ export async function loadStakeholderModel(clientId: string, projectSlug: string
     const generated = await loadGeneratedMeta(projectSlug);
     if (generated) {
       return {
-        url: `/api/models/${projectSlug}/model.glb?v=${generated.version}`,
+        url: `/api/models/${projectSlug}/glb?v=${generated.version}`,
         boundingBox: generated.boundingBox,
         knownSides: generated.knownSides,
         generated: true,
