@@ -1,9 +1,9 @@
 {
   "id": "client-b",
-  "company": "Sample Client B",
-  "role": "trade",
-  "contact": { "name": "Sample Contact", "title": "Sample Title" },
-  "need": "sales-and-bids",
-  "needsNotes": "Sample data. Replace with the second client-needs variation.",
-  "focusElements": ["curtain wall"]
+  "company": "Temple University",
+  "role": "owner-developer",
+  "contact": { "name": "Placeholder Contact", "title": "Placeholder Title, Office of Communications" },
+  "need": "community-and-pr",
+  "needsNotes": "The owner wants to show prospective students, families and the North Philadelphia community what Morgan Hall is: a landmark on Broad Street that opens the campus to the neighborhood, not a wall of dorms. The footage supports admissions, housing and community relations.",
+  "focusElements": ["the tower as the gateway on the approach from Center City", "the elevated central terrace", "the Broad Street frontage and its stair to the terrace"]
 }
