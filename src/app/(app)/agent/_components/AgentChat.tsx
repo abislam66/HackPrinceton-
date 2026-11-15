@@ -5,12 +5,22 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, ty
 import { Heading } from "@/components/ui/Heading";
 // Type only: erased at build time, so the server-only module never reaches the browser.
 import type { AgentEvent } from "@/features/agent/chat";
+import { loadChats, newChat, saveChat, threadFor, titleFor, type Chat } from "@/features/agent/history";
 import { cx } from "@/lib/cx";
 
 /** A turn in the thread. "error" turns are shown but never sent back to the model. */
 type Turn = { id: number; role: "user" | "assistant" | "error"; text: string };
 
 const focusRing = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-asphalt";
+
+/** "14:05" for today, else "Nov 14". */
+function formatWhen(ms: number): string {
+  const date = new Date(ms);
+  const today = new Date().toDateString() === date.toDateString();
+  return today
+    ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
 /** "research_dossier" → "research dossier", for the working line. */
 function toolLabel(tool: string): string {
@@ -27,6 +37,12 @@ export function AgentChat() {
   const [pending, setPending] = useState(false);
   /** What the agent is doing right now (which tool, latest progress line), while a reply is pending. */
   const [working, setWorking] = useState<string | null>(null);
+  /** Saved chats, newest first, and the one on screen. History lives in this browser only. */
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [chatId, setChatId] = useState<string | null>(null);
+  /** Set when the thread changes by sending, so opening a saved chat doesn't re-save it. */
+  const dirty = useRef(false);
+  const historyRef = useRef<HTMLDetailsElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(0);
   const inputId = useId();
@@ -36,6 +52,45 @@ export function AgentChat() {
   // One prompt at a time: the send button waits for the reply.
   const blocked = empty || pending;
   const hasThread = prompts.length > 0;
+
+  // Coming back to the tab reopens the latest chat. localStorage only exists in the browser, so this
+  // has to run after hydration; reading it during render would make server and client disagree.
+  useEffect(() => {
+    const saved = loadChats();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from browser storage after mount
+    setChats(saved);
+    if (saved[0]) openTurns(saved[0]);
+    else setChatId(newChat().id);
+  }, []);
+
+  // Save the chat on screen after every change made by sending.
+  useEffect(() => {
+    if (!dirty.current || !chatId) return;
+    dirty.current = false;
+    const turns = prompts.map(({ role, text }) => ({ role, text }));
+    setChats(saveChat({ id: chatId, title: titleFor(turns), updatedAt: Date.now(), turns }));
+  }, [prompts, chatId]);
+
+  function openTurns(chat: Chat) {
+    setChatId(chat.id);
+    setPrompts(chat.turns.map((turn) => ({ ...turn, id: (nextId.current += 1) })));
+  }
+
+  function openChat(chat: Chat) {
+    if (pending) return;
+    dirty.current = false;
+    openTurns(chat);
+    inputRef.current?.focus();
+  }
+
+  function startNewChat() {
+    if (pending) return;
+    dirty.current = false;
+    setChatId(newChat().id);
+    setPrompts([]);
+    setValue("");
+    inputRef.current?.focus();
+  }
 
   // Autofocus on load, but not on touch screens, where it would throw the keyboard open.
   useEffect(() => {
@@ -62,16 +117,14 @@ export function AgentChat() {
   function append(role: Turn["role"], text: string) {
     nextId.current += 1;
     const id = nextId.current;
+    dirty.current = true;
     setPrompts((list) => [...list, { id, role, text }]);
   }
 
   async function send() {
     const text = value.trim();
     if (!text || pending) return;
-    const thread = [
-      ...prompts.flatMap((t) => (t.role === "error" ? [] : [{ role: t.role, content: t.text }])),
-      { role: "user" as const, content: text },
-    ];
+    const thread = threadFor([...prompts, { role: "user", text }]);
     append("user", text);
     setValue("");
     setPending(true);
@@ -136,6 +189,46 @@ export function AgentChat() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col px-5">
+      <nav aria-label="Chats" className="flex flex-none items-center justify-between gap-3 pt-6">
+        {chats.length > 0 ? (
+          <details ref={historyRef} className="relative">
+            <summary className={cx("tm-label tm-muted cursor-pointer select-none", focusRing)}>Past chats ({chats.length})</summary>
+            <ul className="absolute left-0 z-10 mt-2 flex max-h-[60vh] w-[min(480px,85vw)] flex-col overflow-y-auto border border-rule/40 bg-sheet p-1">
+              {chats.map((chat) => (
+                <li key={chat.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openChat(chat);
+                      if (historyRef.current) historyRef.current.open = false;
+                    }}
+                    disabled={pending}
+                    aria-current={chat.id === chatId ? "true" : undefined}
+                    className={cx(
+                      "flex w-full items-baseline justify-between gap-4 px-3 py-2 text-left hover:bg-stucco disabled:cursor-not-allowed",
+                      chat.id === chatId && "bg-stucco",
+                      focusRing,
+                    )}
+                  >
+                    <span className="tm-text--s truncate">{chat.title}</span>
+                    <span className="tm-label tm-muted tm-num shrink-0">{formatWhen(chat.updatedAt)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : (
+          <span aria-hidden />
+        )}
+        <button
+          type="button"
+          onClick={startNewChat}
+          disabled={pending || !hasThread}
+          className={cx("tm-label border border-asphalt/55 px-3 py-1.5 hover:bg-stucco disabled:cursor-not-allowed disabled:opacity-50", focusRing)}
+        >
+          New chat
+        </button>
+      </nav>
       {hasThread ? (
         <ol aria-label="Prompts" className="flex flex-1 flex-col gap-6 pt-12 pb-6">
           {prompts.map((turn) =>
