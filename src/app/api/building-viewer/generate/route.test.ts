@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/store/json-store", () => import("@/lib/store/test-store"));
+
 // The generator itself is mocked: these tests check the route's order of checks, never a paid call.
 vi.mock("@/features/building-viewer/generate", () => ({
   StepError: class StepError extends Error {

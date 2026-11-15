@@ -1,4 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { z } from "zod";
+import { readRecord, writeRecord } from "@/lib/store/json-store";
 
 /*
  * Access code and rate limit for the viewer generator. The generator spends paid model calls, so it
@@ -24,23 +26,30 @@ export function clientKey(headers: Headers): string {
   return forwarded || headers.get("x-real-ip") || "unknown";
 }
 
-type Window = { start: number; count: number };
-const windows = new Map<string, Window>();
+const RATE_COLLECTION = "viewer-rate";
+const windowSchema = z.object({ start: z.number(), count: z.number().int() });
+
+/** Store key for a client: a hash, so raw IP addresses are never stored. */
+function rateKey(client: string): string {
+  return createHash("sha256").update(client).digest("hex").slice(0, 40);
+}
 
 /**
  * Fixed one-hour window per client, RATE_LIMIT generations each. Returns the seconds to wait when
- * the limit is hit. This lives in one server instance; a serverless host can run several, so the
- * limit is a per-instance soft cap until a shared store is added (see DEPLOY.md).
+ * the limit is hit. The window lives in the shared store (Supabase when configured), so every
+ * server instance counts against the same limit. Two requests landing at the same instant can both
+ * pass; that's acceptable for a soft cap on a demo.
  */
-export function takeGeneration(key: string, now = Date.now()): { ok: true } | { ok: false; retryAfterS: number } {
-  const current = windows.get(key);
+export async function takeGeneration(key: string, now = Date.now()): Promise<{ ok: true } | { ok: false; retryAfterS: number }> {
+  const id = rateKey(key);
+  const current = await readRecord(RATE_COLLECTION, id, windowSchema);
   if (!current || now - current.start >= RATE_WINDOW_MS) {
-    windows.set(key, { start: now, count: 1 });
+    await writeRecord(RATE_COLLECTION, id, { start: now, count: 1 });
     return { ok: true };
   }
   if (current.count >= RATE_LIMIT) {
     return { ok: false, retryAfterS: Math.ceil((current.start + RATE_WINDOW_MS - now) / 1000) };
   }
-  current.count += 1;
+  await writeRecord(RATE_COLLECTION, id, { start: current.start, count: current.count + 1 });
   return { ok: true };
 }
