@@ -2,13 +2,22 @@ import "server-only";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { z } from "zod";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isRecordsStoreConfigured } from "@/lib/supabase/env";
 
 /*
- * Storage for the live stages' results (scout runs, dossiers, outreach messages and the Gmail
- * state) while the demo has no Supabase keys. Records live in process memory and are written
- * through to .data/<collection>/<key>.json (gitignored), so a laptop demo survives a dev-server
- * restart. On Vercel the filesystem is read-only: records last as long as the instance, and the
- * screens fall back to the committed snapshots.
+ * Storage for the live stages' results: scout runs, scouted projects, dossiers, generated models,
+ * the project agent's projects, clients and drafts, outreach messages, the Gmail sync state, and
+ * the building viewer's rate limit and map cache.
+ *
+ * Two backends, picked per call:
+ * - Supabase, when NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY are set: one row per record
+ *   in public.records (supabase/migrations/20261115090000_records.sql). Every instance reads the
+ *   same rows, so this is what a deployed app needs. A failed write throws.
+ * - Files, otherwise (local development): records live in process memory and are written through
+ *   to .data/<collection>/<key>.json (gitignored), so a laptop demo survives a restart. If the
+ *   write fails (a read-only filesystem, such as Vercel without the keys) the record lives only in
+ *   this instance's memory, and that is logged as an error.
  */
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -32,13 +41,38 @@ function bucket(collection: string): Map<string, unknown> {
   return map;
 }
 
-/** The record, from memory or disk, parsed with `schema`. Null when missing or invalid. */
+/** Where writes go right now. */
+export function storeBackend(): "supabase" | "files" {
+  return isRecordsStoreConfigured() ? "supabase" : "files";
+}
+
+function parseWith<T extends z.ZodType>(schema: T, value: unknown, where: string): z.infer<T> | null {
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  console.error(`Store record ${where} does not match its schema`, parsed.error.message);
+  return null;
+}
+
+/** The record parsed with `schema`. Null when missing or invalid; a database error is logged. */
 export async function readRecord<T extends z.ZodType>(
   collection: string,
   key: string,
   schema: T,
 ): Promise<z.infer<T> | null> {
   check(collection, key);
+  if (storeBackend() === "supabase") {
+    const { data, error } = await createAdminClient()
+      .from("records")
+      .select("data")
+      .eq("collection", collection)
+      .eq("key", key)
+      .maybeSingle();
+    if (error) {
+      console.error(`Store read ${collection}/${key} failed`, error.message);
+      return null;
+    }
+    return data ? parseWith(schema, data.data, `${collection}/${key}`) : null;
+  }
   const cached = bucket(collection).get(key);
   if (cached !== undefined) {
     const parsed = schema.safeParse(cached);
@@ -56,23 +90,55 @@ export async function readRecord<T extends z.ZodType>(
   }
 }
 
-/** Stores a record. Returns "file" when it reached disk, "memory" when only memory holds it. */
-export async function writeRecord(collection: string, key: string, value: unknown): Promise<"file" | "memory"> {
+/**
+ * Stores a record. Returns where it went: "supabase", "file", or "memory" when only this
+ * instance's memory holds it (logged as an error). Throws when the Supabase write fails.
+ */
+export async function writeRecord(
+  collection: string,
+  key: string,
+  value: unknown,
+): Promise<"supabase" | "file" | "memory"> {
   check(collection, key);
+  if (storeBackend() === "supabase") {
+    const { error } = await createAdminClient()
+      .from("records")
+      .upsert({ collection, key, data: value, updated_at: new Date().toISOString() });
+    if (error) {
+      console.error(`Store write ${collection}/${key} failed`, error.message);
+      throw new Error(`Could not save ${collection}/${key}: ${error.message}`);
+    }
+    return "supabase";
+  }
   bucket(collection).set(key, value);
   try {
     const dir = path.join(DATA_DIR, collection);
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, `${key}.json`), `${JSON.stringify(value, null, 2)}\n`);
     return "file";
-  } catch {
+  } catch (error) {
+    console.error(
+      `Store write ${collection}/${key} reached only this instance's memory. ` +
+        "Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY to keep it.",
+      error instanceof Error ? error.message : error,
+    );
     return "memory";
   }
 }
 
-/** Every valid record in a collection (memory merged over disk), in no particular order. */
+/** Every valid record in a collection, in no particular order. A database error is logged. */
 export async function listRecords<T extends z.ZodType>(collection: string, schema: T): Promise<z.infer<T>[]> {
   check(collection);
+  if (storeBackend() === "supabase") {
+    const { data, error } = await createAdminClient().from("records").select("key, data").eq("collection", collection);
+    if (error) {
+      console.error(`Store list ${collection} failed`, error.message);
+      return [];
+    }
+    return (data ?? [])
+      .map((row: { key: string; data: unknown }) => parseWith(schema, row.data, `${collection}/${row.key}`))
+      .filter((r): r is z.infer<T> => r !== null);
+  }
   const files = await readdir(path.join(DATA_DIR, collection)).catch(() => [] as string[]);
   const keys = new Set([
     ...files.filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)),
