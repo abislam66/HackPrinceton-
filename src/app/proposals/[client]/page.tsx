@@ -15,7 +15,7 @@ export default async function ProposalPage({ params }: PageProps<"/proposals/[cl
   return (
     <main className="flex flex-1 flex-col">
       <section className="relative h-[80vh] min-h-96">
-        <ModelViewer model={model} path={teaserPath(model.boundingBox)} className="absolute inset-0" />
+        <ModelViewer model={model} path={teaserPath(model.boundingBox)} loop={false} className="absolute inset-0" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 p-6 sm:p-10">
           <p className="text-sm text-zinc-300">
             {client.company} · {project.name}
