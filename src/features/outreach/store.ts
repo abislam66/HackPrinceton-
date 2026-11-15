@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { listRecords, readRecord, writeRecord } from "@/lib/store/json-store";
 import { getAccount, getThreadReplies } from "./gmail";
+import { repairProposalLink } from "./link";
 import { outreachMessageSchema, type OutreachMessage } from "./schema";
 
 /*
@@ -28,7 +29,9 @@ export function messageId(clientId: string): string {
 
 export async function getMessage(clientId: string): Promise<OutreachMessage | null> {
   if (!CLIENT_ID.test(clientId)) return null;
-  return readRecord(COLLECTION, messageId(clientId), outreachMessageSchema);
+  const message = await readRecord(COLLECTION, messageId(clientId), outreachMessageSchema);
+  // Drafts written before the link knew its host point at localhost; read them onto the live one.
+  return message ? repairProposalLink(message) : null;
 }
 
 /** Validates and stores a message under its id. Returns the stored value. */
@@ -40,7 +43,7 @@ export async function saveMessage(message: OutreachMessage): Promise<OutreachMes
 
 /** Every stored message, oldest first. */
 export async function listMessages(): Promise<OutreachMessage[]> {
-  const messages = await listRecords(COLLECTION, outreachMessageSchema);
+  const messages = (await listRecords(COLLECTION, outreachMessageSchema)).map(repairProposalLink);
   return messages.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 

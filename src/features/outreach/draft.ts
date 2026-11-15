@@ -5,6 +5,7 @@ import { loadClient, loadProject } from "@/features/project/load";
 import type { Client, Project } from "@/features/project/schema";
 import type { Pitch } from "@/features/pitch/schema";
 import { getProposal } from "@/features/proposal/store";
+import { proposalUrlFor } from "./link";
 import { emailDraftSchema, type EmailDraft } from "./schema";
 
 /*
@@ -28,11 +29,7 @@ export type DraftedEmail = {
 
 type DraftInput = { client: Client; project: Project; pitch: Pitch | null; proposalUrl: string };
 
-/** The stakeholder's proposal page, tagged so opens tie back to the email. */
-export function proposalUrlFor(clientId: string): string {
-  const base = (process.env.PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
-  return `${base}/proposals/${encodeURIComponent(clientId)}?ref=email`;
-}
+export { proposalUrlFor } from "./link";
 
 /** The body with the proposal link in it verbatim; appended on its own line when missing. */
 export function ensureUrl(body: string, url: string): string {
