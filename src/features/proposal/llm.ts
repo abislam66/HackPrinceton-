@@ -41,6 +41,9 @@ export async function callStructured<T extends z.ZodType>(
   { effort = "low", maxTokens = 8000 }: Options = {},
 ): Promise<z.infer<T>> {
   let lastProblem = "";
+  // Fast mode: up to 2.5x output speed at 2x the price, so live generation fits the demo budget.
+  // It has its own rate limit; on a 429 the same attempt is retried once at standard speed.
+  let speed: "fast" | "standard" = "fast";
   for (let attempt = 0; attempt < 2; attempt++) {
     const content =
       attempt === 0
@@ -54,11 +57,17 @@ export async function callStructured<T extends z.ZodType>(
         // Re-runs a declined request on Anthropic's recommended fallback model.
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
+        speed,
         system,
         messages: [{ role: "user", content }],
         output_config: { effort, format: betaZodOutputFormat(schema) },
       });
     } catch (error) {
+      if (error instanceof Anthropic.RateLimitError && speed === "fast") {
+        speed = "standard";
+        attempt--;
+        continue;
+      }
       // HTTP, timeout and connection errors are not worth a second try inside the budget.
       if (error instanceof Anthropic.APIError) throw new LlmError(`LLM call failed: ${error.message}`);
       // The SDK's own parse step throws when the JSON doesn't match the schema: retry once.
