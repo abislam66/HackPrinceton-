@@ -9,6 +9,8 @@ const {
   getThreadReplies,
   resetGmailCache,
   sendEmail,
+  senderFor,
+  senders,
 } = await import("./gmail");
 
 type Call = { url: string; init: RequestInit };
@@ -96,6 +98,109 @@ describe("sendEmail allowlist guard", () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toMatch(/invalid_grant.*tools\/gmail-token/);
     expect((error as Error).message).not.toMatch(/test-refresh|test-secret/);
+  });
+});
+
+describe("sending from a person's own Gmail", () => {
+  const email = { subject: "Morgan Hall North", body: "Hello from Tradesmark." };
+  const abrar = { email: "abislam64@gmail.com", refreshToken: "abrar-token" };
+  const rafiat = { email: "rafiatamir@gmail.com", refreshToken: "rafiat-token" };
+
+  /** Each refresh token opens one mailbox: "x-token" gives the access token "access-x-token", owned by `owners[...]`. */
+  function mockMailboxes(owners: Record<string, string>) {
+    const calls: Call[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
+        const url = String(input);
+        calls.push({ url, init });
+        const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+        const bearer = new Headers(init.headers).get("authorization") ?? "";
+        if (url === "https://oauth2.googleapis.com/token") {
+          return json({ access_token: `access-${new URLSearchParams(String(init.body)).get("refresh_token")}`, expires_in: 3600 });
+        }
+        if (url.endsWith("/profile")) return json({ emailAddress: owners[bearer] });
+        if (url.endsWith("/messages/send")) return json({ id: "msg-1", threadId: "thread-1" });
+        return json({});
+      }),
+    );
+    return calls;
+  }
+  const mimeOf = (call: Call) =>
+    Buffer.from((JSON.parse(String(call.init.body)) as { raw: string }).raw, "base64url").toString("utf8");
+  const sendsIn = (calls: Call[]) => calls.filter((c) => c.url.endsWith("/messages/send"));
+
+  it("sends to any address with no allowlist, from that person's own account with no display name", async () => {
+    const calls = mockMailboxes({ "Bearer access-abrar-token": "abislam64@gmail.com" });
+    vi.stubEnv("OUTREACH_ALLOWLIST", "");
+    await sendEmail({ to: "Anyone@Example.com", ...email, sender: abrar });
+    const [send] = sendsIn(calls);
+    expect(new Headers(send.init.headers).get("authorization")).toBe("Bearer access-abrar-token");
+    expect(mimeOf(send)).toMatch(/^From: abislam64@gmail\.com\r\nTo: anyone@example\.com\r\n/);
+  });
+
+  it("still refuses anything that is not one plain address", async () => {
+    const calls = mockMailboxes({});
+    await expect(sendEmail({ to: "a@b.co, c@d.co", ...email, sender: abrar })).rejects.toThrow(/one plain/);
+    await expect(sendEmail({ to: "Sam <sam@gmail.com>", ...email, sender: abrar })).rejects.toThrow(/one plain/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("keeps one access token and one address per account, so two people never share a mailbox", async () => {
+    const calls = mockMailboxes({
+      "Bearer access-abrar-token": "abislam64@gmail.com",
+      "Bearer access-rafiat-token": "rafiatamir@gmail.com",
+    });
+    await sendEmail({ to: "x@example.com", ...email, sender: abrar });
+    await sendEmail({ to: "y@example.com", ...email, sender: rafiat });
+    await sendEmail({ to: "z@example.com", ...email, sender: abrar });
+    expect(calls.filter((c) => c.url.includes("oauth2.googleapis.com")).length).toBe(2);
+    expect(sendsIn(calls).map((c) => mimeOf(c).split("\r\n")[0])).toEqual([
+      "From: abislam64@gmail.com",
+      "From: rafiatamir@gmail.com",
+      "From: abislam64@gmail.com",
+    ]);
+  });
+
+  it("refuses when the token set for someone belongs to another account, before sending anything", async () => {
+    const calls = mockMailboxes({ "Bearer access-abrar-token": "someone-else@gmail.com" });
+    const error = await sendEmail({ to: "x@example.com", ...email, sender: abrar }).catch((e: Error) => e);
+    expect((error as Error).message).toMatch(/belongs to someone-else@gmail\.com.*signed in as abislam64@gmail\.com/);
+    expect((error as Error).message).not.toContain("abrar-token");
+    expect(sendsIn(calls)).toHaveLength(0);
+  });
+
+  it("does not loosen the shared account: without a sender the allowlist still applies", async () => {
+    const calls = mockMailboxes({});
+    vi.stubEnv("OUTREACH_ALLOWLIST", "team@tradesmark.test");
+    await expect(sendEmail({ to: "anyone@example.com", ...email })).rejects.toThrow(/not on OUTREACH_ALLOWLIST/);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("senders and senderFor (OUTREACH_SENDERS)", () => {
+  it("reads a JSON map of Gmail address to refresh token, normalizing addresses", () => {
+    vi.stubEnv("OUTREACH_SENDERS", JSON.stringify({ " Abislam64@Gmail.com ": " abrar-token ", "rafiatamir@gmail.com": "rafiat-token" }));
+    expect([...senders()]).toEqual([
+      ["abislam64@gmail.com", "abrar-token"],
+      ["rafiatamir@gmail.com", "rafiat-token"],
+    ]);
+    expect(senderFor("ABISLAM64@gmail.com")).toEqual({ email: "abislam64@gmail.com", refreshToken: "abrar-token" });
+    expect(senderFor("stranger@gmail.com")).toBeNull();
+    expect(senderFor(null)).toBeNull();
+    expect(senderFor("")).toBeNull();
+  });
+
+  it("drops entries that aren't an address with a token, and treats anything else as no senders", () => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("OUTREACH_SENDERS", JSON.stringify({ "not-an-address": "t", "a@b.co": "", "c@d.co": 5, "e@f.co": "ok" }));
+    expect([...senders()]).toEqual([["e@f.co", "ok"]]);
+    for (const bad of ["", "abislam64@gmail.com=abrar-token", "[1,2]", "null", '"text"']) {
+      vi.stubEnv("OUTREACH_SENDERS", bad);
+      expect(senders().size).toBe(0);
+    }
+    expect(JSON.stringify(quiet.mock.calls)).not.toContain("abrar-token");
+    quiet.mockRestore();
   });
 });
 

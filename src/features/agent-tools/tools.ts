@@ -248,6 +248,8 @@ export function createPipelineTools(options: PipelineToolOptions = {}): BetaRunn
               return `Error: no draft for ${clientId}. Call draft_outreach first.`;
             case "not-configured":
               return `Error: Gmail is not set up (${result.reason}).`;
+            case "refused":
+              return `Error: not sent (${result.reason}).`;
             case "already-sent":
               return json({ note: "Already sent. Pass resend to send again.", ...messageSummary(result.message) });
             default:

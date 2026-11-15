@@ -1,13 +1,17 @@
 import "server-only";
-import { z } from "zod";
+import { normalizeAddress } from "./address";
 import type { OutreachReply } from "./schema";
 
+export { normalizeAddress };
+
 /*
- * The Gmail API over plain fetch, with one pre-minted refresh token (tools/gmail-token).
+ * The Gmail API over plain fetch, with pre-minted refresh tokens (tools/gmail-token): the shared account in
+ * GMAIL_REFRESH_TOKEN, and a few people's own accounts in OUTREACH_SENDERS.
  * No OAuth routes, no SDK. Tokens and secrets are never logged or put in an error message.
  *
- * Safety: sendEmail refuses any recipient that is not on OUTREACH_ALLOWLIST, whatever the caller
- * passes. With no allowlist it refuses everything.
+ * Safety: sendEmail from the shared account refuses any recipient that is not on OUTREACH_ALLOWLIST, whatever the
+ * caller passes; with no allowlist it refuses everything. Sending from a person's own account (`sender`) is the one
+ * way past that, and the caller must have identified that person from their sign-in.
  */
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -15,11 +19,7 @@ const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 /** Refresh the access token this long before Google says it expires. */
 const TOKEN_MARGIN_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
-/** One plain address, no display name, no list. */
-const SINGLE_ADDRESS = /^[^\s@,;<>"()[\]\\]+@[^\s@,;<>"()[\]\\]+\.[^\s@,;<>"()[\]\\]+$/;
 const GMAIL_ID = /^[A-Za-z0-9_-]+$/;
-/** The same check the outreach schema applies to `deliveredTo` and `account`. */
-const EMAIL = z.email();
 
 export class GmailError extends Error {
   constructor(
@@ -31,23 +31,31 @@ export class GmailError extends Error {
   }
 }
 
+/** One Gmail account's credentials: the shared one from env, or a person's own (see `senders`). */
+export type GmailAuth = { key: string; refreshToken: string };
+const DEFAULT_KEY = "default";
+
+/** Access tokens, in-flight refreshes and account addresses, per Gmail account. */
 type GmailCache = {
-  token: { value: string; expiresAt: number } | null;
-  pendingToken: Promise<string> | null;
-  account: string | null;
+  tokens: Map<string, { value: string; expiresAt: number }>;
+  pendingTokens: Map<string, Promise<string>>;
+  accounts: Map<string, string>;
 };
-const globalStore = globalThis as typeof globalThis & { __tmGmail?: GmailCache };
-const cache: GmailCache = (globalStore.__tmGmail ??= { token: null, pendingToken: null, account: null });
+const globalStore = globalThis as typeof globalThis & { __tmGmailAccounts?: GmailCache };
+const cache: GmailCache = (globalStore.__tmGmailAccounts ??= {
+  tokens: new Map(),
+  pendingTokens: new Map(),
+  accounts: new Map(),
+});
+
+/** The shared account: GMAIL_REFRESH_TOKEN. It sends the demo copy and is the one whose replies are synced. */
+function defaultAuth(): GmailAuth {
+  return { key: DEFAULT_KEY, refreshToken: process.env.GMAIL_REFRESH_TOKEN ?? "" };
+}
 
 /** True when the OAuth client and the refresh token are set. */
 export function gmailConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN);
-}
-
-/** Lowercased and trimmed when it is one plain address, else null. */
-export function normalizeAddress(value: string | undefined | null): string | null {
-  const address = (value ?? "").trim().toLowerCase();
-  return SINGLE_ADDRESS.test(address) && EMAIL.safeParse(address).success ? address : null;
 }
 
 /** OUTREACH_ALLOWLIST as a set of normalized addresses. Empty when unset. */
@@ -66,11 +74,43 @@ export function getDeliverTo(): string | null {
   return normalizeAddress(process.env.OUTREACH_DELIVER_TO);
 }
 
-/** Test helper: forgets the cached access token and account. */
+/** A person who can send from the app: their own Gmail account and the refresh token minted for it. */
+export type Sender = { email: string; refreshToken: string };
+
+/**
+ * OUTREACH_SENDERS: JSON like {"you@gmail.com": "<refresh token>", "them@gmail.com": "<refresh token>"}. The Gmail accounts
+ * people can send from the app as, to any address. Each token comes from `tools/gmail-token`, signed in as that account.
+ * Empty when unset or not that shape; the value itself is never logged.
+ */
+export function senders(): Map<string, string> {
+  const raw = process.env.OUTREACH_SENDERS?.trim();
+  const found = new Map<string, string>();
+  if (!raw) return found;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+    for (const [email, token] of Object.entries(parsed)) {
+      const address = normalizeAddress(email);
+      if (address && typeof token === "string" && token.trim()) found.set(address, token.trim());
+    }
+  } catch {
+    console.error('OUTREACH_SENDERS is not JSON like {"you@gmail.com": "<refresh token>"}; no one can send from the app.');
+  }
+  return found;
+}
+
+/** The sender for a signed-in person's email, or null when that account isn't one the app can send as. */
+export function senderFor(email: string | null | undefined): Sender | null {
+  const address = normalizeAddress(email);
+  const refreshToken = address ? senders().get(address) : undefined;
+  return address && refreshToken ? { email: address, refreshToken } : null;
+}
+
+/** Test helper: forgets the cached access tokens and account addresses. */
 export function resetGmailCache(): void {
-  cache.token = null;
-  cache.pendingToken = null;
-  cache.account = null;
+  cache.tokens.clear();
+  cache.pendingTokens.clear();
+  cache.accounts.clear();
 }
 
 // --- RFC 2822 message ----------------------------------------------------------------------
@@ -167,9 +207,9 @@ function tokenErrorMessage(status: number, body: Record<string, unknown>): strin
   return `Could not refresh the Gmail access token (HTTP ${status}${code ? `, ${code}` : ""}).`;
 }
 
-async function fetchAccessToken(): Promise<string> {
-  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GMAIL_REFRESH_TOKEN } = process.env;
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GMAIL_REFRESH_TOKEN) {
+async function fetchAccessToken(auth: GmailAuth): Promise<string> {
+  const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET } = process.env;
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !auth.refreshToken) {
     throw new GmailError("Gmail is not configured: set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GMAIL_REFRESH_TOKEN.");
   }
   const response = await request(
@@ -180,7 +220,7 @@ async function fetchAccessToken(): Promise<string> {
       body: new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
         client_secret: GOOGLE_CLIENT_SECRET,
-        refresh_token: GMAIL_REFRESH_TOKEN,
+        refresh_token: auth.refreshToken,
         grant_type: "refresh_token",
       }),
     },
@@ -191,17 +231,22 @@ async function fetchAccessToken(): Promise<string> {
   const token = body.access_token;
   if (typeof token !== "string" || !token) throw new GmailError("Google's token response had no access token.");
   const expiresIn = typeof body.expires_in === "number" ? body.expires_in : 3600;
-  cache.token = { value: token, expiresAt: Date.now() + expiresIn * 1000 - TOKEN_MARGIN_MS };
+  cache.tokens.set(auth.key, { value: token, expiresAt: Date.now() + expiresIn * 1000 - TOKEN_MARGIN_MS });
   return token;
 }
 
 /** A valid access token, cached until shortly before it expires. Concurrent callers share one refresh. */
-async function getAccessToken(): Promise<string> {
-  if (cache.token && cache.token.expiresAt > Date.now()) return cache.token.value;
-  cache.pendingToken ??= fetchAccessToken().finally(() => {
-    cache.pendingToken = null;
-  });
-  return cache.pendingToken;
+async function getAccessToken(auth: GmailAuth): Promise<string> {
+  const cached = cache.tokens.get(auth.key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  let pending = cache.pendingTokens.get(auth.key);
+  if (!pending) {
+    pending = fetchAccessToken(auth).finally(() => {
+      cache.pendingTokens.delete(auth.key);
+    });
+    cache.pendingTokens.set(auth.key, pending);
+  }
+  return pending;
 }
 
 function gmailErrorMessage(status: number, body: Record<string, unknown>, what: string): string {
@@ -218,9 +263,14 @@ function gmailErrorMessage(status: number, body: Record<string, unknown>, what: 
 }
 
 /** A Gmail API call with the access token. On a 401 it refreshes the token once and retries. */
-async function gmail(path: string, init: RequestInit, what: string): Promise<Record<string, unknown>> {
+async function gmail(
+  path: string,
+  init: RequestInit,
+  what: string,
+  auth: GmailAuth = defaultAuth(),
+): Promise<Record<string, unknown>> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const token = await getAccessToken();
+    const token = await getAccessToken(auth);
     const response = await request(
       `${GMAIL_API}${path}`,
       { ...init, headers: { ...init.headers, authorization: `Bearer ${token}` } },
@@ -229,7 +279,7 @@ async function gmail(path: string, init: RequestInit, what: string): Promise<Rec
     const body = await readJson(response);
     if (response.ok) return body;
     if (response.status === 401 && attempt === 0) {
-      cache.token = null;
+      cache.tokens.delete(auth.key);
       continue;
     }
     throw new GmailError(gmailErrorMessage(response.status, body, what), response.status);
@@ -239,41 +289,58 @@ async function gmail(path: string, init: RequestInit, what: string): Promise<Rec
 
 // --- Public calls --------------------------------------------------------------------------
 
-/** The sending account's address, cached after the first answer. */
-export async function getAccount(): Promise<string> {
-  if (cache.account) return cache.account;
-  const body = await gmail("/profile", { method: "GET" }, "Reading the Gmail profile");
+/** A Gmail account's address, cached after the first answer. The shared account unless `auth` says otherwise. */
+export async function getAccount(auth: GmailAuth = defaultAuth()): Promise<string> {
+  const known = cache.accounts.get(auth.key);
+  if (known) return known;
+  const body = await gmail("/profile", { method: "GET" }, "Reading the Gmail profile", auth);
   const address = normalizeAddress(typeof body.emailAddress === "string" ? body.emailAddress : null);
   if (!address) throw new GmailError("The Gmail profile had no email address.");
-  cache.account = address;
+  cache.accounts.set(auth.key, address);
   return address;
 }
 
 /**
- * Sends one plain-text email. Refuses, before any network call, a recipient that is not one
- * plain address on OUTREACH_ALLOWLIST.
+ * Sends one plain-text email.
+ *
+ * Without `sender`, from the shared account: refuses, before any network call, a recipient that is not one plain
+ * address on OUTREACH_ALLOWLIST. With `sender` (a person on OUTREACH_SENDERS, already identified by their sign-in),
+ * from that person's own Gmail to any one plain address: they are choosing the recipient, as they would in Gmail.
+ * The caller decides who counts as a sender; this only checks the token really belongs to that account.
  */
 export async function sendEmail({
   to,
   subject,
   body,
+  sender,
 }: {
   to: string;
   subject: string;
   body: string;
+  sender?: Sender;
 }): Promise<{ id: string; threadId: string }> {
   const recipient = normalizeAddress(to);
   if (!recipient) throw new GmailError("Refused: the recipient must be one plain email address.");
-  const allowed = allowlist();
-  if (allowed.size === 0) throw new GmailError("Refused: OUTREACH_ALLOWLIST is empty, so every send is refused.");
-  if (!allowed.has(recipient)) throw new GmailError(`Refused: ${recipient} is not on OUTREACH_ALLOWLIST.`);
+  if (!sender) {
+    const allowed = allowlist();
+    if (allowed.size === 0) throw new GmailError("Refused: OUTREACH_ALLOWLIST is empty, so every send is refused.");
+    if (!allowed.has(recipient)) throw new GmailError(`Refused: ${recipient} is not on OUTREACH_ALLOWLIST.`);
+  }
 
-  const from = await getAccount();
-  const raw = buildRawMessage({ from, fromName: "Tradesmark", to: recipient, subject, body });
+  const auth: GmailAuth = sender ? { key: `sender:${sender.email}`, refreshToken: sender.refreshToken } : defaultAuth();
+  const from = await getAccount(auth);
+  if (sender && from !== sender.email) {
+    throw new GmailError(
+      `The Gmail token set for ${sender.email} belongs to ${from}. Mint it again with tools/gmail-token, signed in as ${sender.email}.`,
+    );
+  }
+  // A person's own Gmail fills in their own name; the shared account sends as "Tradesmark".
+  const raw = buildRawMessage({ from, fromName: sender ? undefined : "Tradesmark", to: recipient, subject, body });
   const sent = await gmail(
     "/messages/send",
     { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ raw }) },
     "Sending the email",
+    auth,
   );
   if (typeof sent.id !== "string" || typeof sent.threadId !== "string") {
     throw new GmailError("Gmail accepted the send but returned no message id.");

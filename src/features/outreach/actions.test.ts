@@ -30,19 +30,34 @@ const { resetGmailCache } = await import("./gmail");
 const { getSentAt } = await import("@/features/workspace/state");
 
 let sends: string[] = [];
+/** The access token each send was made with, to tell which Gmail account sent it. */
+let sentWith: string[] = [];
 let failSend = false;
+
+/** Whose mailbox each access token opens. Every refresh token "x" is exchanged for the access token "access-x". */
+const MAILBOXES: Record<string, string> = {
+  "Bearer access-abrar-token": "abislam64@gmail.com",
+  "Bearer access-rafiat-token": "rafiatamir@gmail.com",
+  "Bearer access-wrong-token": "someone-else@gmail.com",
+};
 
 function mockGmail() {
   sends = [];
+  sentWith = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request, init: RequestInit = {}) => {
       const url = String(input);
       const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-      if (url.includes("oauth2.googleapis.com")) return json({ access_token: "test-access", expires_in: 3600 });
-      if (url.endsWith("/profile")) return json({ emailAddress: "sender@tradesmark.test" });
+      const bearer = new Headers(init.headers).get("authorization") ?? "";
+      if (url.includes("oauth2.googleapis.com")) {
+        const refresh = new URLSearchParams(String(init.body)).get("refresh_token");
+        return json({ access_token: `access-${refresh}`, expires_in: 3600 });
+      }
+      if (url.endsWith("/profile")) return json({ emailAddress: MAILBOXES[bearer] ?? "sender@tradesmark.test" });
       if (url.endsWith("/messages/send")) {
         if (failSend) return json({ error: { message: "Backend Error" } }, 500);
+        sentWith.push(bearer);
         sends.push(Buffer.from((JSON.parse(String(init.body)) as { raw: string }).raw, "base64url").toString("utf8"));
         return json({ id: `msg-${sends.length}`, threadId: `thread-${sends.length}` });
       }
@@ -124,6 +139,123 @@ describe("outreach actions", () => {
     const body = Buffer.from(sends[0].split("\r\n\r\n")[1].replace(/\r\n/g, ""), "base64").toString("utf8");
     expect(body).toContain("A short note with our proposal for you.");
     expect(body).toContain("http://localhost:3000/proposals/client-a?ref=email");
+  });
+
+  describe("an address typed in the send dialog", () => {
+    const decode = (message: string) => {
+      const [head, rawBody] = message.split("\r\n\r\n");
+      return { head, body: Buffer.from(rawBody.replace(/\r\n/g, ""), "base64").toString("utf8") };
+    };
+
+    const senders = { "abislam64@gmail.com": "abrar-token", "rafiatamir@gmail.com": "rafiat-token" };
+    beforeEach(() => {
+      vi.stubEnv("OUTREACH_SENDERS", JSON.stringify(senders));
+    });
+
+    it("sends to anyone, as written, from the Gmail of whoever is signed in, with no allowlist and no demo label", async () => {
+      const drafted = await draftOutreach("client-a");
+      if (drafted.status !== "ok") throw new Error(drafted.status);
+
+      // Nothing about this recipient is configured anywhere: OUTREACH_ALLOWLIST only has the team inbox.
+      const sent = await sendOutreach("client-a", { to: "  Anyone@Example.com ", signedInAs: "Abislam64@Gmail.com" });
+      if (sent.status !== "ok") throw new Error(sent.status);
+      expect(sent.message).toMatchObject({ status: "sent", deliveredTo: "anyone@example.com", gmailMessageId: "msg-1" });
+      expect(sent.message.intendedFor.email).toBe("anyone@example.com");
+      // Replies land in the sender's own inbox, which the reply sync (shared account only) can't read.
+      expect(sent.message.gmailThreadId).toBeNull();
+
+      expect(sentWith).toEqual(["Bearer access-abrar-token"]);
+      const { head, body } = decode(sends[0]);
+      expect(head).toContain("\r\nTo: anyone@example.com\r\n");
+      expect(head).toMatch(/^From: abislam64@gmail\.com\r\n/);
+      expect(head).not.toMatch(/Demo|Tradesmark/);
+      expect(body).not.toContain("[Demo send");
+      expect(body).toContain("http://localhost:3000/proposals/client-a?ref=email");
+    });
+
+    it("sends as Rafiat from Rafiat's Gmail when Rafiat is signed in", async () => {
+      await draftOutreach("client-a");
+      const sent = await sendOutreach("client-a", { to: "anyone@example.com", signedInAs: "rafiatamir@gmail.com" });
+      expect(sent.status).toBe("ok");
+      expect(sentWith).toEqual(["Bearer access-rafiat-token"]);
+      expect(decode(sends[0]).head).toMatch(/^From: rafiatamir@gmail\.com\r\n/);
+    });
+
+    it("needs neither OUTREACH_DELIVER_TO nor OUTREACH_ALLOWLIST when a person names the recipient", async () => {
+      vi.stubEnv("OUTREACH_DELIVER_TO", "");
+      vi.stubEnv("OUTREACH_ALLOWLIST", "");
+      await draftOutreach("client-a");
+      expect((await sendOutreach("client-a", { to: "sam@gmail.com", signedInAs: "abislam64@gmail.com" })).status).toBe("ok");
+    });
+
+    it("refuses when nobody is signed in, sends nothing, and leaves the draft a draft", async () => {
+      await draftOutreach("client-a");
+      for (const signedInAs of [undefined, null, ""]) {
+        expect(await sendOutreach("client-a", { to: "sam@gmail.com", signedInAs })).toMatchObject({
+          status: "refused",
+          why: "sign-in",
+        });
+      }
+      expect(sends).toHaveLength(0);
+      expect((await getOutreachOverview()).messages[0]).toMatchObject({ status: "draft", deliveredTo: null });
+    });
+
+    it("refuses a signed-in account that isn't one of the senders", async () => {
+      await draftOutreach("client-a");
+      const result = await sendOutreach("client-a", { to: "sam@gmail.com", signedInAs: "stranger@gmail.com" });
+      expect(result).toMatchObject({ status: "refused", why: "not-a-sender" });
+      if (result.status === "refused") expect(result.reason).toContain("Open in Gmail");
+      expect(sends).toHaveLength(0);
+    });
+
+    it("never takes the sender from what the caller typed: the shared account's address is not a sender either", async () => {
+      await draftOutreach("client-a");
+      expect(await sendOutreach("client-a", { to: "sam@gmail.com", signedInAs: "sender@tradesmark.test" })).toMatchObject({
+        status: "refused",
+        why: "not-a-sender",
+      });
+      expect(sends).toHaveLength(0);
+    });
+
+    it("refuses anything that is not one plain address", async () => {
+      await draftOutreach("client-a");
+      for (const to of ["sam", "sam@gmail.com, inbox@tradesmark.test", "Sam <sam@gmail.com>", "sam@gmail.com;x@y.co"]) {
+        expect(await sendOutreach("client-a", { to, signedInAs: "abislam64@gmail.com" })).toMatchObject({
+          status: "refused",
+          why: "bad-address",
+        });
+      }
+      expect(sends).toHaveLength(0);
+    });
+
+    it("refuses to send as someone whose token was minted for a different account", async () => {
+      vi.stubEnv("OUTREACH_SENDERS", JSON.stringify({ "abislam64@gmail.com": "wrong-token" }));
+      await draftOutreach("client-a");
+      const result = await sendOutreach("client-a", { to: "sam@gmail.com", signedInAs: "abislam64@gmail.com" });
+      expect(result.status).toBe("failed");
+      if (result.status !== "failed") return;
+      expect(result.message.error).toMatch(/belongs to someone-else@gmail\.com/);
+      expect(sends).toHaveLength(0);
+    });
+
+    it("treats a malformed OUTREACH_SENDERS as no senders, and never logs the value", async () => {
+      vi.stubEnv("OUTREACH_SENDERS", "abislam64@gmail.com=abrar-token");
+      await draftOutreach("client-a");
+      expect(await sendOutreach("client-a", { to: "sam@gmail.com", signedInAs: "abislam64@gmail.com" })).toMatchObject({
+        status: "refused",
+        why: "not-a-sender",
+      });
+      expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("abrar-token");
+    });
+
+    it("falls back to the demo copy from the shared account when the address is blank", async () => {
+      await draftOutreach("client-a");
+      const sent = await sendOutreach("client-a", { to: "   ", signedInAs: "abislam64@gmail.com" });
+      if (sent.status !== "ok") throw new Error(sent.status);
+      expect(sent.message.deliveredTo).toBe("inbox@tradesmark.test");
+      expect(sentWith).toEqual(["Bearer access-test-refresh"]);
+      expect(decode(sends[0]).body).toContain("[Demo send");
+    });
   });
 
   it("edits a draft in place, keeps the proposal link, and flags pricing", async () => {
