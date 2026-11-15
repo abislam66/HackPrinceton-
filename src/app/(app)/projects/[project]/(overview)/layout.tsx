@@ -65,9 +65,12 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
             facts={KEY_FACTS}
             tabs={<ProjectTabs base={base} counts={{ stakeholders: clients.length }} />}
             actions={
-              <Button href="#project-agent" className="@min-[1100px]/project:hidden">
-                Project agent
-              </Button>
+              <>
+                <Button href={`/building-viewer?project=${slug}`}>Generate 3D viewer</Button>
+                <Button href="#project-agent" className="@min-[1100px]/project:hidden">
+                  Project agent
+                </Button>
+              </>
             }
           >
             {children}
