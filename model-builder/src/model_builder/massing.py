@@ -22,13 +22,16 @@ Coordinates follow the contract: meters, +Y up, +X east, -Z north, origin at the
 """
 
 import math
+import random
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
 import trimesh
 from shapely import affinity
-from shapely.geometry import MultiPolygon, Polygon, box
+from shapely.geometry import LineString, MultiPolygon, Polygon, box
+from shapely.geometry.polygon import orient
+from trimesh.visual.material import PBRMaterial
 from shapely.geometry.base import BaseGeometry
 from shapely.validation import make_valid
 
@@ -49,7 +52,7 @@ TOWER_ASPECT_RANGE = (2.0, 3.5)  # an oblong slab, not a square
 PENTHOUSE_HEIGHT_M = 5.0  # rooftop mechanical level, within the height cap
 PENTHOUSE_INSET_M = 4.0
 CORE_SHARE = 0.18  # the service core takes one end of the tower
-LOUNGE_STRIP_M = 2.5  # a stack of glass lounges past the core, at the very end of the slab
+LOUNGE_STRIP_M = 1.7  # a stack of glass lounges past the core, at the very end of the slab
 CROWN_OVERHANG_M = 1.2  # a thin roof canopy over a glassy top floor
 CROWN_CANOPY_M = 0.8
 
@@ -84,6 +87,8 @@ class MassingSpec:
     core: dict[str, Any] | None = None
     tower_footprint: list[tuple[float, float]] | None = None  # [lng, lat] ring of the tower, inside the footprint
     crown: bool = False
+    context: list[dict[str, Any]] = field(default_factory=list)  # neighbors: {"footprint": ring, "heightM": n}
+    streets: list[dict[str, Any]] = field(default_factory=list)  # {"line": [[lng, lat], ...], "widthM": n}
 
 
 def _number(project: dict[str, Any], key: str, *, whole: bool = False) -> float | None:
@@ -186,6 +191,8 @@ def parse_spec(project: dict[str, Any]) -> MassingSpec | None:
         crown = bool(project.get("crown", False))
         # The height cap covers the rooftop plant too; podium floors are taller than bedroom floors.
         tower_floors = int(floors) - podium_floors
+        if height_cap is not None and height_cap < PENTHOUSE_HEIGHT_M + 2.5 * floors:
+            raise ValueError(f"heightM {height_cap} is too low for {int(floors)} floors plus a rooftop level")
         if height_cap is not None:
             usable = height_cap - PENTHOUSE_HEIGHT_M
             floor_height = usable / (podium_floors * PODIUM_FLOOR_RATIO + tower_floors)
@@ -194,8 +201,16 @@ def parse_spec(project: dict[str, Any]) -> MassingSpec | None:
         else:
             height = floor_height * (podium_floors * PODIUM_FLOOR_RATIO + tower_floors) + PENTHOUSE_HEIGHT_M
             provenance["heightM"] = "inferred (floors x floorHeightM + rooftop plant)"
+    context = project.get("context") or []
+    streets = project.get("streets") or []
+    if not isinstance(context, list) or not all(isinstance(c, dict) and c.get("footprint") for c in context):
+        raise ValueError("context must be a list of {footprint, heightM}")
+    if not isinstance(streets, list) or not all(isinstance(s, dict) and s.get("line") for s in streets):
+        raise ValueError("streets must be a list of {line, widthM}")
+    if (context or streets) and ring is None:
+        raise ValueError("context and streets need a footprint to place them")
     return MassingSpec(ring, int(floors), float(floor_height), float(height), gross, typology, facades, provenance,
-                       podium_floors, tower_plate, core, tower_ring, crown)
+                       podium_floors, tower_plate, core, tower_ring, crown, context, streets)
 
 
 def _largest_polygon(geom: BaseGeometry) -> Polygon:
@@ -210,21 +225,29 @@ def _local_outline(ring: list[tuple[float, float]], frame: list[tuple[float, flo
 
     Passing the site footprint as ``frame`` puts a second ring (e.g. the tower) in the same coordinates as the site.
     """
-    frame = frame or ring
+    to_local = _local_frame(frame or ring)
+    polygon = Polygon(to_local(ring))
+    if not polygon.is_valid:
+        polygon = _largest_polygon(make_valid(polygon))
+    if polygon.is_empty or polygon.area < 1.0:
+        raise ValueError("footprint has no usable area")
+    return polygon
+
+
+def _local_frame(frame: list[tuple[float, float]]):
+    """A function mapping [lng, lat] points to local meters (x east, y north) centered on ``frame``'s centroid."""
     lng0 = sum(p[0] for p in frame) / len(frame)
     lat0 = sum(p[1] for p in frame) / len(frame)
     per_lng = METERS_PER_DEG_LNG_AT_EQUATOR * math.cos(math.radians(lat0))
 
-    def project(points: list[tuple[float, float]]) -> Polygon:
-        polygon = Polygon([((lng - lng0) * per_lng, (lat - lat0) * METERS_PER_DEG_LAT) for lng, lat in points])
-        if not polygon.is_valid:
-            polygon = _largest_polygon(make_valid(polygon))
-        if polygon.is_empty or polygon.area < 1.0:
-            raise ValueError("footprint has no usable area")
-        return polygon
+    def raw(points):
+        return [((float(lng) - lng0) * per_lng, (float(lat) - lat0) * METERS_PER_DEG_LAT) for lng, lat in points]
 
-    c = project(frame).centroid
-    return affinity.translate(project(ring), -c.x, -c.y)
+    base = Polygon(raw(frame))
+    if not base.is_valid:
+        base = _largest_polygon(make_valid(base))
+    c = base.centroid if not base.is_empty else Polygon(raw(frame)).envelope.centroid
+    return lambda points: [(x - c.x, y - c.y) for x, y in raw(points)]
 
 
 def _ring_of(outline: Polygon, depth: float) -> BaseGeometry:
@@ -268,7 +291,7 @@ def infer_plate(spec: MassingSpec) -> tuple[BaseGeometry, dict[str, str]]:
                 avg = spec.gross_area_m2 / ring.area  # type: ignore[operator]
                 notes["plateAreaM2"] += f"; built {ring.area:.0f}, implies {avg:.1f} average floors"
             return ring, notes
-        if target and outline.area > target:
+        if target and outline.area > target and spec.typology != "tower":  # a tower's lot holds its base too
             factor = math.sqrt(target / outline.area)
             notes["outlineScale"] = f"{factor:.2f} (outline shrunk to plate area)"
             return affinity.scale(outline, factor, factor, origin=(0, 0)), notes
@@ -315,6 +338,9 @@ def infer_tower(outline: Polygon, spec: MassingSpec) -> tuple[Polygon, Polygon |
     notes: dict[str, str] = {}
     if spec.tower_footprint is not None:
         plate = _local_outline(spec.tower_footprint, frame=spec.footprint)
+        outside = plate.difference(outline).area
+        if outside > 0.1 * plate.area:
+            raise ValueError(f"towerFootprint is {outside / plate.area:.0%} outside the footprint; it must sit on the lot")
         angle = _long_axis_angle(plate)
         notes["towerPlate"] = f"{plate.area:.0f} m², from towerFootprint (long axis {angle:.0f}°)"
     else:
@@ -329,9 +355,12 @@ def infer_tower(outline: Polygon, spec: MassingSpec) -> tuple[Polygon, Polygon |
         angle = _long_axis_angle(outline)
         cx, cy = _deepest_point(outline)
         slab = affinity.translate(affinity.rotate(box(-length / 2, -w / 2, length / 2, w / 2), angle, origin=(0, 0)), cx, cy)
-        clipped = slab.intersection(outline)
-        plate = _largest_polygon(clipped) if clipped.area >= 0.85 * target else slab
+        plate = _largest_polygon(slab.intersection(outline))  # never spill off the lot, even if the plate shrinks
+        if plate.area < 1.0:
+            raise ValueError("the lot is too small or thin for a tower")
         notes["towerPlate"] = f"{plate.area:.0f} m², {length:.0f} x {w:.0f} m slab along the plot's long axis ({angle:.0f}°)"
+        if plate.area < 0.85 * target:
+            notes["towerPlate"] += f"; clipped to the lot from {target:.0f} m²"
 
     core = None
     if spec.core is not None:
@@ -340,17 +369,18 @@ def infer_tower(outline: Polygon, spec: MassingSpec) -> tuple[Polygon, Polygon |
         flat = affinity.rotate(plate, -angle, origin=c)
         minx, miny, maxx, maxy = flat.bounds
         length = maxx - minx
-        core_len = CORE_SHARE * length
+        core_len = float(spec.core.get("share", CORE_SHARE)) * length
+        lounge = float(spec.core.get("loungeM", LOUNGE_STRIP_M))
         ends = {
-            -1: box(minx + LOUNGE_STRIP_M, miny, minx + LOUNGE_STRIP_M + core_len, maxy),
-            1: box(maxx - LOUNGE_STRIP_M - core_len, miny, maxx - LOUNGE_STRIP_M, maxy),
+            -1: box(minx + lounge, miny, minx + lounge + core_len, maxy),
+            1: box(maxx - lounge - core_len, miny, maxx - lounge, maxy),
         }
         placed = {k: affinity.rotate(v, angle, origin=c) for k, v in ends.items()}
         side = spec.core.get("side")
         if side:
             axis, sign = {"east": (0, 1), "west": (0, -1), "north": (1, 1), "south": (1, -1)}[side]
             key = max(placed, key=lambda k: sign * placed[k].centroid.coords[0][axis])
-            notes["core"] = f"{side} end of the slab (given), {LOUNGE_STRIP_M} m glass lounge strip beyond it"
+            notes["core"] = f"{side} end of the slab (given), {core_len:.1f} m long, {lounge} m glass lounge strip beyond it"
         else:
             oc = outline.centroid
             key = min(placed, key=lambda k: placed[k].centroid.distance(oc))
@@ -367,10 +397,10 @@ def _polygons(geom: BaseGeometry) -> list[Polygon]:
     return [g for g in getattr(geom, "geoms", []) if isinstance(g, Polygon) and not g.is_empty]
 
 
-def _extrude(geom: BaseGeometry, height: float, base: float = 0.0) -> list[trimesh.Trimesh]:
+def _extrude(geom: BaseGeometry, height: float, base: float = 0.0, min_area: float = 1.0) -> list[trimesh.Trimesh]:
     meshes = []
     for poly in _polygons(geom):
-        if poly.area < 1.0:
+        if poly.area < min_area or height <= 0:
             continue
         mesh = trimesh.creation.extrude_polygon(poly, height)
         mesh.apply_translation((0, 0, base))
@@ -422,43 +452,11 @@ def build_massing(spec: MassingSpec) -> tuple[bytes, BoundingBox, dict[str, str]
     plate, notes = infer_plate(spec)
     provenance = {**spec.provenance, **notes}
 
-    parts: list[trimesh.Trimesh] = []  # already painted
     if spec.typology == "tower":
-        outline = _largest_polygon(plate)
-        podium_h = spec.podium_floors * spec.floor_height_m * PODIUM_FLOOR_RATIO
-        roof_h = spec.height_m - PENTHOUSE_HEIGHT_M  # main roof; the plant goes to the cap
-        tower, core, tnotes = infer_tower(outline, spec)
-        provenance.update(tnotes)
-        # The base fills the rest of the lot (e.g. a dining wing); the tower stands on the ground beside it.
-        podium_wall = spec.facades.get("podium")
-        for m in _extrude(outline.difference(tower.buffer(0.01)), podium_h):
-            parts.append(_paint(m, spec.facades, podium_wall))
-        body = tower.difference(core) if core is not None else tower
-        if spec.crown:
-            # A glassy top floor under a thin canopy; the core rises past it.
-            crown_h = spec.floor_height_m
-            for m in _extrude(body, roof_h - crown_h):
-                parts.append(_paint(m, spec.facades))
-            for m in _extrude(body.buffer(-0.4, join_style="mitre"), crown_h, base=roof_h - crown_h):
-                parts.append(_paint(m, spec.facades, {"material": "tile", "glass": 0.9}))
-            canopy = body.buffer(CROWN_OVERHANG_M, join_style="mitre")
-            if core is not None:
-                canopy = canopy.difference(core)
-            for m in _extrude(canopy, CROWN_CANOPY_M, base=roof_h):
-                parts.append(_paint(m, spec.facades, {"material": "tile"}))
-            provenance["crown"] = f"glass top floor under a {CROWN_OVERHANG_M} m canopy; core rises {PENTHOUSE_HEIGHT_M:.0f} m above"
-        else:
-            for m in _extrude(body, roof_h):
-                parts.append(_paint(m, spec.facades))
-            plant = body.buffer(-PENTHOUSE_INSET_M, join_style="mitre")
-            for m in _extrude(plant, PENTHOUSE_HEIGHT_M, base=roof_h):
-                parts.append(_paint(m, spec.facades, {"material": "metal"}))
-            provenance["rooftopPlant"] = f"{PENTHOUSE_HEIGHT_M:.0f} m, inset {PENTHOUSE_INSET_M:.0f} m (inferred)"
-        if core is not None:
-            for m in _extrude(core, spec.height_m):  # the core runs from the ground up past the roof
-                parts.append(_paint(m, spec.facades, spec.core))
-        provenance["podium"] = f"{spec.podium_floors} floors, {podium_h:.1f} m, fills the lot around the tower"
-    elif spec.typology == "courtyard" and spec.floors >= 4:
+        return _build_tower(spec, _largest_polygon(plate), provenance)
+
+    parts: list[trimesh.Trimesh] = []  # already painted
+    if spec.typology == "courtyard" and spec.floors >= 4:
         lower = spec.floor_height_m * (spec.floors - 1)
         meshes = _extrude(plate, lower)
         top = plate.buffer(-TOP_FLOOR_INSET_M, join_style="mitre")
@@ -474,4 +472,262 @@ def build_massing(spec: MassingSpec) -> tuple[bytes, BoundingBox, dict[str, str]
     glb = trimesh.Scene(mesh).export(file_type="glb")
     lo, hi = mesh.bounds
     bbox = BoundingBox(min=tuple(round(float(v), 3) for v in lo), max=tuple(round(float(v), 3) for v in hi))  # type: ignore[arg-type]
+    return glb, bbox, provenance
+
+
+# --- Tower typology: named parts with real materials, facade detail and surrounding context ---
+
+# glTF base colors are linear RGB (0-255 here); a linear 200 shows as near-white, 16 as charcoal.
+_PBR: dict[str, dict[str, Any]] = {
+    "glass": {"color": (18, 28, 40), "metallic": 0.6, "roughness": 0.12},
+    "tile": {"color": (205, 205, 198), "metallic": 0.0, "roughness": 0.6},
+    "charcoal": {"color": (16, 16, 18), "metallic": 0.0, "roughness": 0.9},
+    "brick": {"color": (95, 35, 22), "metallic": 0.0, "roughness": 0.9},
+    "terracotta": {"color": (130, 50, 28), "metallic": 0.0, "roughness": 0.85},
+    "stone": {"color": (130, 122, 108), "metallic": 0.0, "roughness": 0.85},
+    "concrete": {"color": (110, 108, 104), "metallic": 0.0, "roughness": 0.85},
+    "metal": {"color": (60, 64, 70), "metallic": 0.7, "roughness": 0.35},
+    "timber": {"color": (110, 70, 38), "metallic": 0.0, "roughness": 0.8},
+    "roof": {"color": (40, 42, 45), "metallic": 0.0, "roughness": 0.95},
+    "sign": {"color": (255, 255, 255), "metallic": 0.0, "roughness": 0.5, "emissive": (255, 255, 255)},
+    "context": {"color": (30, 32, 36), "metallic": 0.0, "roughness": 0.95},  # dim, so the subject stands out
+    "street": {"color": (14, 15, 16), "metallic": 0.0, "roughness": 1.0},
+}
+FIN_SPACING_M = 2.2  # white tile fins on a curtain wall, from the photos' rhythm
+FIN_WIDTH_M = 0.55
+FIN_DEPTH_M = 0.3
+BAND_DEPTH_M = 0.18  # floor-line band proud of the glass
+BAND_HEIGHT_M = 0.25
+PODIUM_BAND_M = 2.0  # metal band along the top of the base
+SIGN_OFFSET_M = 0.12
+CONTEXT_RADIUS_M = 220.0  # neighbors and streets within this distance of the lot
+SUBJECT_PARTS = {"podium", "tower", "crown", "roof", "core", "sign"}
+
+
+def _pbr(name: str) -> PBRMaterial:
+    m = _PBR.get(name, _PBR["concrete"])
+    return PBRMaterial(
+        name=name,
+        baseColorFactor=[*m["color"], 255],
+        metallicFactor=m["metallic"],
+        roughnessFactor=m["roughness"],
+        emissiveFactor=[c / 255 for c in m.get("emissive", (0, 0, 0))],
+    )
+
+
+def _wall_material(info: dict[str, Any] | None) -> str:
+    """The material a wall renders with. Mostly glass reads as glass; a tile curtain wall is glass behind fins."""
+    info = info or {}
+    material = str(info.get("material", "concrete")).lower()
+    if float(info.get("glass", 0.0)) >= 0.7 or material == "tile":
+        return "glass"
+    return material if material in _PBR else "concrete"
+
+
+def _side_of_plan_normal(nx: float, ny: float) -> Side:
+    if abs(nx) > abs(ny):
+        return "east" if nx > 0 else "west"
+    return "north" if ny > 0 else "south"
+
+
+class _Parts:
+    """Meshes in plan coordinates (x east, y north, z up), grouped by (part, material)."""
+
+    def __init__(self) -> None:
+        self.groups: dict[tuple[str, str], list[trimesh.Trimesh]] = {}
+
+    def add(self, part: str, material: str, meshes: list[trimesh.Trimesh]) -> None:
+        if meshes:
+            self.groups.setdefault((part, material), []).extend(meshes)
+
+    def add_walls(self, part: str, meshes: list[trimesh.Trimesh], walls: dict[str, str], default: str,
+                  roof: str = "roof") -> None:
+        """Split an extrusion's faces: top and bottom take ``roof``; each wall takes its side's material."""
+        for mesh in meshes:
+            keys = np.array([
+                roof if abs(n[2]) > 0.5 else walls.get(_side_of_plan_normal(n[0], n[1]), default)
+                for n in mesh.face_normals
+            ])
+            for key in set(keys.tolist()):
+                self.add(part, key, [mesh.submesh([np.nonzero(keys == key)[0]], append=True)])
+
+    def scene(self) -> tuple[bytes, BoundingBox]:
+        scene = trimesh.Scene()
+        lo, hi = np.full(3, np.inf), np.full(3, -np.inf)
+        for (part, material), meshes in sorted(self.groups.items()):
+            mesh = trimesh.util.concatenate(meshes)
+            mesh.apply_transform(_TO_GLTF)
+            mesh.visual = trimesh.visual.TextureVisuals(material=_pbr(material))
+            name = f"{part}-{material}"
+            scene.add_geometry(mesh, node_name=name, geom_name=name)
+            if part in SUBJECT_PARTS:  # the bounding box is the building only, not its neighbors or streets
+                lo, hi = np.minimum(lo, mesh.bounds[0]), np.maximum(hi, mesh.bounds[1])
+        if not np.isfinite(lo).all():
+            raise ValueError("footprint has no usable area")
+        bbox = BoundingBox(min=tuple(round(float(v), 3) for v in lo), max=tuple(round(float(v), 3) for v in hi))  # type: ignore[arg-type]
+        return scene.export(file_type="glb"), bbox
+
+
+def _floor_levels(spec: MassingSpec) -> list[float]:
+    """Height of each floor line from the ground up: podium floors are taller than tower floors."""
+    levels, z = [0.0], 0.0
+    for i in range(spec.floors):
+        z += spec.floor_height_m * (PODIUM_FLOOR_RATIO if i < spec.podium_floors else 1.0)
+        levels.append(z)
+    return levels
+
+
+def _wall_strip(a, u, n, s0: float, s1: float, depth: float) -> Polygon:
+    """A thin rectangle on the outside of a wall, from s0 to s1 along the edge and ``depth`` out from it."""
+    return Polygon([
+        (a[0] + u[0] * s + n[0] * d, a[1] + u[1] * s + n[1] * d)
+        for s, d in ((s0, 0.0), (s1, 0.0), (s1, depth), (s0, depth))
+    ])
+
+
+def _facade_fins(body: BaseGeometry, curtain_sides: set[str], levels: list[float], first: int, last: int,
+                 notes: dict[str, str]) -> list[trimesh.Trimesh]:
+    """Staggered vertical tile fins, two to five floors long, on every long curtain-wall edge."""
+    fins: list[trimesh.Trimesh] = []
+    # Counter-clockwise rings, so edge a->b faces out along (dy, -dx). The body can be several pieces
+    # (e.g. the main slab and the lounge strip on the far side of the core).
+    edges = []
+    for piece in _polygons(body):
+        ring = list(orient(piece, sign=1.0).exterior.coords)
+        edges += list(zip(ring[:-1], ring[1:]))
+    columns = 0
+    for i, (a, b) in enumerate(edges):
+        length = math.dist(a, b)
+        if length < 8.0:
+            continue
+        u = ((b[0] - a[0]) / length, (b[1] - a[1]) / length)
+        n = (u[1], -u[0])
+        if _side_of_plan_normal(*n) not in curtain_sides:
+            continue
+        count = int((length - 1.6) // FIN_SPACING_M)
+        start = (length - count * FIN_SPACING_M) / 2
+        for c in range(count + 1):
+            s = start + c * FIN_SPACING_M
+            rng = random.Random(i * 1000 + c)  # deterministic: the same inputs give the same facade
+            f = first + rng.randint(0, 2)
+            while f < last:
+                top = min(f + rng.randint(2, 5), last)
+                strip = _wall_strip(a, u, n, s - FIN_WIDTH_M / 2, s + FIN_WIDTH_M / 2, FIN_DEPTH_M)
+                fins += _extrude(strip, levels[top] - levels[f], base=levels[f], min_area=0.05)
+                f = top + rng.randint(1, 2)
+            columns += 1
+    if columns:
+        notes["facade"] = f"{columns} columns of staggered tile fins every {FIN_SPACING_M} m (pattern from the photos)"
+    return fins
+
+
+def _sign_glyph(core: Polygon, angle: float, glyph: str, top: float) -> list[trimesh.Trimesh]:
+    """A lit sign near the top of the core, on both long faces: a block letter T, or a square panel otherwise."""
+    c = core.centroid
+    x0, y0, x1, y1 = affinity.rotate(core, -angle, origin=c).bounds
+    mx, width = (x0 + x1) / 2, x1 - x0
+    meshes: list[trimesh.Trimesh] = []
+    for y, out in ((y1, 1), (y0, -1)):
+        ya, yb = sorted((y + out * 0.02, y + out * SIGN_OFFSET_M))
+
+        def plate(xa: float, xb: float, ya: float = ya, yb: float = yb) -> Polygon:
+            return affinity.rotate(box(xa, ya, xb, yb), angle, origin=c)
+
+        if glyph.upper() == "T":
+            bar_w, bar_h, stem_w, stem_h = 0.6 * width, 1.6, 1.6, 5.0
+            meshes += _extrude(plate(mx - bar_w / 2, mx + bar_w / 2), bar_h, base=top - bar_h, min_area=0.05)
+            meshes += _extrude(plate(mx - stem_w / 2, mx + stem_w / 2), stem_h, base=top - bar_h - stem_h, min_area=0.05)
+        else:
+            side = 0.4 * width
+            meshes += _extrude(plate(mx - side / 2, mx + side / 2), side, base=top - side, min_area=0.05)
+    return meshes
+
+
+def _context(spec: MassingSpec, outline: Polygon, parts: _Parts, notes: dict[str, str]) -> None:
+    """Neighbors as plain gray blocks and streets as dark strips, placed in the site's coordinates."""
+    assert spec.footprint is not None
+    to_local = _local_frame(spec.footprint)
+    area = outline.buffer(CONTEXT_RADIUS_M)  # keep the surroundings to a walkable block or two
+    count = 0
+    for item in spec.context:
+        try:
+            poly = _local_outline([tuple(p) for p in item["footprint"]], frame=spec.footprint)
+        except (ValueError, TypeError):
+            continue
+        if poly.intersection(outline).area > 0.2 * poly.area or not area.contains(poly.centroid):
+            continue  # the subject building itself, or too far away
+        height = float(item.get("heightM") or (item.get("levels") or 0) * 3.2 or 10.0)
+        parts.add_walls("context", _extrude(poly, height), {}, "context", roof="context")
+        count += 1
+    streets = 0
+    for street in spec.streets:
+        line = LineString(to_local([tuple(p) for p in street["line"]])).intersection(area)
+        if line.is_empty:
+            continue
+        strip = line.buffer(float(street.get("widthM", 10.0)) / 2, cap_style="flat").difference(outline)
+        parts.add("streets", "street", _extrude(strip, 0.04))
+        streets += 1
+    if count or streets:
+        notes["context"] = f"{count} neighboring buildings and {streets} streets from OpenStreetMap (plain gray)"
+
+
+def _build_tower(spec: MassingSpec, outline: Polygon, provenance: dict[str, str]) -> tuple[bytes, BoundingBox, dict[str, str]]:
+    tower, core, tnotes = infer_tower(outline, spec)
+    provenance.update(tnotes)
+    levels = _floor_levels(spec)
+    podium_h = levels[spec.podium_floors]
+    roof_h = spec.height_m - PENTHOUSE_HEIGHT_M
+    crown_h = spec.floor_height_m if spec.crown else 0.0
+    parts = _Parts()
+
+    # Base: the rest of the lot around the tower, with a metal band on top. Slivers under 2 m wide are dropped.
+    podium = outline.difference(tower.buffer(0.01)).buffer(-1.0, join_style="mitre").buffer(1.0, join_style="mitre")
+    podium_wall = _wall_material(spec.facades.get("podium") or {"material": "concrete", "glass": 0.4})
+    if podium_h > PODIUM_BAND_M + 1:
+        parts.add_walls("podium", _extrude(podium, podium_h - PODIUM_BAND_M), {}, podium_wall)
+        parts.add_walls("podium", _extrude(podium, PODIUM_BAND_M, base=podium_h - PODIUM_BAND_M), {}, "metal")
+    else:
+        parts.add_walls("podium", _extrude(podium, podium_h), {}, podium_wall)
+
+    # Tower body: a glass lobby, then the upper floors with each side's wall material.
+    body = tower.difference(core) if core is not None else tower
+    walls = {side: _wall_material(spec.facades.get(side)) for side in ("north", "south", "east", "west")}
+    parts.add_walls("tower", _extrude(body, podium_h), {}, "glass")
+    parts.add_walls("tower", _extrude(body, roof_h - crown_h - podium_h, base=podium_h), walls, "concrete")
+
+    # Facade detail on tile curtain walls: floor bands and staggered fins.
+    curtain = {s for s in walls if str((spec.facades.get(s) or {}).get("material", "")).lower() == "tile"}
+    top_floor = max(i for i, z in enumerate(levels) if z <= roof_h - crown_h + 1e-6)
+    if curtain:
+        bands = body.buffer(BAND_DEPTH_M, join_style="mitre").difference(body)
+        if core is not None:
+            bands = bands.difference(core.buffer(0.01))
+        for f in range(spec.podium_floors, top_floor + 1):
+            parts.add("tower", "tile", _extrude(bands, BAND_HEIGHT_M, base=levels[f] - BAND_HEIGHT_M / 2, min_area=0.05))
+        parts.add("tower", "tile", _facade_fins(body, curtain, levels, spec.podium_floors, top_floor, provenance))
+
+    if spec.crown:
+        parts.add_walls("crown", _extrude(body.buffer(-0.4, join_style="mitre"), crown_h, base=roof_h - crown_h), {}, "glass")
+        canopy = body.buffer(CROWN_OVERHANG_M, join_style="mitre")
+        if core is not None:
+            canopy = canopy.difference(core)
+        parts.add_walls("crown", _extrude(canopy, CROWN_CANOPY_M, base=roof_h), {}, "tile", roof="tile")
+        provenance["crown"] = f"glass top floor under a {CROWN_OVERHANG_M} m canopy; core rises {PENTHOUSE_HEIGHT_M:.0f} m above"
+    else:
+        plant = body.buffer(-PENTHOUSE_INSET_M, join_style="mitre")
+        parts.add_walls("roof", _extrude(plant, PENTHOUSE_HEIGHT_M, base=roof_h), {}, "metal")
+        provenance["rooftopPlant"] = f"{PENTHOUSE_HEIGHT_M:.0f} m, inset {PENTHOUSE_INSET_M:.0f} m (inferred)"
+
+    if core is not None:
+        core_mat = str((spec.core or {}).get("material", "concrete")).lower()
+        parts.add_walls("core", _extrude(core, spec.height_m), {}, core_mat if core_mat in _PBR else "concrete")
+        if spec.core and spec.core.get("sign"):
+            glyph = str(spec.core["sign"])
+            parts.add("sign", "sign", _sign_glyph(core, _long_axis_angle(tower), glyph, spec.height_m - 1.5))
+            provenance["sign"] = f"lit '{glyph}' near the top of the core (from the photos)"
+    provenance["podium"] = f"{spec.podium_floors} floors, {podium_h:.1f} m, fills the lot around the tower"
+
+    if spec.context or spec.streets:
+        _context(spec, outline, parts, provenance)
+    glb, bbox = parts.scene()
     return glb, bbox, provenance
