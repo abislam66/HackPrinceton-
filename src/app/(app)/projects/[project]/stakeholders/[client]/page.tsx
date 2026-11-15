@@ -1,13 +1,14 @@
 import { notFound } from "next/navigation";
+import { draftView } from "@/components/project-agent/draft-view";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { loadProjectFacts } from "@/features/project-agent/store";
+import { listDrafts, loadProjectFacts } from "@/features/project-agent/store";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { loadStakeholder } from "@/features/workspace/status";
 import { NEED_LABEL } from "@/lib/labels";
 import { StakeholderActions } from "./_components/StakeholderActions";
 import { Workspace, type WorkspaceTab } from "./_components/Workspace";
 
-const TABS: WorkspaceTab[] = ["shots", "engagement"];
+const TABS: WorkspaceTab[] = ["shots", "engagement", "agent"];
 
 /** 4 Stakeholder workspace: build, review and send one stakeholder's proposal. */
 export default async function StakeholderPage({
@@ -16,16 +17,18 @@ export default async function StakeholderPage({
 }: PageProps<"/projects/[project]/stakeholders/[client]">) {
   const { project: projectSlug, client: clientId } = await params;
 
-  const [project, status, model, query] = await Promise.all([
+  const [project, status, model, query, drafts] = await Promise.all([
     loadProjectFacts(projectSlug),
     loadStakeholder(projectSlug, clientId),
     loadStakeholderModel(clientId),
     searchParams,
+    listDrafts(projectSlug),
   ]);
   if (!project || !status) notFound();
 
   const { client, stage, proposal, engagement, events, sentAt } = status;
   const projectPath = `/projects/${projectSlug}`;
+  const pending = drafts.filter((d) => d.status === "pending" && d.clientId === client.id).map(draftView);
   const basePath = `${projectPath}/stakeholders/${client.id}`;
 
   const requested = typeof query.tab === "string" ? (query.tab as WorkspaceTab) : null;
@@ -68,6 +71,7 @@ export default async function StakeholderPage({
         engagement={engagement}
         events={events}
         sentAt={sentAt}
+        drafts={pending}
       />
     </div>
   );

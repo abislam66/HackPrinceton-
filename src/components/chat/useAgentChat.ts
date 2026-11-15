@@ -18,6 +18,11 @@ export type UseAgentChatOptions = {
   toolLabel?: (tool: string) => string;
   /** Every event, before the hook handles the common ones. `prompt` is the text that started the run. */
   onEvent?: (event: StreamEvent, prompt: string) => void;
+  /**
+   * Adds context to each of the user's prompts as the model gets them, e.g. which stakeholder page the chat is on.
+   * The thread on screen and in history keeps the prompt as typed.
+   */
+  framePrompt?: (text: string) => string;
 };
 
 export type AgentChat = {
@@ -48,7 +53,13 @@ function defaultToolLabel(tool: string): string {
  * `endpoint` (tool starts and progress while it works, then one reply or error). If a call fails, the error is shown
  * as a turn, never a made-up reply. Shared by the Agent tab and the project agent.
  */
-export function useAgentChat({ endpoint, storageKey = STORAGE_KEY, toolLabel, onEvent }: UseAgentChatOptions): AgentChat {
+export function useAgentChat({
+  endpoint,
+  storageKey = STORAGE_KEY,
+  toolLabel,
+  onEvent,
+  framePrompt,
+}: UseAgentChatOptions): AgentChat {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [chats, setChats] = useState<Chat[]>([]);
   const [chatId, setChatId] = useState<string | null>(null);
@@ -64,9 +75,9 @@ export function useAgentChat({ endpoint, storageKey = STORAGE_KEY, toolLabel, on
   const turnsRef = useRef<Turn[]>([]);
   const pendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
-  const handlers = useRef({ toolLabel, onEvent });
+  const handlers = useRef({ toolLabel, onEvent, framePrompt });
   useEffect(() => {
-    handlers.current = { toolLabel, onEvent };
+    handlers.current = { toolLabel, onEvent, framePrompt };
   });
 
   const showTurns = useCallback((next: Turn[]) => {
@@ -115,7 +126,10 @@ export function useAgentChat({ endpoint, storageKey = STORAGE_KEY, toolLabel, on
 
   const run = useCallback(
     async (text: string) => {
-      const thread = threadFor([...turnsRef.current, { role: "user", text }]);
+      const frame = handlers.current.framePrompt;
+      const thread = threadFor([...turnsRef.current, { role: "user", text }]).map((turn) =>
+        frame && turn.role === "user" ? { ...turn, content: frame(turn.content) } : turn,
+      );
       append("user", text);
       pendingRef.current = true;
       setPending(true);

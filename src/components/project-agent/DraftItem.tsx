@@ -28,6 +28,8 @@ type Props = {
   locked: boolean;
   error: string | null;
   onResolve: (action: DraftAction) => void;
+  /** The stakeholder's page is the one on screen: a replaced draft then needs no link to it. */
+  onStakeholderPage?: boolean;
 };
 
 /**
@@ -35,7 +37,7 @@ type Props = {
  * shots, then Replace / New project / Discard. Resolved here: one line saying what happened, with a link to it.
  * Sits in the thread's list, so it runs edge to edge between dividers rather than as a box inside the panel.
  */
-export function DraftItem({ draft, projectSlug, primary, busy, locked, error, onResolve }: Props) {
+export function DraftItem({ draft, projectSlug, primary, busy, locked, error, onResolve, onStakeholderPage = false }: Props) {
   const titleId = useId();
   const status = STATUS[draft.status];
   const pending = draft.status === "pending";
@@ -113,7 +115,7 @@ export function DraftItem({ draft, projectSlug, primary, busy, locked, error, on
           </p>
         </>
       ) : (
-        <Outcome draft={draft} projectSlug={projectSlug} />
+        <Outcome draft={draft} projectSlug={projectSlug} onStakeholderPage={onStakeholderPage} />
       )}
 
       {error ? (
@@ -135,12 +137,24 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** What a resolved draft did, in one line, with a link to see it. */
-function Outcome({ draft, projectSlug }: { draft: DraftView; projectSlug: string }) {
+function Outcome({
+  draft,
+  projectSlug,
+  onStakeholderPage,
+}: {
+  draft: DraftView;
+  projectSlug: string;
+  onStakeholderPage: boolean;
+}) {
   if (draft.status === "replaced") {
     return (
       <p className="text-sm leading-[22px] text-pretty">
         {draft.company}&apos;s brief and proposal are updated on this project.{" "}
-        <TextLink href={`/projects/${projectSlug}/stakeholders/${draft.clientId}`}>Open {draft.company}</TextLink>
+        {onStakeholderPage ? (
+          "The new shots are under Shots."
+        ) : (
+          <TextLink href={`/projects/${projectSlug}/stakeholders/${draft.clientId}`}>Open {draft.company}</TextLink>
+        )}
       </p>
     );
   }

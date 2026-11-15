@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { ChatThread } from "@/components/chat/ChatThread";
 import { PastChats } from "@/components/chat/PastChats";
@@ -30,17 +30,40 @@ const ACTION_VERB: Record<DraftAction, string> = { replace: "replace", "new-proj
 
 type Props = {
   projectSlug: string;
-  /** The project's pending drafts, newest first, as the page loaded them. */
+  /** Pending drafts as the page loaded them: the project's, or on a stakeholder page that stakeholder's. */
   drafts: DraftView[];
+  /**
+   * Scopes the chat to one stakeholder (the workspace): its own history, every prompt sent as being about them
+   * unless it names someone else, and copy about their shots.
+   */
+  stakeholder?: { id: string; company: string };
+  /**
+   * `panel`: its own titled Panel (the project page). `bare`: fills the panel it sits in (the workspace's side
+   * panel, which has its own tabs), with the chat controls in a toolbar row.
+   */
+  frame?: "panel" | "bare";
+  /** Kept mounted but not shown, so a reply keeps streaming while another tab is open. */
+  hidden?: boolean;
+  /** After the user resolves a draft here, before the page refreshes. */
+  onResolved?: (draft: DraftView) => void;
   className?: string;
 };
 
 /**
  * The project agent: a chat inside one project, the way to change it. A described change comes back as a draft
  * (new brief, shots and pitch) and nothing changes until the user picks Replace, New project or Discard on it.
- * Pending drafts come from the page, so they show on load in every chat; history stays in this browser, per project.
+ * Pending drafts come from the page, so they show on load in every chat; history stays in this browser, per project
+ * (and per stakeholder on a stakeholder page).
  */
-export function ProjectAgent({ projectSlug, drafts, className }: Props) {
+export function ProjectAgent({
+  projectSlug,
+  drafts,
+  stakeholder,
+  frame = "panel",
+  hidden = false,
+  onResolved,
+  className,
+}: Props) {
   const router = useRouter();
   const titleId = useId();
   const [value, setValue] = useState("");
@@ -51,17 +74,26 @@ export function ProjectAgent({ projectSlug, drafts, className }: Props) {
   const [busy, setBusy] = useState<{ id: string; action: DraftAction } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // A fresh list from the page is the truth for pending drafts; keep only what this panel resolved.
+  // A fresh list from the page is the truth for pending drafts. Keep what this panel resolved, and on a stakeholder
+  // page the drafts it made for someone else, which that page's list never holds.
   const [listed, setListed] = useState(drafts);
   if (drafts !== listed) {
     setListed(drafts);
-    setSeen((prev) => Object.fromEntries(Object.entries(prev).filter(([, d]) => d.status !== "pending")));
+    setSeen((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([, d]) => d.status !== "pending" || (stakeholder && d.clientId !== stakeholder.id)),
+      ),
+    );
   }
 
   const chat = useAgentChat({
     endpoint: `/api/projects/${encodeURIComponent(projectSlug)}/agent`,
-    storageKey: projectChatKey(projectSlug),
+    storageKey: stakeholder ? `${projectChatKey(projectSlug)}.${stakeholder.id}` : projectChatKey(projectSlug),
     toolLabel: (tool) => `${TOOL_LABELS[tool] ?? tool.replaceAll("_", " ")}…`,
+    framePrompt: stakeholder
+      ? (text) =>
+          `[On ${stakeholder.company}'s page (stakeholder id ${stakeholder.id}). Unless I name another stakeholder, this is about them.]\n\n${text}`
+      : undefined,
     onEvent: (event) => {
       if (event.type !== "draft" || !event.draft || typeof event.draft !== "object") return;
       const card = event.draft as DraftCard;
@@ -85,13 +117,13 @@ export function ProjectAgent({ projectSlug, drafts, className }: Props) {
 
   const empty = chat.turns.length === 0 && shown.length === 0 && !chat.pending;
 
-  // Keep the newest turn or draft in view, inside the panel.
+  // Keep the newest turn or draft in view, inside the panel. Also on being shown again, when it had no size.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || !chat.loaded) return;
+    if (!el || !chat.loaded || hidden) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollTo({ top: el.scrollHeight, behavior: reduce ? "auto" : "smooth" });
-  }, [chat.loaded, chat.turns.length, chat.pending, shown.length]);
+  }, [chat.loaded, chat.turns.length, chat.pending, shown.length, hidden]);
 
   function send() {
     if (chat.send(value)) setValue("");
@@ -126,6 +158,7 @@ export function ProjectAgent({ projectSlug, drafts, className }: Props) {
       }
       const done = draftViewFromCard(data.draft, draft);
       setSeen((prev) => ({ ...prev, [done.id]: done }));
+      onResolved?.(done);
       if (done.status === "new-project" && done.newProjectId) {
         leaving = true;
         router.push(`/projects/${done.newProjectId}`);
@@ -139,37 +172,39 @@ export function ProjectAgent({ projectSlug, drafts, className }: Props) {
     }
   }
 
-  return (
-    <Panel aria-labelledby={titleId} className={cx("flex min-h-0 flex-col", className)} flush>
-      {/* Panel's own header row, but allowed to wrap: on a phone the chat controls drop under the title. Relative, so
-          the past-chats list opens inside the panel's width. */}
-      <div className="app-panel-head relative flex-wrap gap-y-1">
-        <h2 id={titleId} className="app-h-section app-panel-title">
-          Project agent
-        </h2>
-        {/* ml-auto keeps the controls on the right when they wrap. */}
-        <div className="app-panel-end ml-auto">
-          <PastChats
-            chats={chat.chats}
-            currentId={chat.chatId}
-            disabled={chat.pending}
-            align="right"
-            onOpen={(saved) => {
-              chat.openChat(saved);
-              inputRef.current?.focus();
-            }}
-          />
-          <Button variant="tertiary" onClick={startNewChat} disabled={chat.pending || chat.turns.length === 0}>
-            New chat
-          </Button>
-        </div>
-      </div>
+  const controls = (
+    <>
+      <PastChats
+        chats={chat.chats}
+        currentId={chat.chatId}
+        disabled={chat.pending}
+        align="right"
+        onOpen={(saved) => {
+          chat.openChat(saved);
+          inputRef.current?.focus();
+        }}
+      />
+      <Button variant="tertiary" onClick={startNewChat} disabled={chat.pending || chat.turns.length === 0}>
+        New chat
+      </Button>
+    </>
+  );
+
+  const body = (
+    <>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {!chat.loaded ? null : empty ? (
-          <EmptyState
-            title="Describe a change"
-            description="Tell the agent what changed for a stakeholder, or about a new one. It drafts a new brief, shots and pitch. Nothing changes until you choose."
-          />
+          stakeholder ? (
+            <EmptyState
+              title="Ask for different shots"
+              description={`Describe the shots or the change you want for ${stakeholder.company}. The agent drafts new shots and a pitch. Nothing changes until you choose.`}
+            />
+          ) : (
+            <EmptyState
+              title="Describe a change"
+              description="Tell the agent what changed for a stakeholder, or about a new one. It drafts a new brief, shots and pitch. Nothing changes until you choose."
+            />
+          )
         ) : (
           <ChatThread
             variant="panel"
@@ -198,6 +233,7 @@ export function ProjectAgent({ projectSlug, drafts, className }: Props) {
                       locked={busy !== null && busy.id !== draft.id}
                       error={errors[draft.id] ?? null}
                       onResolve={(action) => resolve(draft, action)}
+                      onStakeholderPage={stakeholder?.id === draft.clientId}
                     />
                   ))}
                 </ol>
@@ -213,12 +249,45 @@ export function ProjectAgent({ projectSlug, drafts, className }: Props) {
           onSend={send}
           busy={chat.pending}
           label="Message for the project agent"
-          placeholder="Describe a change to this project"
+          placeholder={stakeholder ? "Describe the shots you want" : "Describe a change to this project"}
           inputRef={inputRef}
           rows={2}
         />
       </div>
+    </>
+  );
+
+  if (frame === "bare") {
+    return (
+      <div aria-label="Project agent" role="region" className={cx(hidden ? "hidden" : "flex", "min-h-0 flex-1 flex-col", className)}>
+        <Toolbar>{controls}</Toolbar>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Panel aria-labelledby={titleId} className={cx(hidden ? "hidden" : "flex", "min-h-0 flex-col", className)} flush>
+      {/* Panel's own header row, but allowed to wrap: on a phone the chat controls drop under the title. Relative, so
+          the past-chats list opens inside the panel's width. */}
+      <div className="app-panel-head relative flex-wrap gap-y-1">
+        <h2 id={titleId} className="app-h-section app-panel-title">
+          Project agent
+        </h2>
+        {/* ml-auto keeps the controls on the right when they wrap. */}
+        <div className="app-panel-end ml-auto">{controls}</div>
+      </div>
+      {body}
     </Panel>
+  );
+}
+
+/** The chat controls when the panel's header row holds tabs: a slim row of their own, on the right. */
+function Toolbar({ children }: { children: ReactNode }) {
+  return (
+    <div className="relative flex min-h-10 flex-none items-center justify-end gap-3 border-b border-divider px-5 py-1">
+      {children}
+    </div>
   );
 }
 

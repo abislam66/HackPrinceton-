@@ -1,6 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { DraftView } from "@/components/project-agent/draft-view";
+import { ProjectAgent } from "@/components/project-agent/ProjectAgent";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
@@ -13,13 +16,15 @@ import type { ClientSummary } from "@/features/tracking/summary";
 import { teaserPath } from "@/features/viewer/camera-paths";
 import { ModelViewer } from "@/features/viewer/ModelViewer";
 import { useProposalBuild, type BuildState } from "@/features/workspace/build";
+import { cx } from "@/lib/cx";
 import type { Stage } from "@/features/workspace/status";
 import { BriefPanel } from "./BriefPanel";
 import { BuildPanel } from "./BuildPanel";
 import { EngagementPanel } from "./EngagementPanel";
 import { ShotList } from "./ShotList";
 
-export type WorkspaceTab = "shots" | "engagement";
+/** `shots` is the Brief before anything is built. `agent` is the project agent, scoped to this stakeholder. */
+export type WorkspaceTab = "shots" | "engagement" | "agent";
 
 type Props = {
   projectSlug: string;
@@ -32,6 +37,8 @@ type Props = {
   engagement: ClientSummary;
   events: StoredEvent[];
   sentAt: string | null;
+  /** This stakeholder's pending drafts from the project agent. */
+  drafts: DraftView[];
 };
 
 function buildStep(state: BuildState): string {
@@ -47,7 +54,9 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const SIDE_PANEL = "flex min-h-0 flex-col overflow-hidden";
 
 /**
- * The workspace body: the viewer (the page's one Asphalt surface) on the left, a 360 px panel on the right.
+ * The workspace body: the viewer (the page's one Asphalt surface) on the left, a 360 px panel on the right (400 px on
+ * the Agent tab, so a draft's three actions sit on one row). The panel's tabs: Shots (Brief before a build),
+ * Engagement once sent, and Agent, where prompts draft new shots for this stakeholder.
  * Captions under the canvas use `text-muted` and `Tag`, which switch to their dark values on Asphalt by themselves.
  */
 export function Workspace({
@@ -61,7 +70,9 @@ export function Workspace({
   engagement,
   events,
   sentAt,
+  drafts,
 }: Props) {
+  const router = useRouter();
   const build = useProposalBuild({ projectSlug, clientId: client.id, company: client.company, basePath });
   const { state } = build;
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -136,6 +147,13 @@ export function Workspace({
     );
   }
 
+  // Replacing this stakeholder's draft from the Agent tab: show the new shots, from the first.
+  function onResolved(draft: DraftView) {
+    if (draft.status !== "replaced" || draft.clientId !== client.id) return;
+    setSelectedId(undefined);
+    router.push(`${basePath}?tab=shots`);
+  }
+
   let panel;
   if (building) {
     panel = (
@@ -143,48 +161,51 @@ export function Workspace({
         <BuildPanel build={build} />
       </Panel>
     );
-  } else if (built && proposal) {
-    const shotList = (
-      <ShotList
-        shots={shots}
-        selectedId={selected?.id}
-        onSelect={setSelectedId}
-        onRegenerate={stage === "ready" ? build.regenerate : undefined}
-      />
-    );
-    // Tabs only appear once there is a second view (Engagement, after sending). They take the header row's place.
-    panel =
-      stage === "sent" ? (
-        <Panel
-          flush
-          className={SIDE_PANEL}
-          tabsLabel="Proposal views"
-          tabs={[
-            { label: "Shots", href: `${basePath}?tab=shots`, active: tab === "shots", count: shots.length },
-            { label: "Engagement", href: `${basePath}?tab=engagement`, active: tab === "engagement" },
-          ]}
-        >
-          {tab === "engagement" ? (
-            <EngagementPanel engagement={engagement} events={events} sentAt={sentAt} />
-          ) : (
-            shotList
-          )}
-        </Panel>
-      ) : (
-        <Panel title="Shots" count={shots.length} flush className={SIDE_PANEL}>
-          {shotList}
-        </Panel>
-      );
   } else {
+    const tabs = [
+      built
+        ? { label: "Shots", href: `${basePath}?tab=shots`, active: tab === "shots", count: shots.length }
+        : { label: "Brief", href: `${basePath}?tab=shots`, active: tab === "shots" },
+      ...(stage === "sent"
+        ? [{ label: "Engagement", href: `${basePath}?tab=engagement`, active: tab === "engagement" }]
+        : []),
+      { label: "Agent", href: `${basePath}?tab=agent`, active: tab === "agent", count: drafts.length || undefined },
+    ];
+    let view = null;
+    if (tab === "engagement") view = <EngagementPanel engagement={engagement} events={events} sentAt={sentAt} />;
+    else if (tab === "shots" && built && proposal)
+      view = (
+        <ShotList
+          shots={shots}
+          selectedId={selected?.id}
+          onSelect={setSelectedId}
+          onRegenerate={stage === "ready" ? build.regenerate : undefined}
+        />
+      );
+    else if (tab === "shots") view = <BriefPanel client={client} />;
+    // One panel whatever the stage, so the agent below keeps its place in the tree, and with it a streaming reply.
     panel = (
-      <Panel title="Brief" flush className={SIDE_PANEL}>
-        <BriefPanel client={client} />
+      <Panel flush className={SIDE_PANEL} tabsLabel="Stakeholder views" tabs={tabs}>
+        {view}
+        <ProjectAgent
+          frame="bare"
+          projectSlug={projectSlug}
+          stakeholder={{ id: client.id, company: client.company }}
+          drafts={drafts}
+          hidden={tab !== "agent"}
+          onResolved={onResolved}
+        />
       </Panel>
     );
   }
 
   return (
-    <div className="grid min-h-[560px] flex-1 grid-cols-[minmax(0,1fr)_360px] grid-rows-[minmax(0,1fr)] gap-6">
+    <div
+      className={cx(
+        "grid min-h-[560px] flex-1 grid-rows-[minmax(0,1fr)] gap-6",
+        tab === "agent" && !building ? "grid-cols-[minmax(0,1fr)_400px]" : "grid-cols-[minmax(0,1fr)_360px]",
+      )}
+    >
       <div className="tm-ground-asphalt flex min-h-0 flex-col overflow-hidden rounded-xs">{viewer}</div>
       {panel}
     </div>

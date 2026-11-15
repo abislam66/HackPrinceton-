@@ -6,8 +6,8 @@ import { Panel } from "@/components/ui/Panel";
 import { StatStrip } from "@/components/ui/StatStrip";
 import { KEY_FACTS, shortAddress } from "@/features/demo/building";
 import { listDrafts, loadProjectClients, loadProjectFacts } from "@/features/project-agent/store";
-import { ProjectAgent } from "./_components/ProjectAgent";
-import { draftView } from "./_components/draft-view";
+import { ProjectAgent } from "@/components/project-agent/ProjectAgent";
+import { draftView } from "@/components/project-agent/draft-view";
 
 /**
  * The project header: title and address, a panel with the four measurements, then the tabs on the page. Names and
