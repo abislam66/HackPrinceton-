@@ -1,17 +1,18 @@
 "use client";
 
-import { ArrowUpRight, LoaderCircle } from "lucide-react";
+import { ArrowUpRight, Check, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useId, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
 
-export type ButtonVariant = "primary" | "secondary" | "tertiary";
+export type ButtonVariant = "primary" | "secondary" | "tertiary" | "quiet";
 
 type Shared = {
   children: ReactNode;
   /**
    * `primary` (Cone): the one main action in a view, never two. `secondary` (default): a Sheet fill with a hairline.
    * `tertiary`: text only, for low-stakes actions beside others (Cancel, Back, Copy link).
+   * `quiet`: a tertiary in muted text until hovered, for app chrome that sits apart from the work (Reset demo).
    */
   variant?: ButtonVariant;
   /** Can't be used. A button leaves the tab order unless `disabledReason` is set. */
@@ -24,6 +25,13 @@ type Shared = {
   pending?: boolean;
   /** The label while pending, e.g. "Sending…". Defaults to `children`. */
   pendingLabel?: ReactNode;
+  /**
+   * Just finished: a 14 px check and `doneLabel`, at the idle width, announced politely to screen readers. The
+   * caller turns it back off (Copy link → Copied for 1.5 s). The button stays clickable. Pending wins over done.
+   */
+  done?: boolean;
+  /** The label while done, e.g. "Copied". Defaults to "Done". */
+  doneLabel?: ReactNode;
   className?: string;
 };
 
@@ -48,6 +56,8 @@ export function Button(props: ButtonProps) {
     reasonPosition = "below",
     pending,
     pendingLabel,
+    done,
+    doneLabel = "Done",
     className,
     ...rest
   } = props;
@@ -59,7 +69,8 @@ export function Button(props: ButtonProps) {
 
   const classes = cx(
     "app-btn",
-    `app-btn--${variant}`,
+    // Quiet is a tertiary with muted ink: it takes every tertiary rule, plus its own colour.
+    variant === "quiet" ? "app-btn--tertiary app-btn--quiet" : `app-btn--${variant}`,
     newTab && "app-btn--trail",
     // A lone button carries the caller's layout classes; one with a reason gives them to the wrapper.
     !explained && className,
@@ -77,12 +88,31 @@ export function Button(props: ButtonProps) {
     </>
   );
 
-  // A button that can go pending keeps both faces in one grid cell, so its width never changes.
+  // A button that can go pending or done keeps every face in one grid cell, so its width never changes.
   const content =
-    pending === undefined ? (
+    pending === undefined && done === undefined ? (
       <span className="app-btn-label">{idle}</span>
     ) : (
-      <PendingStack idle={idle} pendingLabel={pendingLabel ?? children} pending={busy} />
+      <FaceStack
+        idle={idle}
+        busy={
+          pending === undefined ? undefined : (
+            <>
+              <LoaderCircle size={12} strokeWidth={STROKE} className="app-spin" aria-hidden />
+              {pendingLabel ?? children}
+            </>
+          )
+        }
+        done={
+          done === undefined ? undefined : (
+            <>
+              <Check size={14} strokeWidth={STROKE} aria-hidden />
+              {doneLabel}
+            </>
+          )
+        }
+        face={busy ? "busy" : done ? "done" : "idle"}
+      />
     );
 
   let control: ReactNode;
@@ -136,22 +166,22 @@ export function Button(props: ButtonProps) {
   );
 }
 
-function PendingStack({ idle, pendingLabel, pending }: { idle: ReactNode; pendingLabel: ReactNode; pending: boolean }) {
-  const busyFace = (
-    <>
-      <LoaderCircle size={12} strokeWidth={STROKE} className="app-spin" aria-hidden />
-      {pendingLabel}
-    </>
-  );
+type Faces = { idle: ReactNode; busy?: ReactNode; done?: ReactNode };
+
+/**
+ * Every face the button can show (idle, and busy or done when the caller uses them) in one grid cell: hidden sizers
+ * set the width to the widest, and the live face is announced politely when it swaps.
+ */
+function FaceStack({ face, ...faces }: Faces & { face: keyof Faces }) {
+  const sizers = (Object.keys(faces) as (keyof Faces)[]).filter((key) => faces[key] !== undefined);
   return (
     <span className="app-btn-stack">
-      <span className="app-btn-sizer" aria-hidden="true">
-        {idle}
-      </span>
-      <span className="app-btn-sizer" aria-hidden="true">
-        {busyFace}
-      </span>
-      <span aria-live="polite">{pending ? busyFace : idle}</span>
+      {sizers.map((key) => (
+        <span key={key} className="app-btn-sizer" aria-hidden="true">
+          {faces[key]}
+        </span>
+      ))}
+      <span aria-live="polite">{faces[face]}</span>
     </span>
   );
 }

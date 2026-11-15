@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Panel } from "@/components/ui/Panel";
-import { Tabs } from "@/components/ui/Tabs";
 import { Tag } from "@/components/ui/Tag";
 import type { ModelInfo } from "@/features/model/schema";
 import type { Client } from "@/features/project/schema";
@@ -144,17 +143,15 @@ export function Workspace({ basePath, stage, tab, model, client, proposal, engag
     // Tabs only appear once there is a second view (Engagement, after sending). They take the header row's place.
     panel =
       stage === "sent" ? (
-        <Panel flush className={SIDE_PANEL}>
-          <div className="flex min-h-12 shrink-0 items-center border-b border-divider px-5 py-2">
-            <Tabs
-              full
-              label="Proposal views"
-              items={[
-                { label: "Shots", href: `${basePath}?tab=shots`, active: tab === "shots", count: shots.length },
-                { label: "Engagement", href: `${basePath}?tab=engagement`, active: tab === "engagement" },
-              ]}
-            />
-          </div>
+        <Panel
+          flush
+          className={SIDE_PANEL}
+          tabsLabel="Proposal views"
+          tabs={[
+            { label: "Shots", href: `${basePath}?tab=shots`, active: tab === "shots", count: shots.length },
+            { label: "Engagement", href: `${basePath}?tab=engagement`, active: tab === "engagement" },
+          ]}
+        >
           {tab === "engagement" ? (
             <EngagementPanel engagement={engagement} events={events} sentAt={sentAt} />
           ) : (

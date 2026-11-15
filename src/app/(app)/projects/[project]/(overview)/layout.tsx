@@ -3,14 +3,14 @@ import { ProjectTabs } from "@/components/app/ProjectTabs";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { StatStrip } from "@/components/ui/StatStrip";
-import { shortAddress } from "@/features/demo/building";
+import { KEY_FACTS, shortAddress } from "@/features/demo/building";
 import { loadClients, loadProject } from "@/features/project/load";
 import { PROJECT_SLUG } from "@/features/project/schema";
-import { HEADER_STATS } from "./facts";
 
 /**
  * The project header: title and address, a panel with the four measurements, then the tabs on the page. Names and
- * descriptions live in the dossier (./facts.ts). The stakeholder workspace sits outside this group on purpose.
+ * descriptions live in the dossier (src/features/demo/building.ts places each fact once). The stakeholder
+ * workspace sits outside this group on purpose.
  */
 export default async function ProjectOverviewLayout({ children, params }: LayoutProps<"/projects/[project]">) {
   const { project: slug } = await params;
@@ -30,7 +30,7 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
 
       <div className="flex flex-col gap-6">
         <Panel flush>
-          <StatStrip label="Key facts" items={HEADER_STATS} />
+          <StatStrip label="Key facts" items={KEY_FACTS} />
         </Panel>
 
         {/* The tabs switch the views below, so they sit on the page, not inside the facts panel. */}

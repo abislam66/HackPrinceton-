@@ -14,7 +14,7 @@ type Found = {
   location: string;
   why: string;
   stakeholders: number;
-  /** Only the loaded project opens; the others are plain rows. */
+  /** Only the loaded project opens; the others are static rows, which MediaRow mutes. */
   href?: string;
 };
 
@@ -64,8 +64,6 @@ export default async function DiscoverPage() {
               media={<ElevationGlyph floors={floorsFromText(p.why)} />}
               title={p.name}
               meta={`${p.location} · ${p.why}`}
-              // A row that doesn't open is quieter: a muted title, and no hover or chevron (MediaRow drops both).
-              className={cx(!p.href && "text-muted")}
             >
               <span className="text-xs whitespace-nowrap text-muted">
                 <span className={cx("app-num", p.href && "text-ink")}>{p.stakeholders}</span>{" "}

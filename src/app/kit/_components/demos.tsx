@@ -11,7 +11,7 @@ import { MediaList, MediaRow } from "@/components/ui/MediaRow";
 import { Panel } from "@/components/ui/Panel";
 import type { CameraKeyframe } from "@/features/shots/schema";
 
-/** A pending flag that turns itself off after `ms`. */
+/** A flag that turns itself off after `ms`: pending, or done. */
 function usePending(ms: number): [boolean, () => void] {
   const [pending, setPending] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -45,6 +45,22 @@ export function PendingDemo() {
   );
 }
 
+/** Click to see the done face: a check and "Copied" at the idle width, for 1.5 s. */
+export function DoneDemo() {
+  const [done, start] = usePending(1500);
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Button variant="tertiary" done={done} doneLabel="Copied" onClick={start}>
+        <Copy size={14} strokeWidth={1.75} aria-hidden />
+        Copy link
+      </Button>
+      <Button done={done} doneLabel="Saved" onClick={start}>
+        Save draft
+      </Button>
+    </div>
+  );
+}
+
 export type DemoShot = {
   id: string;
   name: string;
@@ -69,6 +85,7 @@ export function ShotListDemo({ shots, footprint }: { shots: DemoShot[]; footprin
             size={72}
             media={<CameraPathPlan keyframes={shot.keyframes} footprint={footprint} />}
             title={shot.name}
+            titleLines={2}
             meta={
               <>
                 <span className="app-num">{shot.number}</span> · {shot.side}

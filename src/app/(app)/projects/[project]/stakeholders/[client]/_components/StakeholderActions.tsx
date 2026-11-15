@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Tag } from "@/components/ui/Tag";
@@ -53,8 +53,6 @@ export function StakeholderActions({ stage, client, projectName, basePath, opens
   );
 }
 
-const ICON = { size: 14, strokeWidth: 1.75, "aria-hidden": true } as const;
-
 function CopyLinkButton({ clientId }: { clientId: string }) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,33 +69,11 @@ function CopyLinkButton({ clientId }: { clientId: string }) {
     timer.current = setTimeout(() => setCopied(false), 1500);
   };
 
-  const idle = (
-    <>
-      <Copy {...ICON} />
-      Copy link
-    </>
-  );
-  const done = (
-    <>
-      <Check {...ICON} />
-      Copied
-    </>
-  );
-
-  // Both faces share one grid cell, so the button keeps the wider one's width when the label swaps.
+  // Copied swaps in a check at the same width, and is announced politely.
   return (
-    <Button variant="tertiary" onClick={copy}>
-      <span className="inline-grid justify-items-center">
-        <span aria-hidden className="invisible col-start-1 row-start-1 inline-flex items-center gap-1.5">
-          {idle}
-        </span>
-        <span aria-hidden className="invisible col-start-1 row-start-1 inline-flex items-center gap-1.5">
-          {done}
-        </span>
-        <span aria-live="polite" className="col-start-1 row-start-1 inline-flex items-center gap-1.5">
-          {copied ? done : idle}
-        </span>
-      </span>
+    <Button variant="tertiary" done={copied} doneLabel="Copied" onClick={copy}>
+      <Copy size={14} strokeWidth={1.75} aria-hidden />
+      Copy link
     </Button>
   );
 }

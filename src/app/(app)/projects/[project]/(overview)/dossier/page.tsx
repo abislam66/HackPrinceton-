@@ -1,9 +1,8 @@
-import { ArrowUpRight } from "lucide-react";
 import { Panel } from "@/components/ui/Panel";
-import { NOT_CONFIRMED, SOURCES, TIMELINE } from "@/features/demo/building";
+import { TextLink } from "@/components/ui/TextLink";
+import { DOSSIER_FACTS, NOT_CONFIRMED, SOURCES, TIMELINE } from "@/features/demo/building";
 import { loadProject } from "@/features/project/load";
 import { cx } from "@/lib/cx";
-import { DOSSIER_FACTS } from "../facts";
 
 export default async function DossierPage() {
   const project = await loadProject();
@@ -42,16 +41,9 @@ export default async function DossierPage() {
           <ol className="app-rows">
             {SOURCES.map((source) => (
               <li key={source.url} className="flex flex-col gap-1 px-5 py-3">
-                <a
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-pretty underline decoration-hairline underline-offset-[3px] transition-[text-decoration-color] duration-150 ease-out hover:decoration-current"
-                >
+                <TextLink href={source.url} target="_blank" className="text-sm text-pretty">
                   {source.title}
-                  <ArrowUpRight size={14} strokeWidth={1.75} aria-hidden className="ml-0.5 inline align-[-2px]" />
-                  <span className="sr-only"> (opens in a new tab)</span>
-                </a>
+                </TextLink>
                 <span className="text-xs text-muted">
                   {source.publisher}
                   {source.year ? (

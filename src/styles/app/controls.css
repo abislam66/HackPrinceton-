@@ -97,6 +97,12 @@
   border-color: var(--app-hairline);
 }
 
+/* Quiet: a tertiary (it carries both classes) whose label rests muted, like the sidebar's inactive rows. Its hover
+   is the tertiary's: the tint and Asphalt ink. */
+.app-btn--quiet {
+  color: var(--app-muted);
+}
+
 /* The icon button: a 32×32 tertiary. Its hit area grows on every side. */
 .app-btn--icon {
   width: 32px;
@@ -127,7 +133,8 @@
 .tm-ground-asphalt .app-btn--tertiary {
   color: var(--tm-stucco);
 }
-.tm-ground-asphalt .app-btn--icon.app-btn--tertiary {
+.tm-ground-asphalt .app-btn--icon.app-btn--tertiary,
+.tm-ground-asphalt .app-btn--quiet {
   color: var(--tm-concrete);
 }
 
@@ -227,6 +234,32 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ================================================================== text link */
+
+/* Inside text: the surrounding size and colour, a hairline underline 3 px below that darkens to the text on hover. */
+.app-link {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--app-hairline);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease-out;
+}
+.app-link:focus-visible {
+  outline: 2px solid var(--tm-cone);
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .app-link:hover {
+    text-decoration-color: currentColor;
+  }
+}
+/* The new-tab arrow sits on the text's baseline, 2 px after the last word. */
+.app-link-arrow {
+  display: inline;
+  margin-left: 2px;
+  vertical-align: -2px;
 }
 
 /* ================================================================== tooltip (IconButton) */
@@ -554,6 +587,7 @@
 /* Every titled panel opens with this row: a 14 px/600 title, a count or action on the right, a divider under it. */
 .app-panel-head {
   display: flex;
+  flex-shrink: 0; /* in a panel that is itself a flex column (the workspace's side panel), the body scrolls, not this */
   min-height: 48px;
   align-items: center;
   justify-content: space-between;
@@ -798,6 +832,13 @@
   line-height: 18px;
   letter-spacing: -0.01em;
 }
+/* Two lines for long names (shots). In a 72 px row, two 18 px lines, the gap and the meta line leave 8 px a side. */
+.app-row-title[data-lines="2"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
 .app-row-meta {
   color: var(--app-muted);
   font-size: 12px;
@@ -809,12 +850,26 @@
   align-items: center;
   gap: 16px;
 }
+/* MediaList trailingWidth: one slot width for every row, content from its left edge, so statuses line up. */
+.app-rows[data-trailing="fixed"] .app-row-end {
+  width: var(--app-row-end-width);
+}
 .app-row-chev {
   display: grid;
   flex: 0 0 16px;
   place-items: center;
   color: var(--app-muted);
   transition: color 150ms ease-out;
+}
+
+/* A static row (no href, no onClick) doesn't open: no hover, no chevron. Beside rows that are targets it is quieter,
+   and it keeps the chevron's empty column so its trailing content lines up with theirs. Where nothing in the list
+   opens, it keeps its ink and drops the column. */
+.app-rows:has([data-row]) .app-row[data-static] {
+  color: var(--app-muted);
+}
+.app-rows:not(:has(a.app-row)) .app-row[data-static] > .app-row-chev {
+  display: none;
 }
 
 /* ---- camera-path plan: footprint, aim line, path, start dot, end arrow. North is up. */
@@ -937,12 +992,24 @@
 .app-table :is(th, td)[data-num] {
   text-align: right;
 }
-.app-table td[data-num] {
+/* num: counted figures, right-aligned. mono: data that isn't counted (dates), left-aligned. Both never wrap. */
+.app-table td:is([data-num], [data-mono]) {
   font-family: var(--tm-f-mono);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   white-space: nowrap;
+}
+
+/* Compact: 16 px between columns instead of 40; the outer cells keep the 20 px inset of every panel. */
+.app-table[data-density="compact"] :is(th, td) {
+  padding-inline: 8px;
+}
+.app-table[data-density="compact"] :is(th, td):first-child {
+  padding-left: 20px;
+}
+.app-table[data-density="compact"] :is(th, td):last-child {
+  padding-right: 20px;
 }
 
 /* ================================================================== dialog */
@@ -1103,6 +1170,7 @@ textarea.app-input {
 
 @media (prefers-reduced-motion: reduce) {
   .app-btn,
+  .app-link,
   .app-chip,
   .app-tab,
   .app-row,

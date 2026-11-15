@@ -1,5 +1,6 @@
 import { useId, type ComponentProps, type ReactNode } from "react";
 import { cx } from "@/lib/cx";
+import { Tabs, type TabItem } from "./Tabs";
 
 export type PanelProps = Omit<ComponentProps<"section">, "title"> & {
   /** Opens the panel with a header row: a 14 px/600 title, then a divider. */
@@ -10,6 +11,13 @@ export type PanelProps = Omit<ComponentProps<"section">, "title"> & {
   count?: ReactNode;
   /** One action on the right of the header row, usually a secondary or tertiary `Button`. */
   action?: ReactNode;
+  /**
+   * Views of the panel's content: full-width Segmented tabs fill the header row in place of the title, with the
+   * same divider under them. `title`, `count` and `action` don't show with tabs.
+   */
+  tabs?: TabItem[];
+  /** Names the tabs for screen readers: "Proposal views". */
+  tabsLabel?: string;
   /** No body padding, for row lists and tables that run edge to edge. */
   flush?: boolean;
 };
@@ -18,24 +26,47 @@ export type PanelProps = Omit<ComponentProps<"section">, "title"> & {
  * A content panel: Sheet behind a 1 px 10 % border, on the Plaster page. Inside it, only dividers; never a panel
  * inside a panel. `count` and `action` need a `title`.
  */
-export function Panel({ title, titleAs: Title = "h2", count, action, flush = false, className, children, ...rest }: PanelProps) {
+export function Panel({
+  title,
+  titleAs: Title = "h2",
+  count,
+  action,
+  tabs,
+  tabsLabel = "Views",
+  flush = false,
+  className,
+  children,
+  ...rest
+}: PanelProps) {
   const titleId = useId();
-  const titled = title !== undefined && title !== null;
+  const titled = !tabs && title !== undefined && title !== null;
+
+  let head: ReactNode = null;
+  if (tabs) {
+    head = (
+      <div className="app-panel-head">
+        <Tabs items={tabs} label={tabsLabel} full />
+      </div>
+    );
+  } else if (titled) {
+    head = (
+      <div className="app-panel-head">
+        <Title id={titleId} className="app-h-section app-panel-title">
+          {title}
+        </Title>
+        {count !== undefined || action ? (
+          <div className="app-panel-end">
+            {count !== undefined ? <span className="app-panel-count">{count}</span> : null}
+            {action}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <section aria-labelledby={titled ? titleId : undefined} className={cx("app-panel", className)} {...rest}>
-      {titled ? (
-        <div className="app-panel-head">
-          <Title id={titleId} className="app-h-section app-panel-title">
-            {title}
-          </Title>
-          {count !== undefined || action ? (
-            <div className="app-panel-end">
-              {count !== undefined ? <span className="app-panel-count">{count}</span> : null}
-              {action}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      {head}
       {flush ? children : <div className="app-panel-body">{children}</div>}
     </section>
   );

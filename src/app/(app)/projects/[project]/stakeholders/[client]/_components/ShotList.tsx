@@ -18,13 +18,10 @@ type Props = {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/*
- * MediaRow truncates its title to one line; shot names run long, so they take two here. The row keeps its 72 px:
- * two 18 px lines, the 4 px gap and the 16 px meta line fit with 8 px to spare above and below.
+/**
+ * The side panel's shot list: one 72 px row per shot, led by a plan of its camera path. Shot names run long, so
+ * they take two lines. Selecting drives the viewer.
  */
-const TWO_LINE_TITLE = "[&_.app-row-title]:line-clamp-2 [&_.app-row-title]:whitespace-normal";
-
-/** The side panel's shot list: one 72 px row per shot, led by a plan of its camera path. Selecting drives the viewer. */
 export function ShotList({ shots, selectedId, onSelect, onRegenerate }: Props) {
   // Every plan shares one footprint, so the paths compare across the list.
   const footprint = useMemo(() => planFootprint(shots), [shots]);
@@ -38,6 +35,7 @@ export function ShotList({ shots, selectedId, onSelect, onRegenerate }: Props) {
             size={72}
             media={<CameraPathPlan keyframes={shot.camera.keyframes} footprint={footprint} />}
             title={shot.name}
+            titleLines={2}
             meta={
               <>
                 <span className="app-num">{pad(i + 1)}</span> · {sideLabel(shot.side)}
@@ -45,7 +43,6 @@ export function ShotList({ shots, selectedId, onSelect, onRegenerate }: Props) {
             }
             selected={shot.id === selectedId}
             onClick={() => onSelect(shot.id)}
-            className={TWO_LINE_TITLE}
           >
             <span className="app-num">{formatClock(pathDuration(shot.camera))}</span>
           </MediaRow>

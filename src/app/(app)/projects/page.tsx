@@ -69,23 +69,16 @@ export default async function ProjectsPage() {
       />
 
       <Panel flush>
-        <MediaList label="Projects">
+        {/* One slot width for every row: the sent count right-aligned in its 112 px column, then the status, so both
+            line up down the list. Rows without an href don't open, and MediaRow mutes them. */}
+        <MediaList label="Projects" trailingWidth={224}>
           {rows.map((r) => (
-            <MediaRow
-              key={r.id}
-              href={r.href}
-              media={<ElevationGlyph floors={r.floors} />}
-              title={r.name}
-              meta={r.location}
-              // A row that doesn't open is quieter: a muted title, and no hover or chevron (as on Discover).
-              className={cx(!r.href && "text-muted")}
-            >
+            <MediaRow key={r.id} href={r.href} media={<ElevationGlyph floors={r.floors} />} title={r.name} meta={r.location}>
               <span className="w-28 text-right text-xs whitespace-nowrap text-muted">
                 <span className={cx("app-num", r.href && "text-ink")}>{r.sent}</span> of{" "}
                 <span className={cx("app-num", r.href && "text-ink")}>{r.stakeholders}</span> sent
               </span>
-              {/* One width for every status, so the tags line up down the list. */}
-              <span className="flex w-24">{r.status}</span>
+              {r.status}
             </MediaRow>
           ))}
         </MediaList>

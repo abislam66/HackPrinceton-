@@ -16,7 +16,9 @@ import { StatStrip } from "@/components/ui/StatStrip";
 import { TD, TH, THead, TR, Table } from "@/components/ui/Table";
 import { Tabs } from "@/components/ui/Tabs";
 import { Tag, type TagTone } from "@/components/ui/Tag";
-import { KEY_FACTS, WHY_IT_FITS, shortAddress } from "@/features/demo/building";
+import { TextLink } from "@/components/ui/TextLink";
+import { KEY_FACTS, SOURCES, WHY_IT_FITS, shortAddress } from "@/features/demo/building";
+import { DELIVERABLES } from "@/features/demo/progress";
 import { SAMPLE_PROJECTS } from "@/features/demo/projects";
 import { loadClients, loadProject } from "@/features/project/load";
 import { PROJECT_SLUG } from "@/features/project/schema";
@@ -25,7 +27,7 @@ import { shotListSchema } from "@/features/shots/schema";
 import { pathDuration } from "@/features/viewer/camera-paths";
 import { formatClock, sideLabel } from "@/features/workspace/format";
 import { NEED_LABEL, ROLE_LABEL } from "@/lib/labels";
-import { DialogDemo, PendingDemo, ShotListDemo, type DemoShot } from "./_components/demos";
+import { DialogDemo, DoneDemo, PendingDemo, ShotListDemo, type DemoShot } from "./_components/demos";
 import { Ground, Row, Section, Specimen } from "./_components/Specimen";
 
 export const metadata: Metadata = { title: "Components" };
@@ -39,6 +41,7 @@ export const metadata: Metadata = { title: "Components" };
 const SECTIONS = [
   { id: "tokens", title: "Tokens" },
   { id: "buttons", title: "Buttons" },
+  { id: "links", title: "Text links" },
   { id: "tags", title: "Tags and filters" },
   { id: "tabs", title: "Tabs" },
   { id: "surfaces", title: "Panels and dialog" },
@@ -102,7 +105,6 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
     { id: PROJECT_SLUG, name: project.name, location: shortAddress(project.address), why: WHY_IT_FITS, stakeholders: clients.length, href: STAY },
     ...SAMPLE_PROJECTS.map((p) => ({ id: p.id, name: p.name, location: p.location, why: p.whyItFits, stakeholders: p.stakeholders, href: undefined })),
   ];
-  const stats = KEY_FACTS.filter((f) => /^\d/.test(f.value));
   const pageTabs = [
     { label: "Stakeholders", href: "/kit?view=stakeholders#tabs", active: active === "stakeholders", count: clients.length },
     { label: "Dossier", href: "/kit?view=dossier#tabs", active: active === "dossier" },
@@ -275,6 +277,29 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
           <PendingDemo />
         </Specimen>
         <Specimen
+          name="Done"
+          code={`done · doneLabel="Copied"`}
+          note="A 14 px check and the done label at the idle width, announced politely. The caller turns it off. Click it."
+        >
+          <DoneDemo />
+        </Specimen>
+        <Specimen
+          name="Quiet"
+          code={`<Button variant="quiet">`}
+          note="A tertiary in muted text until hovered, for app chrome that sits apart from the work: the sidebar's Reset demo."
+        >
+          <Ground on="plaster" label="In the Stucco sidebar">
+            <div className="w-60 bg-stucco px-2 py-5">
+              <Button variant="quiet">Reset demo</Button>
+            </div>
+          </Ground>
+          <Ground on="asphalt" label="On the Asphalt viewer">
+            <Row>
+              <Button variant="quiet">Reset view</Button>
+            </Row>
+          </Ground>
+        </Specimen>
+        <Specimen
           name="Icon buttons"
           code={`<IconButton icon label shortcut? variant? tooltipSide?>`}
           note="32×32. The label is the accessible name and a tooltip after 400 ms, at once on keyboard focus. Once one tooltip has shown, the next opens at once."
@@ -299,6 +324,37 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
               <IconButton icon={<RotateCcw />} label="Replay" disabled />
             </Row>
           </Ground>
+        </Specimen>
+      </Section>
+
+      {/* ---------------------------------------------------------------- links */}
+      <Section
+        id="links"
+        title="Text links"
+        intro="A link inside text takes the surrounding size and colour. For an action that looks like a button, use Button with href."
+      >
+        <Specimen
+          name="Text link"
+          code={`<TextLink href target?="_blank">`}
+          note="A hairline underline 3 px below, darkening to the text on hover; a 2 px Cone focus ring. A new tab adds a 14 px arrow and “(opens in a new tab)” for screen readers."
+        >
+          <Panel title="Sources" count={2} flush className="max-w-[360px]">
+            <ol className="app-rows">
+              {SOURCES.slice(0, 2).map((source) => (
+                <li key={source.url} className="flex flex-col gap-1 px-5 py-3">
+                  <TextLink href={source.url} target="_blank" className="text-sm text-pretty">
+                    {source.title}
+                  </TextLink>
+                  <span className="text-xs text-muted">
+                    {source.publisher} · <span className="app-num">{source.year}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </Panel>
+          <p className="max-w-[56ch] text-sm leading-[22px] text-pretty">
+            Internal paths render a Next Link: the facts here come from the <TextLink href={STAY}>project dossier</TextLink>.
+          </p>
         </Specimen>
       </Section>
 
@@ -344,11 +400,18 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
         <Specimen name="Page tabs" code="<Tabs items={[{ label, href, active, count? }]} label>" note="Each segment fits its label. Counts are mono and muted.">
           <Tabs items={pageTabs} label="Project sections" />
         </Specimen>
-        <Specimen name="In the 360 px panel" code="full">
-          <Panel flush className="w-[360px] max-w-full">
-            <div className="p-5">
-              <Tabs items={panelTabs} label="Proposal" full />
-            </div>
+        <Specimen
+          name="In the 360 px panel"
+          code="<Panel tabs={[{ label, href, active, count? }]} tabsLabel>"
+          note="Full width with equal segments (Tabs full), filling the panel's header row in place of the title, over the same divider. The workspace's side panel, once a proposal is sent."
+        >
+          <Panel
+            flush
+            className="w-[360px] max-w-full"
+            tabsLabel="Proposal views"
+            tabs={panelTabs.map((t) => (t.label === "Shots" ? { ...t, count: shots.length } : t))}
+          >
+            <p className="p-5 text-sm text-muted">{panel === "engagement" ? "Opens, watch time and clicks." : "The shot list."}</p>
           </Panel>
         </Specimen>
       </Section>
@@ -361,12 +424,12 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
       >
         <Specimen
           name="Panel"
-          code="<Panel title count? action? flush? titleAs?>"
+          code="<Panel title count? action? flush? titleAs? tabs?>"
           note="A title opens a 48 px header row: 14 px/600, a count or an action on the right, a divider under it."
         >
           <div className="grid max-w-[880px] grid-cols-[minmax(0,1fr)_320px] items-start gap-6 max-[960px]:grid-cols-1">
             <Panel title="Proposals" count={`1 of ${clients.length} sent`} flush>
-              <MediaList>
+              <MediaList trailingWidth={112}>
                 {clients.map((c, i) => (
                   <MediaRow
                     key={c.id}
@@ -375,7 +438,7 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
                     title={c.company}
                     meta={`${ROLE_LABEL[c.role]} · Needs: ${NEED_LABEL[c.need]}`}
                   >
-                    <span className="w-28">{i === 0 ? <Tag tone="pass">Opened · 3</Tag> : <Tag tone="ready">Ready to send</Tag>}</span>
+                    {i === 0 ? <Tag tone="pass">Opened · 3</Tag> : <Tag tone="ready">Ready to send</Tag>}
                   </MediaRow>
                 ))}
               </MediaList>
@@ -392,7 +455,7 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
         >
           <Panel flush className="max-w-[880px]">
             <p className="p-5 text-sm text-muted">{project.address}</p>
-            <StatStrip label="Key facts" items={stats} className="border-t border-divider" />
+            <StatStrip label="Key facts" items={KEY_FACTS} className="border-t border-divider" />
           </Panel>
           <Panel flush className="w-[360px] max-w-full">
             <StatStrip
@@ -418,15 +481,15 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
       <Section id="rows" title="Rows" intro="Media. Two-line rows led by a visual drawn from real data. The whole row is the target; ↑ and ↓ move between rows.">
         <Specimen
           name="Shot rows"
-          code="<MediaRow size={72} media={<CameraPathPlan keyframes footprint />} selected onClick>"
-          note="A 72×48 plan of the camera path, north up, on the footprint the list shares (planFootprint). Selected is Stucco with a 2 px Cone bar, and its path turns Cone."
+          code="<MediaRow size={72} titleLines={2} media={<CameraPathPlan keyframes footprint />} selected onClick>"
+          note="A 72×48 plan of the camera path, north up, on the footprint the list shares (planFootprint). Selected is Stucco with a 2 px Cone bar, and its path turns Cone. Long names take two lines; the row's tooltip keeps the full title."
         >
           <ShotListDemo shots={shots} footprint={footprint} />
         </Specimen>
         <Specimen
           name="Project rows"
-          code="<MediaRow href media={<ElevationGlyph floors />}>"
-          note="One hairline bar per floor at a fixed pitch, so heights compare; an empty frame when the count is unknown. A row without href doesn't open."
+          code="<MediaRow href? media={<ElevationGlyph floors />}>"
+          note="One hairline bar per floor at a fixed pitch, so heights compare; an empty frame when the count is unknown. A row without href or onClick is static: no hover, no chevron, and beside rows that open it is muted and keeps the chevron's column."
         >
           <Panel flush className="max-w-[880px]">
             <MediaList>
@@ -441,6 +504,21 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
                   <span className="text-xs text-muted">
                     <span className="app-num text-ink">{p.stakeholders}</span> stakeholders
                   </span>
+                </MediaRow>
+              ))}
+            </MediaList>
+          </Panel>
+        </Specimen>
+        <Specimen
+          name="Static rows"
+          code="<MediaList trailingWidth?> <MediaRow title meta>"
+          note="When nothing in the list opens, rows keep their ink and drop the chevron column, so trailing figures sit on the panel's 20 px edge, under the count."
+        >
+          <Panel title="Deliverables" count={DELIVERABLES.length} flush className="w-[360px] max-w-full">
+            <MediaList>
+              {DELIVERABLES.map((d) => (
+                <MediaRow key={d.title} title={d.title} meta={d.kind === "film" ? "Film" : "Photos"}>
+                  <span className="app-num text-xs whitespace-nowrap">{d.detail}</span>
                 </MediaRow>
               ))}
             </MediaList>
@@ -478,8 +556,8 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
       </Section>
 
       {/* ---------------------------------------------------------------- table */}
-      <Section id="table" title="Table" intro="Sentence-case 12 px muted headers, 40 px rows, numbers right-aligned in mono.">
-        <Specimen name="Table" code="<Table> <THead> <TH num?> <TR> <TD num?>">
+      <Section id="table" title="Table" intro="Sentence-case 12 px muted headers, 40 px rows, numbers right-aligned in mono, other data (dates) left-aligned in mono.">
+        <Specimen name="Table" code="<Table> <THead> <TH num?> <TR> <TD num? mono?>">
           <Panel flush className="max-w-[880px] overflow-x-auto">
             <Table>
               <THead>
@@ -501,6 +579,48 @@ export default async function KitPage({ searchParams }: PageProps<"/kit">) {
                     <TD>{i === 0 ? <Tag tone="ready">In outreach</Tag> : <Tag>Not started</Tag>}</TD>
                   </TR>
                 ))}
+              </tbody>
+            </Table>
+          </Panel>
+        </Specimen>
+        <Specimen
+          name="Compact"
+          code={`<Table density="compact">`}
+          note="16 px between columns instead of 40; the outer cells keep the 20 px inset and rows stay 40 px. For a wide table in a narrow column: Outreach's Sent fits one line per row from 1024 px with the sidebar collapsed."
+        >
+          <Panel flush className="max-w-[720px] overflow-x-auto">
+            <Table density="compact">
+              <THead>
+                <tr>
+                  <TH>Stakeholder</TH>
+                  <TH>Project</TH>
+                  <TH>Sent</TH>
+                  <TH num>Opens</TH>
+                  <TH num>Watch time</TH>
+                  <TH>Status</TH>
+                </tr>
+              </THead>
+              <tbody>
+                <TR>
+                  <TD className="font-semibold">{client.company}</TD>
+                  <TD className="text-muted">{project.name}</TD>
+                  <TD mono>Nov 12</TD>
+                  <TD num>3</TD>
+                  <TD num>4m 18s</TD>
+                  <TD>
+                    <Tag tone="pass">Opened</Tag>
+                  </TD>
+                </TR>
+                <TR>
+                  <TD className="font-semibold">{clients[1]?.company ?? client.company}</TD>
+                  <TD className="text-muted">{project.name}</TD>
+                  <TD mono>Nov 14</TD>
+                  <TD num>0</TD>
+                  <TD num>–</TD>
+                  <TD>
+                    <Tag>Waiting</Tag>
+                  </TD>
+                </TR>
               </tbody>
             </Table>
           </Panel>
