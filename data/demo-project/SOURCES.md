@@ -16,3 +16,8 @@ Every fact in `project.json` comes from one of these. Nothing else about Morgan 
 Not confirmed (do not claim): bird-safe glass, the curtain wall maker or general contractor.
 
 Reference images: public web photos, used as model reference only and never shown on the proposal page. List each file with its URL and side.
+
+| File | Side shown | Source |
+|---|---|---|
+| `images/morgan-north.jpg` | north (dusk view looking south down Broad Street; also shows part of the west face) | Public web photo provided by Abrar; original URL not recorded. |
+| `images/morgan-south.jpg` | south (from the courtyard, looking at the south face) | Public web photo provided by Abrar; original URL not recorded. |

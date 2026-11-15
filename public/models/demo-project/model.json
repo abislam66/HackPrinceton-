@@ -1,0 +1,22 @@
+{
+  "projectSlug": "demo-project",
+  "file": "model.glb",
+  "version": 9,
+  "units": "meters",
+  "boundingBox": {
+    "min": [
+      -27.526,
+      0.0,
+      -40.971
+    ],
+    "max": [
+      46.47,
+      92.0,
+      58.449
+    ]
+  },
+  "knownSides": [
+    "north",
+    "south"
+  ]
+}
