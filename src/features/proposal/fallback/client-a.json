@@ -1,0 +1,319 @@
+{
+  "clientId": "client-a",
+  "projectSlug": "demo-project",
+  "status": "draft",
+  "pitch": {
+    "teaserLine": "You glazed towers like this. We're here to show the craft.",
+    "headline": "Morgan Hall North: the finished curtain wall, filmed as proof of craft for your next bid",
+    "problem": "You are bidding on the next round of university and high-rise residential work. Reviewers want proof of craft: clean, well-lit footage of a finished curtain wall on a named, high-profile tower. Universities increasingly ask about bird-safe glazing, a capability you bring and need to put in front of them.",
+    "solution": "Tradesmark films Morgan Hall North as it stands today, a 27-story tower at Broad Street and Cecil B. Moore Avenue. We hold on the curtain wall and its white tile bands, and on the two-story glass-enclosed lounges, so your bid packages show finished glazing on a tower reviewers recognize.",
+    "shotCaptions": [
+      {
+        "shotId": "client-a-shot-1",
+        "caption": "Here we climb the north face in even overcast light, the curtain wall and white tile bands reading as one clean run."
+      },
+      {
+        "shotId": "client-a-shot-2",
+        "caption": "Here we push slowly into a two-story glass lounge until its glass fills the frame."
+      },
+      {
+        "shotId": "client-a-shot-3",
+        "caption": "Here we slide along the south face in low morning sun, tile bands level so their alignment with the glass is plain."
+      },
+      {
+        "shotId": "client-a-shot-4",
+        "caption": "Here we arc around the north side at golden hour, the full tower and Broad Street in frame."
+      },
+      {
+        "shotId": "client-a-shot-5",
+        "caption": "Here we look up the north face from the street at blue hour, glass and tile bands converging toward the top."
+      }
+    ],
+    "acrossProject": "Tradesmark is filming across all of Morgan Hall North, with the other teams who built it as well as for you."
+  },
+  "shots": [
+    {
+      "id": "client-a-shot-1",
+      "name": "Curtain wall rise, north face",
+      "description": "Start low on the north face and climb the full height so the curtain wall and white tile bands read as one continuous, clean run; this is the core proof-of-craft clip for bid packages.",
+      "platform": "drone",
+      "lens": "35mm",
+      "timeOfDay": "overcast midday, even light with no glare on the glass",
+      "constructionPhase": "completed, occupied, windows closed for a uniform facade",
+      "side": "north",
+      "camera": {
+        "fov": 54.43,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              15.02,
+              4.6,
+              -180.34
+            ],
+            "target": [
+              9.47,
+              27.6,
+              -41.05
+            ]
+          },
+          {
+            "t": 4.95,
+            "position": [
+              12.25,
+              73.6,
+              -187.3
+            ],
+            "target": [
+              9.47,
+              46,
+              -41.05
+            ]
+          },
+          {
+            "t": 9,
+            "position": [
+              9.47,
+              110.4,
+              -194.27
+            ],
+            "target": [
+              9.47,
+              55.2,
+              -41.05
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-a-shot-2",
+      "name": "Two-story lounge glass push-in",
+      "description": "Slow approach on one of the two-story glass-enclosed lounges until its glass fills the frame; shows detail-level glazing work a university reviewer will look for.",
+      "platform": "drone",
+      "lens": "70mm tele",
+      "timeOfDay": "late afternoon, soft side light, interior lights on",
+      "constructionPhase": "completed, occupied, lounges lit and in use",
+      "side": "south",
+      "camera": {
+        "fov": 28.84,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              9.47,
+              55.2,
+              217.64
+            ],
+            "target": [
+              9.47,
+              55.2,
+              58.45
+            ]
+          },
+          {
+            "t": 4,
+            "position": [
+              9.47,
+              55.2,
+              185.8
+            ],
+            "target": [
+              9.47,
+              55.2,
+              58.45
+            ]
+          },
+          {
+            "t": 8,
+            "position": [
+              9.47,
+              55.2,
+              153.96
+            ],
+            "target": [
+              9.47,
+              55.2,
+              58.45
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-a-shot-3",
+      "name": "Tile band track, south face",
+      "description": "Slide along the south face at mid-height keeping the white tile bands level across frame, so alignment of bands and glass panels is plain to see.",
+      "platform": "drone",
+      "lens": "50mm",
+      "timeOfDay": "morning, low east sun raking across the face",
+      "constructionPhase": "completed, occupied",
+      "side": "south",
+      "camera": {
+        "fov": 39.6,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              -64.84,
+              64.4,
+              207.69
+            ],
+            "target": [
+              -27.53,
+              64.4,
+              58.45
+            ]
+          },
+          {
+            "t": 3.5,
+            "position": [
+              9.47,
+              64.4,
+              207.69
+            ],
+            "target": [
+              9.47,
+              64.4,
+              58.45
+            ]
+          },
+          {
+            "t": 7,
+            "position": [
+              83.78,
+              64.4,
+              207.69
+            ],
+            "target": [
+              46.47,
+              64.4,
+              58.45
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-a-shot-4",
+      "name": "Named tower orbit over Broad",
+      "description": "Arc around the north side with the full tower and Broad Street in frame so the footage is clearly Temple's Morgan Hall North, a high-profile university tower to name in bids.",
+      "platform": "drone",
+      "lens": "24mm wide",
+      "timeOfDay": "golden hour, low west sun on the glass",
+      "constructionPhase": "completed, occupied",
+      "side": "north",
+      "camera": {
+        "fov": 73.74,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              -160.82,
+              101.2,
+              -286.25
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          },
+          {
+            "t": 3.33,
+            "position": [
+              -49.67,
+              101.2,
+              -326.71
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          },
+          {
+            "t": 6.67,
+            "position": [
+              68.61,
+              101.2,
+              -326.71
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          },
+          {
+            "t": 10,
+            "position": [
+              179.76,
+              101.2,
+              -286.25
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-a-shot-5",
+      "name": "Eye-level curtain wall from below",
+      "description": "Look up the north face from street level so the curtain wall and tile bands converge toward the top; gives a ground view of the finished glass for the bid deck cover.",
+      "platform": "ground",
+      "lens": "16mm wide",
+      "timeOfDay": "blue hour, interior lights on",
+      "constructionPhase": "completed, occupied",
+      "side": "north",
+      "camera": {
+        "fov": 96.73,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              5.77,
+              1.6,
+              -160.44
+            ],
+            "target": [
+              9.47,
+              55.2,
+              -41.05
+            ]
+          },
+          {
+            "t": 3,
+            "position": [
+              9.47,
+              1.6,
+              -148.5
+            ],
+            "target": [
+              9.47,
+              59.8,
+              -41.05
+            ]
+          },
+          {
+            "t": 6,
+            "position": [
+              13.17,
+              1.6,
+              -136.56
+            ],
+            "target": [
+              9.47,
+              64.4,
+              -41.05
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

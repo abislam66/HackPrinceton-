@@ -1,0 +1,319 @@
+{
+  "clientId": "client-b",
+  "projectSlug": "demo-project",
+  "status": "draft",
+  "pitch": {
+    "teaserLine": "You built this on Broad Street. We're here to show what it opens up.",
+    "headline": "Morgan Hall North: Temple's gateway tower on Broad Street, captured as it stands and is lived in today",
+    "problem": "A 27-story residence tower can read as a wall of dorms. Temple needs prospective students, families and the North Philadelphia community to see Morgan Hall as a landmark that opens the campus to the neighborhood, in footage that serves admissions, housing and community relations.",
+    "solution": "Tradesmark films the building in use: the tower as the gateway on the approach from Center City, the elevated central terrace with students on it, and the Broad Street frontage with its wide stair rising to the terrace. Together they show a place that welcomes people in.",
+    "shotCaptions": [
+      {
+        "shotId": "client-b-shot-1",
+        "caption": "Here we push up Broad Street from the south in golden hour until the tower marks the end of the corridor from Center City."
+      },
+      {
+        "shotId": "client-b-shot-2",
+        "caption": "Here we descend from above onto the elevated terrace, framed by the tower, Morgan Hall South and the dining pavilion, with students using it."
+      },
+      {
+        "shotId": "client-b-shot-3",
+        "caption": "Here we stand on the Broad Street sidewalk and look up the wide stair as people climb toward the terrace and the tower."
+      },
+      {
+        "shotId": "client-b-shot-4",
+        "caption": "Here we arc around the Broad and Cecil B. Moore corner, keeping street life and the neighborhood in frame."
+      },
+      {
+        "shotId": "client-b-shot-5",
+        "caption": "Here we rise past the white-tile bands at blue hour, lounges lit, and turn toward the views residents see over Philadelphia."
+      }
+    ],
+    "acrossProject": "Tradesmark is working across the whole Morgan Hall project, alongside the other teams involved, not only for Temple University."
+  },
+  "shots": [
+    {
+      "id": "client-b-shot-1",
+      "name": "Gateway approach from Center City",
+      "description": "Push in from the south along the Broad Street approach so the 27-story tower reads as the marker at the north end of the corridor; this frames Morgan Hall as the landmark prospective students see arriving from Center City.",
+      "platform": "drone",
+      "lens": "50mm normal",
+      "timeOfDay": "golden hour, low west sun on the tower",
+      "constructionPhase": "completed, occupied, campus trees in leaf",
+      "side": "south",
+      "camera": {
+        "fov": 39.6,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              9.47,
+              73.6,
+              406.68
+            ],
+            "target": [
+              9.47,
+              73.6,
+              58.45
+            ]
+          },
+          {
+            "t": 4.5,
+            "position": [
+              9.47,
+              73.6,
+              337.04
+            ],
+            "target": [
+              9.47,
+              73.6,
+              58.45
+            ]
+          },
+          {
+            "t": 9,
+            "position": [
+              9.47,
+              73.6,
+              267.39
+            ],
+            "target": [
+              9.47,
+              73.6,
+              58.45
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-b-shot-2",
+      "name": "Terrace reveal from above tower",
+      "description": "Start high and top-down over the complex, then descend to an oblique view of the elevated central terrace with students using it, showing the open landscaped space framed by the tower, Morgan Hall South and the dining pavilion.",
+      "platform": "drone",
+      "lens": "24mm wide",
+      "timeOfDay": "late afternoon, warm side light",
+      "constructionPhase": "completed, occupied, terrace planting in leaf, classes in session",
+      "side": "south",
+      "camera": {
+        "fov": 73.74,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              9.47,
+              267.11,
+              124.12
+            ],
+            "target": [
+              9.47,
+              18.4,
+              58.45
+            ]
+          },
+          {
+            "t": 5,
+            "position": [
+              9.47,
+              202.56,
+              211.67
+            ],
+            "target": [
+              9.47,
+              32.2,
+              58.45
+            ]
+          },
+          {
+            "t": 10,
+            "position": [
+              9.47,
+              138,
+              277.34
+            ],
+            "target": [
+              9.47,
+              46,
+              58.45
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-b-shot-3",
+      "name": "Broad Street stair, eye level",
+      "description": "From the Broad Street sidewalk, look up the wide stair to the terrace with the tower rising behind it and people climbing it, showing how the complex opens to the street and neighborhood rather than walling it off.",
+      "platform": "ground",
+      "lens": "24mm wide",
+      "timeOfDay": "mid-morning, soft even light",
+      "constructionPhase": "completed, occupied, weekday foot traffic",
+      "side": "south",
+      "camera": {
+        "fov": 73.74,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              5.77,
+              1.6,
+              197.74
+            ],
+            "target": [
+              9.47,
+              55.2,
+              58.45
+            ]
+          },
+          {
+            "t": 3.5,
+            "position": [
+              9.47,
+              1.6,
+              183.81
+            ],
+            "target": [
+              9.47,
+              59.8,
+              58.45
+            ]
+          },
+          {
+            "t": 7,
+            "position": [
+              13.17,
+              1.6,
+              169.88
+            ],
+            "target": [
+              9.47,
+              64.4,
+              58.45
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-b-shot-4",
+      "name": "Cecil B. Moore corner orbit",
+      "description": "Arc around the tower from the Broad and Cecil B. Moore corner, keeping street life and the neighborhood in frame, so the tower reads as a campus landmark tied to North Philadelphia.",
+      "platform": "drone",
+      "lens": "35mm wide",
+      "timeOfDay": "golden hour, low west sun",
+      "constructionPhase": "completed, occupied, trees in leaf",
+      "side": "north",
+      "camera": {
+        "fov": 54.43,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              -145.9,
+              64.4,
+              -260.4
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          },
+          {
+            "t": 3,
+            "position": [
+              -44.49,
+              64.4,
+              -297.31
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          },
+          {
+            "t": 6,
+            "position": [
+              63.43,
+              64.4,
+              -297.31
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          },
+          {
+            "t": 9,
+            "position": [
+              164.84,
+              64.4,
+              -260.4
+            ],
+            "target": [
+              9.47,
+              46,
+              8.7
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "client-b-shot-5",
+      "name": "Rise to city view",
+      "description": "Climb the north face past the white-tile bands to the roofline and tilt toward the skyline, showing the views over Philadelphia that residents have.",
+      "platform": "drone",
+      "lens": "24mm wide",
+      "timeOfDay": "blue hour, lounges and windows lit",
+      "constructionPhase": "completed, occupied, residents in",
+      "side": "north",
+      "camera": {
+        "fov": 73.74,
+        "keyframes": [
+          {
+            "t": 0,
+            "position": [
+              15.02,
+              4.6,
+              -200.24
+            ],
+            "target": [
+              9.47,
+              27.6,
+              -41.05
+            ]
+          },
+          {
+            "t": 4.4,
+            "position": [
+              12.25,
+              73.6,
+              -208.2
+            ],
+            "target": [
+              9.47,
+              46,
+              -41.05
+            ]
+          },
+          {
+            "t": 8,
+            "position": [
+              9.47,
+              119.6,
+              -216.16
+            ],
+            "target": [
+              9.47,
+              55.2,
+              -41.05
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
