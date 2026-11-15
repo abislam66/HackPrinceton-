@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>House Scaffold</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #DC5527; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; }
+  .bar { position: fixed; left: 12px; right: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 8px; pointer-events: none; }
+  .bar button { pointer-events: auto; border: 1.5px solid #1b1d33; background: #F4F1EA; color: #1b1d33; font-size: 14px; font-weight: 600;
+    padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+  .bar button.on { background: #1b1d33; color: #F4F1EA; }
+  .hint { position: fixed; left: 12px; bottom: 12px; color: #F4F1EA; background: rgba(27,29,51,.78); padding: 6px 10px; border-radius: 6px; font-size: 12px; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="bar">
+  <button class="on" id="modelBtn">Subject</button>
+  <button id="lines" class="on">Lines</button>
+  <button id="shadows" class="on">Shadows</button>
+  <button id="reset">Reset view</button>
+</div>
+<div class="hint">Drag to orbit · pinch or scroll to zoom · right-drag to pan</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+/* ===================== LOCKED: renderer, sun, camera, shader ===================== */
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.setClearColor(0xDC5527);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, 1, 2, 6000);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.495;
+
+// Sun direction is fixed for every subject (default)
+const sunDir = new THREE.Vector3(0.55, 0.75, 0.35).normalize();
+const sun = new THREE.DirectionalLight(0xffffff, Math.PI);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.35;
+const sc = sun.shadow.camera;
+sc.left = -260; sc.right = 260; sc.top = 260; sc.bottom = -260; sc.near = 1; sc.far = 1600;
+scene.add(sun); scene.add(sun.target);
+
+const hex = h => { const n = parseInt(h.replace("#", ""), 16); return new THREE.Vector3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
+
+function toonMaterial(m) {
+  const p = Object.assign({ type: "toon", floor_h: 4, line_w: 0.35, mull: 3, mull_w: 0.2, major_n: 3, band_w: 0.7, z0: 0,
+    grad: null, grad_z0: 0, grad_z1: 1, grad_max: 0 }, m);
+  const curtain = p.type === "curtain";
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  mat.userData.nolines = !!p.nolines;
+  const u = {
+    uLight: { value: hex(p.light) }, uShade: { value: hex(p.shade) },
+    uLine: { value: hex(curtain ? p.line : p.light) }, uBand: { value: hex(curtain ? p.band : p.light) },
+    uLineS: { value: hex(curtain ? (p.line_shade || p.line) : p.light) }, uBandS: { value: hex(curtain ? (p.band_shade || p.band) : p.light) },
+    uCurtain: { value: curtain ? 1 : 0 },
+    uP: { value: new THREE.Vector4(p.floor_h, p.line_w, p.mull, p.mull_w) },
+    uQ: { value: new THREE.Vector3(p.major_n, p.band_w, p.z0) },
+    uGrad: { value: hex(p.grad || p.light) },
+    uGz: { value: new THREE.Vector3(p.grad_z0, p.grad_z1, p.grad ? p.grad_max : 0) }
+  };
+  mat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = "varying vec3 vWPos; varying vec3 vWNrm;\n" + sh.vertexShader.replace(
+      "#include <worldpos_vertex>",
+      "#include <worldpos_vertex>\n vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\n vWNrm = normalize(mat3(modelMatrix) * objectNormal);");
+    sh.fragmentShader = `varying vec3 vWPos; varying vec3 vWNrm;
+uniform vec3 uLineS, uBandS; uniform vec3 uLight, uShade, uLine, uBand, uGrad, uGz; uniform float uCurtain; uniform vec4 uP; uniform vec3 uQ;
+float lines(float c, float period, float w) { return (w <= 0.0) ? 0.0 : step(fract(c / period), w / period); }
+` + sh.fragmentShader
+      .replace("#include <opaque_fragment>", `
+  float b = max(max(outgoingLight.r, outgoingLight.g), outgoingLight.b);
+  vec3 col = (b > 0.18) ? uLight : uShade;
+  if (uCurtain > 0.5) {
+    vec3 n = normalize(vWNrm);
+    float side = step(abs(n.y), 0.5);
+    float uu = vWPos.x * abs(n.z) - vWPos.z * abs(n.x);
+    col = mix(col, uGrad, clamp((vWPos.y - uGz.x) / max(uGz.y - uGz.x, 0.001), 0.0, 1.0) * uGz.z * side);
+    float zz = vWPos.y - uQ.z;
+    float minor = max(lines(zz, uP.x, uP.y), lines(uu, uP.z, uP.w)) * side;
+    float major = lines(zz, uP.x * uQ.x, uQ.y) * side;
+    col = mix(col, (b > 0.18) ? uLine : uLineS, minor);
+    col = mix(col, (b > 0.18) ? uBand : uBandS, major);
+  }
+  gl_FragColor = vec4(col, 1.0);`)
+      .replace("#include <colorspace_fragment>", "")
+      .replace("#include <tonemapping_fragment>", "");
+  };
+  return mat;
+}
+
+/* LOCKED palette */
+const PALETTE = {
+  ground: { light: "#D9D3C7", shade: "#A59C93" },
+  outline: 0x111122,
+  cream: "#F4F1EA", navy: "#1b1d33", mustard: "#E8B730"
+};
+const lineMat = new THREE.LineBasicMaterial({ color: PALETTE.outline });
+const CONTEXT_MATERIAL = { light: "#D9D3C7", shade: "#A59C93" };
+
+/* ===================== LOCKED: ground ===================== */
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(230, 96).rotateX(-Math.PI / 2),
+  toonMaterial({ light: PALETTE.ground.light, shade: PALETTE.ground.shade })
+);
+ground.receiveShadow = true; ground.position.y = -0.05;
+scene.add(ground);
+
+/* ===================== SUBJECT (REPLACE THIS BLOCK PER PROJECT) =====================
+   Dimensions in metres. Y up, base on y = 0.
+   Every value must be labelled observed (from a source) or inferred (estimate).
+   Materials: at most six. Each needs a light and shade colour.
+   Set nolines: true on a material to skip its outlines.
+   context: nearby buildings, one entry each: { x, z, w, d, h, source, height_status }.
+   Placeholder: a plain 20 x 30 x 20 m block with one glass material. */
+const SUBJECT = {
+  title: "Placeholder subject",
+  dims: { width: 20, depth: 20, height: 30 },   // inferred
+  context: [],   // nearby buildings: { x, z, w, d, h, source, height_status }
+  materials: {
+    body: { type: "curtain", light: "#7E9CAB", shade: "#4A6070", line: "#2A3442", band: "#1b1d33",
+            floor_h: 4.2, line_w: 0.08, mull: 1.5, mull_w: 0.06, major_n: 4, band_w: 0.25, z0: 0 }
+  }
+};
+
+function buildSubject() {
+  const group = new THREE.Group();
+  const { width, depth, height } = SUBJECT.dims;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), toonMaterial(SUBJECT.materials.body));
+  body.position.y = height / 2;
+  group.add(body);
+
+  (SUBJECT.context || []).forEach(b => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), toonMaterial(CONTEXT_MATERIAL));
+    m.position.set(b.x, b.h / 2, b.z);
+    m.castShadow = true; m.receiveShadow = true;
+    group.add(m);
+  });
+  return { group };
+}
+/* ===================== END SUBJECT BLOCK ===================== */
+
+/* ===================== LOCKED: outlines, shadows, framing, UI ===================== */
+let current = null, linesOn = true, shadowsOn = true;
+
+function show() {
+  if (current) scene.remove(current.group);
+  const { group } = buildSubject();
+  group.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true; o.receiveShadow = true;
+    if (o.material.userData.nolines) return;
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 25), lineMat);
+    e.visible = linesOn;
+    o.add(e);
+  });
+  scene.add(group);
+  const box = new THREE.Box3().setFromObject(group);
+  current = { group, box };
+  fitShadow(box);
+  frame(box);
+}
+
+function fitShadow(box) {
+  const sph = box.getBoundingSphere(new THREE.Sphere());
+  const r = Math.max(sph.radius, 5);
+  sun.target.position.copy(sph.center);
+  sun.position.copy(sph.center).addScaledVector(sunDir, r * 2);
+  sc.left = -r; sc.right = r; sc.top = r; sc.bottom = -r; sc.near = 0.1; sc.far = r * 4;
+  sun.shadow.normalBias = Math.min(0.35, r / 900);
+  sc.updateProjectionMatrix(); sun.target.updateMatrixWorld();
+}
+
+function frame(box) {
+  const size = box.getSize(new THREE.Vector3());
+  const c = box.getCenter(new THREE.Vector3());
+  const h = size.y;
+  controls.target.set(c.x, Math.min(h * 0.5, Math.max(h * 0.35, 4)), c.z);
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+  const span = Math.max(size.x, size.z);
+  const dist = 1.3 * Math.max((h / 2) / Math.tan(vfov / 2), (span / 2) / Math.tan(hfov / 2));
+  camera.position.set(c.x - dist * 0.86, Math.max(h * 0.36, dist * 0.32), c.z + dist * 0.5);
+  controls.update();
+}
+
+document.getElementById("lines").onclick = e => {
+  linesOn = !linesOn; e.target.classList.toggle("on", linesOn);
+  if (current) current.group.traverse(o => { if (o.isLineSegments) o.visible = linesOn; });
+};
+document.getElementById("shadows").onclick = e => {
+  shadowsOn = !shadowsOn; e.target.classList.toggle("on", shadowsOn);
+  sun.castShadow = shadowsOn;
+  scene.traverse(o => { if (o.material) o.material.needsUpdate = true; });
+};
+document.getElementById("reset").onclick = () => current && frame(current.box);
+document.getElementById("modelBtn").textContent = SUBJECT.title;
+
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (current) frame(current.box);
+}
+window.addEventListener("resize", resize);
+resize();
+show();
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
