@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
       "./src/features/scout/snapshot/*.json",
       "./src/features/dossier/snapshot/*.json",
       "./src/features/*/recordings/*.ndjson",
+      // The building viewer's locked scaffold and prompt, read at request time.
+      "./building-viewer/*",
     ],
   },
   turbopack: {
