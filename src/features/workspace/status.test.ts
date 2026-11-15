@@ -26,6 +26,7 @@ vi.mock("@/features/project/load", () => ({
 }));
 vi.mock("@/features/project-agent/store", () => ({
   listProjects: async () => [...projects.keys()].map((id) => ({ id, name: id, basedOn: null, createdAt: null })),
+  listProjectSlugs: async () => [...projects.keys()],
   loadProjectClients: async (project: string) => structuredClone(projects.get(project) ?? null),
   loadProjectClient: async (project: string, id: string) =>
     structuredClone(projects.get(project)?.find((c) => c.id === id) ?? null),

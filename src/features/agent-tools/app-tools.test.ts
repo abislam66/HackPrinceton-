@@ -20,7 +20,7 @@ vi.mock("@/features/proposal/store", () => ({
 }));
 vi.mock("@/features/proposal/generate", () => ({ generateProposal: vi.fn() }));
 vi.mock("@/features/building-viewer/generate", () => ({ generateViewer: (...a: unknown[]) => generateViewer(...a) }));
-vi.mock("@/features/building-viewer/guard", () => ({ takeGeneration: () => ({ ok: true }) }));
+vi.mock("@/features/building-viewer/guard", () => ({ takeGeneration: async () => ({ ok: true }) }));
 vi.mock("@/features/scout/model", () => ({
   loadProjectModel: vi.fn(async () => null),
   saveProjectModel: (...a: unknown[]) => saveProjectModel(...a),

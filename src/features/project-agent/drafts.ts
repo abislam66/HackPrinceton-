@@ -51,12 +51,12 @@ export async function createDraft({ projectSlug, change, clientId }: DraftReques
   if (clientId) {
     const client = await loadProjectClient(projectSlug, clientId);
     if (!client) throw new DraftError(`Unknown stakeholder ${clientId} on ${projectSlug}`, 404);
-    const model = await loadStakeholderModel(clientId);
+    const model = await loadStakeholderModel(clientId, projectSlug);
     kind = "update";
     result = await planScenario({ project, client, model, change });
   } else {
     const newId = `stakeholder-${shortId()}`;
-    const model = await loadStakeholderModel(newId);
+    const model = await loadStakeholderModel(newId, projectSlug);
     kind = "new-stakeholder";
     result = await planNewStakeholder({ project, clientId: newId, model, description: change });
   }

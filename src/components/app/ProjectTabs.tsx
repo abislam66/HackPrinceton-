@@ -11,8 +11,8 @@ export type ProjectTabCounts = {
 
 /**
  * The project's sections, Segmented, with the active tab read from the route. A count shows only where one is given.
- * The demo project has Stakeholders / Dossier / Progress. A project added from scouting has no stakeholders or
- * progress yet, so it has Model / Dossier.
+ * The demo project has Stakeholders / Dossier / Progress. A project added from scouting has Stakeholders / Model /
+ * Dossier: its own generated viewer, and no progress yet.
  */
 export function ProjectTabs({
   base,
@@ -30,11 +30,12 @@ export function ProjectTabs({
     active: pathname.startsWith(`${base}/dossier`),
     count: counts.dossier,
   };
+  const stakeholders = { label: "Stakeholders", href: base, active: pathname === base, count: counts.stakeholders };
   const items =
     kind === "scouted"
-      ? [{ label: "Model", href: base, active: pathname === base }, dossier]
+      ? [stakeholders, { label: "Model", href: `${base}/model`, active: pathname.startsWith(`${base}/model`) }, dossier]
       : [
-          { label: "Stakeholders", href: base, active: pathname === base, count: counts.stakeholders },
+          stakeholders,
           dossier,
           { label: "Progress", href: `${base}/progress`, active: pathname.startsWith(`${base}/progress`), count: counts.progress },
         ];

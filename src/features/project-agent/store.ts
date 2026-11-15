@@ -4,15 +4,18 @@ import { loadClients, loadProject } from "@/features/project/load";
 import { clientSchema, PROJECT_SLUG, type Client, type Project } from "@/features/project/schema";
 import { proposalSchema } from "@/features/proposal/schema";
 import { scenarioSchema } from "@/features/proposal/scenario";
+import { getScoutedProject, listScoutedProjects } from "@/features/scout/projects";
+import { scoutedProjectFacts, scoutedStakeholders } from "@/features/scout/stakeholders";
 import { listRecords, readRecord, writeRecord } from "@/lib/store/json-store";
 
 /*
  * What the project agent changes, kept in the shared json store (.data/, gitignored; memory on
  * Vercel). data/ stays the pre-loaded base and is never written.
  *
- * - projects:         projects opened from a draft ("New project"), each based on the demo project.
+ * - projects:         projects opened from a draft ("New project"), each based on another project.
  * - project-clients:  a project's stakeholders as changed by the agent (key `<project>--<client>`).
- *                     For the base project they override or add to data/; a new project lists all of its own.
+ *                     For the demo project they override or add to data/, for a project added from scouting to the
+ *                     firms research found (scout/stakeholders); a project opened from a draft lists all of its own.
  * - project-drafts:   changes the agent drafted, waiting for Replace / New project / Discard.
  */
 
@@ -66,37 +69,60 @@ export async function listProjects(): Promise<{ id: string; name: string; basedO
   ];
 }
 
+/** Every project's slug, including the ones added from scouting (which listProjects leaves to the Projects page). */
+export async function listProjectSlugs(): Promise<string[]> {
+  const [projects, scouted] = await Promise.all([listProjects(), listScoutedProjects()]);
+  return [...projects.map((p) => p.id), ...scouted.map((p) => p.id)];
+}
+
 export async function getProjectRecord(projectSlug: string): Promise<ProjectRecord | null> {
   if (!/^[a-z0-9-]+$/.test(projectSlug) || projectSlug === PROJECT_SLUG) return null;
   return readRecord(PROJECTS, projectSlug, projectRecordSchema);
 }
 
-/** The project's facts. A project opened from a draft shares the base project's building facts. */
+/**
+ * The project's facts. A project added from scouting has its own; a project opened from a draft shares the building
+ * facts of the project it was opened from.
+ */
 export async function loadProjectFacts(projectSlug: string): Promise<(Project & { slug: string }) | null> {
   if (projectSlug === PROJECT_SLUG) return loadProject();
   const record = await getProjectRecord(projectSlug);
-  if (!record) return null;
-  const base = await loadProject();
-  return { ...base, slug: record.id, name: record.name };
+  if (!record) return scoutedProjectFacts(projectSlug);
+  const base = await loadProjectFacts(record.basedOn);
+  return base ? { ...base, slug: record.id, name: record.name } : null;
 }
 
 /**
- * The project's stakeholders. Base project: data/ with the agent's replacements and additions on
- * top. A project opened from a draft: only its own stakeholders. Null for an unknown project.
+ * The building a project is about: the demo project's, or a scouted project's (by its id). A project opened from a
+ * draft is about the building of the project it was opened from. Null for an unknown project.
+ */
+export async function projectBuilding(projectSlug: string): Promise<{ kind: "demo" } | { kind: "scouted"; id: string } | null> {
+  if (projectSlug === PROJECT_SLUG) return { kind: "demo" };
+  const record = await getProjectRecord(projectSlug);
+  if (record) return projectBuilding(record.basedOn);
+  return (await getScoutedProject(projectSlug)) ? { kind: "scouted", id: projectSlug } : null;
+}
+
+/**
+ * The project's stakeholders. The demo project: data/ with the agent's replacements and additions on top. A project
+ * added from scouting: the firms research found, with the agent's changes on top. A project opened from a draft: only
+ * its own stakeholders. Null for an unknown project.
  */
 export async function loadProjectClients(projectSlug: string): Promise<Client[] | null> {
   const own = (await listRecords(CLIENTS, projectClientSchema))
     .filter((r) => r.projectSlug === projectSlug)
     .map((r) => r.client);
-  if (projectSlug === PROJECT_SLUG) {
-    const base = await loadClients();
-    const overrides = new Map(own.map((c) => [c.id, c]));
-    const merged = base.map((c) => overrides.get(c.id) ?? c);
-    const added = own.filter((c) => !base.some((b) => b.id === c.id));
-    return [...merged, ...added.sort((a, b) => a.id.localeCompare(b.id))];
-  }
-  if (!(await getProjectRecord(projectSlug))) return null;
-  return own.sort((a, b) => a.id.localeCompare(b.id));
+  const base =
+    projectSlug === PROJECT_SLUG
+      ? await loadClients()
+      : (await getProjectRecord(projectSlug))
+        ? []
+        : await scoutedStakeholders(projectSlug);
+  if (!base) return null;
+  const overrides = new Map(own.map((c) => [c.id, c]));
+  const merged = base.map((c) => overrides.get(c.id) ?? c);
+  const added = own.filter((c) => !base.some((b) => b.id === c.id));
+  return [...merged, ...added.sort((a, b) => a.id.localeCompare(b.id))];
 }
 
 export async function loadProjectClient(projectSlug: string, clientId: string): Promise<Client | null> {
