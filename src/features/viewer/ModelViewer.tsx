@@ -9,6 +9,7 @@ import type { ModelInfo } from "@/features/model/schema";
 import { poseAt } from "@/features/shots/motion";
 import type { CameraPath } from "@/features/shots/schema";
 import { boxCenter, fitDistance, pathDuration, presetViews, VIEW_FOV } from "./camera-paths";
+import { VIEWER_STYLES, type Look, type ViewerStyle } from "./styles";
 
 type Props = {
   model: ModelInfo;
@@ -18,6 +19,8 @@ type Props = {
   loop?: boolean;
   /** Orbit, zoom, pan and view buttons. Grabbing the model stops the camera path; Replay restarts it. */
   interactive?: boolean;
+  /** The scene look around the model. "night" is the default; "daylight" is the bright sky-and-sun version. */
+  style?: ViewerStyle;
   className?: string;
 };
 
@@ -25,7 +28,8 @@ type Box = ModelInfo["boundingBox"];
 type Goal = { position: [number, number, number]; target: [number, number, number]; id: number };
 
 /** The shared 3D view. The proposal teaser and the shot preview both play camera paths through it. */
-export function ModelViewer({ model, path, loop = true, interactive = true, className }: Props) {
+export function ModelViewer({ model, path, loop = true, interactive = true, style = "night", className }: Props) {
+  const look = VIEWER_STYLES[style];
   const [userControl, setUserControl] = useState(false);
   const [replay, setReplay] = useState(0);
   const [goal, setGoal] = useState<Goal | null>(null);
@@ -51,17 +55,17 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
     <div className={className}>
       <div className="relative h-full w-full overflow-hidden">
         <Canvas camera={{ fov: path.fov, near: 0.5, far: 20000 }} dpr={[1, 2]} className="!absolute inset-0">
-          <color attach="background" args={["#0d1015"]} />
-          <fog attach="fog" args={["#0d1015", span * 2.5, span * 7]} />
-          <hemisphereLight args={["#e4ecf7", "#3a404a", 1.3]} />
-          <directionalLight position={[center[0] + span, span * 1.2, center[2] + span * 0.6]} intensity={1.6} />
+          <color attach="background" args={[look.background]} />
+          <fog attach="fog" args={[look.fog, span * 2.5, span * 7]} />
+          <hemisphereLight args={[look.sky, look.ground, look.hemiIntensity]} />
+          <directionalLight position={[center[0] + span, span * 1.2, center[2] + span * 0.6]} color={look.keyLight} intensity={look.keyIntensity} />
           {/* Fill from the north-west, so the side away from the sun still reads */}
-          <directionalLight position={[center[0] - span, span * 0.8, center[2] - span]} intensity={0.9} />
-          <Ground box={box} span={span} />
-          <Suspense fallback={<Massing box={box} />}>
-            {model.url ? <BuiltModel url={model.url} /> : <Massing box={box} />}
+          <directionalLight position={[center[0] - span, span * 0.8, center[2] - span]} color={look.fillLight} intensity={look.fillIntensity} />
+          <Ground box={box} span={span} look={look} />
+          <Suspense fallback={<Massing box={box} look={look} />}>
+            {model.url ? <BuiltModel url={model.url} /> : <Massing box={box} look={look} />}
           </Suspense>
-          <ContactShadows position={[0, 0.02, 0]} scale={span * 1.6} far={box.max[1]} blur={2.5} opacity={0.55} resolution={1024} />
+          <ContactShadows position={[0, 0.02, 0]} scale={span * 1.6} far={box.max[1]} blur={2.5} opacity={look.shadowOpacity} resolution={1024} />
           {interactive && <CompassDriver onHeading={turnDial} />}
           {interactive && (
             <OrbitControls
@@ -130,35 +134,35 @@ function BuiltModel({ url }: { url: string }) {
 }
 
 /** Gray-box stand-in shown until the model builder has produced a GLB. */
-function Massing({ box }: { box: Box }) {
+function Massing({ box, look }: { box: Box; look: Look }) {
   const size: [number, number, number] = [box.max[0] - box.min[0], box.max[1] - box.min[1], box.max[2] - box.min[2]];
   return (
     <mesh position={boxCenter(box)}>
       <boxGeometry args={size} />
       <meshStandardMaterial color="#8b939e" />
-      <Edges color="#e8edf2" />
+      <Edges color={look.massingEdge} />
     </mesh>
   );
 }
 
-/** A dark ground with a faint 10 m grid, for a sense of scale. */
-function Ground({ box, span }: { box: Box; span: number }) {
+/** A ground with a faint 10 m grid, for a sense of scale. Colours come from the viewer style. */
+function Ground({ box, span, look }: { box: Box; span: number; look: Look }) {
   const [cx, , cz] = boxCenter(box);
   return (
     <>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, -0.05, cz]}>
         <planeGeometry args={[span * 14, span * 14]} />
-        <meshStandardMaterial color="#161a20" />
+        <meshStandardMaterial color={look.groundPlane} />
       </mesh>
       <Grid
         position={[cx, 0.01, cz]}
         args={[span * 4, span * 4]}
         cellSize={10}
         cellThickness={0.5}
-        cellColor="#262c35"
+        cellColor={look.gridCell}
         sectionSize={50}
         sectionThickness={0.9}
-        sectionColor="#323a46"
+        sectionColor={look.gridSection}
         fadeDistance={span * 2.2}
         fadeStrength={1.5}
         infiniteGrid
