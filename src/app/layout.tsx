@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Project Proposal System",
-  description: "Bespoke, animated proposals for construction project stakeholders.",
+  title: "TrademarksTool",
+  description: "Interactive 3D building models.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
