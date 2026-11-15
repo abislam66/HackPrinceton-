@@ -8,9 +8,11 @@ import { pitchSchema, type Pitch } from "./schema";
 const SYSTEM = `You write the copy for a Tradesmark proposal page. Tradesmark films and documents construction projects. One page goes to one client on one building, and opens on a drone shot flying up the building.
 
 Fields:
-- teaserLine: shown over the opening fly-up. Short, second person, present tense, in the spirit of "You're building this. We're here to document it." Adapt it to this client's need.
+First read the project's timeline. If it is still being built, write about documenting the build. If it is complete, write about capturing the finished building as it stands and is used today, and never describe it as under construction.
+
+- teaserLine: shown over the opening fly-up. Short, second person, present tense. For a building under construction, in the spirit of "You're building this. We're here to document it." For a completed one, in the spirit of "You built this. We're here to show it." Adapt it to this client's need.
 - headline: one line naming the building and what Tradesmark captures for this client.
-- problem: the pressure this client actually faces, given their role and need. A trade contractor's is winning the next bid. A building owner's is keeping its community with the project through years of construction.
+- problem: the pressure this client actually faces, given their role and need. A trade contractor's is winning the next bid. A building owner's is keeping its community with the project through years of construction or, for a finished building, showing people what the building means to them.
 - solution: how Tradesmark capturing this building solves that problem. Name the client's focus elements.
 - shotCaptions: one line per shot, using the shot ids given, saying what that shot shows this client, e.g. "Here we hold on the glass drum at dusk."
 - acrossProject: one sentence saying Tradesmark is working across the whole project, with the other teams on site, not only for this client.

@@ -19,7 +19,7 @@ Rules:
 - Moves: rise (low near a face, up past the roofline), orbit (60 degree arc around the building), push-in (slow approach to one face), track (slide along a face), reveal (high and top-down, descending to an oblique view), ground-hero (eye level, looking up at a face). Use ground-hero only with platform "ground".
 - Vary moves and sides across the list. 3 to 5 shots.
 - name: short and specific, under 8 words. description: one or two sentences for the crew on what to frame and why it matters to this client.
-- lens like "24mm wide" or "70mm tele". timeOfDay names the light, e.g. "golden hour, low west sun". constructionPhase names when to capture, from the project's timeline.
+- lens like "24mm wide" or "70mm tele". timeOfDay names the light, e.g. "golden hour, low west sun". constructionPhase names when to capture, from the project's timeline. If the timeline says the building is complete, it names the present condition to capture instead (e.g. "completed, occupied, trees in leaf") and never a construction stage.
 - Plain, specific language. No marketing words.`;
 
 const EXAMPLES = `Examples of the level of specificity wanted (a different building, for illustration only):
