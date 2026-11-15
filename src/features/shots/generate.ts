@@ -47,7 +47,7 @@ export async function generateShots(input: { project: Project; client: Client; m
   const [firstSide, ...otherSides] = model.knownSides;
   if (!firstSide) throw new Error("The model has no side with real reference, so no shot can be framed");
   const schema = responseSchema([firstSide, ...otherSides]);
-  const obstacles = await loadObstacles(model.boundingBox);
+  const obstacles = await loadShotObstacles(model.boundingBox);
 
   const [minX, minY, minZ] = model.boundingBox.min;
   const [maxX, maxY, maxZ] = model.boundingBox.max;
@@ -99,7 +99,7 @@ function round(v: number): number {
  * Neighboring buildings from project.json's `context`, the same ones the model shows. The parsed
  * Project drops these keys, so this reads the file directly. No file or no context means none.
  */
-async function loadObstacles(box: ModelInfo["boundingBox"]): Promise<Obstacle[]> {
+export async function loadShotObstacles(box: ModelInfo["boundingBox"]): Promise<Obstacle[]> {
   try {
     const raw = await readFile(path.join(process.cwd(), "data", PROJECT_SLUG, "project.json"), "utf8");
     return obstaclesFromProject(JSON.parse(raw), box);

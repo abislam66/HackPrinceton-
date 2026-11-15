@@ -1,5 +1,6 @@
 import type { buildingSides, ModelInfo, ModelMetadata } from "@/features/model/schema";
 import type { ShotIntent } from "./intent";
+import { poseAt } from "./motion";
 import { shotListSchema, type CameraKeyframe, type CameraPath, type Shot } from "./schema";
 
 /*
@@ -278,8 +279,8 @@ const METERS_PER_DEG_LAT = 110_574;
 const CONTEXT_RADIUS_M = 220;
 const CONTEXT_LEVEL_HEIGHT_M = 3.2;
 const CONTEXT_DEFAULT_HEIGHT_M = 10;
-/** Samples per keyframe segment when checking the view while the camera moves. */
-const SIGHT_SAMPLES = 8;
+/** How often the moving camera is checked, in seconds of the shot. */
+const SIGHT_STEP_SECONDS = 0.25;
 /** Share of the building's facing side that must stay unblocked at every moment of a shot. */
 const MIN_VISIBLE = 0.85;
 /** Grid of sight lines per facing side of the building (across x up). */
@@ -326,28 +327,25 @@ export function obstaclesFromProject(raw: unknown, box: Box): Obstacle[] {
 
 /** Problems where a neighbor blocks the view or the camera sits inside one, along the whole move. */
 function sightProblems(path: CameraPath, box: Box, obstacles: Obstacle[]): string[] {
-  if (obstacles.length === 0) return [];
   const problems = new Set<string>();
-  const frames = path.keyframes;
-  for (let i = 0; i < frames.length; i++) {
-    const a = frames[i];
-    const b = frames[Math.min(i + 1, frames.length - 1)];
-    const samples = i === frames.length - 1 ? 1 : SIGHT_SAMPLES;
-    for (let k = 0; k < samples; k++) {
-      const s = k / SIGHT_SAMPLES;
-      const camera = lerp(a.position, b.position, s);
-      const target = lerp(a.target, b.target, s);
-      // Stop just short of the target, which sits on the building's own face.
-      const end = lerp(camera, target, 0.98);
-      for (const o of obstacles) {
-        if (inside(camera, o)) problems.add(`camera passes through ${o.name}`);
-        else if (segmentHitsBox(camera, end, o)) problems.add(`${o.name} blocks the view after keyframe ${i}`);
-      }
-      const seen = visibleFraction(camera, box, obstacles);
-      if (seen < MIN_VISIBLE) {
-        problems.add(`only ${Math.round(seen * 100)}% of the building is in clear view after keyframe ${i}`);
-      }
+  // Sample the motion the viewer actually plays (the spline in motion.ts), not straight lines.
+  const duration = path.keyframes[path.keyframes.length - 1].t;
+  const steps = Math.max(1, Math.ceil(duration / SIGHT_STEP_SECONDS));
+  for (let k = 0; k <= steps; k++) {
+    const t = (duration * k) / steps;
+    const { position: camera, target } = poseAt(path, t);
+    const when = `at ${t.toFixed(1)} s`;
+    if (insideExpanded(camera, box, POSITION_CLEARANCE)) problems.add(`camera within ${POSITION_CLEARANCE} m of the building ${when}`);
+    if (camera[1] < MIN_CAMERA_Y) problems.add(`camera below ${MIN_CAMERA_Y} m ${when}`);
+    if (obstacles.length === 0) continue;
+    // Stop just short of the target, which sits on the building's own face.
+    const end = lerp(camera, target, 0.98);
+    for (const o of obstacles) {
+      if (inside(camera, o, POSITION_CLEARANCE)) problems.add(`camera within ${POSITION_CLEARANCE} m of ${o.name}`);
+      else if (segmentHitsBox(camera, end, o)) problems.add(`${o.name} blocks the view ${when}`);
     }
+    const seen = visibleFraction(camera, box, obstacles);
+    if (seen < MIN_VISIBLE) problems.add(`only ${Math.round(seen * 100)}% of the building is in clear view ${when}`);
   }
   return [...problems];
 }
@@ -398,8 +396,8 @@ export function segmentHitsBox(a: Vec3, b: Vec3, o: Pick<Obstacle, "min" | "max"
   return true;
 }
 
-function inside(p: Vec3, o: Obstacle): boolean {
-  return p.every((v, axis) => v >= o.min[axis] && v <= o.max[axis]);
+function inside(p: Vec3, o: Obstacle, margin = 0): boolean {
+  return p.every((v, axis) => v >= o.min[axis] - margin && v <= o.max[axis] + margin);
 }
 
 function lerp(a: Vec3, b: Vec3, s: number): Vec3 {
