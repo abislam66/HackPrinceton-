@@ -2,15 +2,21 @@ import { notFound } from "next/navigation";
 import { loadModelInfo } from "@/features/model/load";
 import { loadProjectFacts } from "@/features/project-agent/store";
 import { getProposal } from "@/features/proposal/store";
+import { loadShotObstacles } from "@/features/shots/generate";
 import { ProposalTracker } from "@/features/tracking/ProposalTracker";
-import { teaserPath } from "@/features/viewer/camera-paths";
-import { ModelViewer } from "@/features/viewer/ModelViewer";
 import { findStakeholder } from "@/features/workspace/status";
+import { ProposalBrief } from "./_components/ProposalBrief";
+import { buildProposalData } from "./_components/proposal-data";
 
+/**
+ * The client's proposal page: the opening flight, the pitch, the shot plan, and Book a call. Opens, watch time and
+ * the Book a call click are tracked, except on internal previews (`?preview=1`).
+ */
 export default async function ProposalPage({ params, searchParams }: PageProps<"/proposals/[client]">) {
   const { client: clientId } = await params;
   // Internal previews (?preview=1) must not count as client activity.
   const isPreview = (await searchParams).preview === "1";
+
   // The URL carries only the client; its project is the one that holds this stakeholder id.
   const found = await findStakeholder(clientId);
   if (!found) notFound();
@@ -22,37 +28,13 @@ export default async function ProposalPage({ params, searchParams }: PageProps<"
     getProposal(clientId, projectSlug),
   ]);
   if (!project) notFound();
+  const obstacles = await loadShotObstacles(model.boundingBox);
 
+  const data = buildProposalData({ client, project, model, proposal, obstacles });
   return (
-    <main className="flex flex-1 flex-col">
+    <>
       {isPreview ? null : <ProposalTracker clientId={client.id} />}
-      <section className="relative h-[80vh] min-h-96">
-        <ModelViewer model={model} path={teaserPath(model.boundingBox)} loop={false} className="absolute inset-0" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 p-6 sm:p-10">
-          <p className="text-sm text-zinc-300">
-            {client.company} · {project.name}
-          </p>
-          {proposal ? <p className="mt-2 max-w-2xl text-3xl font-semibold">{proposal.pitch.teaserLine}</p> : null}
-        </div>
-      </section>
-
-      <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-16">
-        {proposal ? (
-          <>
-            <h1 className="text-3xl font-semibold">{proposal.pitch.headline}</h1>
-            <p className="text-lg text-zinc-300">{proposal.pitch.problem}</p>
-            <p className="text-lg text-zinc-300">{proposal.pitch.solution}</p>
-          </>
-        ) : (
-          <p className="text-zinc-400">
-            No proposal has been generated for {client.company} yet. POST /api/proposals/{client.id}/generate to create
-            one.
-          </p>
-        )}
-        {model.url ? null : (
-          <p className="text-sm text-zinc-500">Showing a gray-box stand-in. The model builder has not produced a model yet.</p>
-        )}
-      </section>
-    </main>
+      <ProposalBrief data={data} track={!isPreview} />
+    </>
   );
 }
