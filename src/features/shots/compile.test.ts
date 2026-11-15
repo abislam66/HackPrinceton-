@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildingSides, PLACEHOLDER_BOUNDING_BOX, type ModelMetadata } from "@/features/model/schema";
-import { checkCameraPath, compileCameraPath, compileShot, compileShotList, lensToFov, obstaclesFromProject, segmentHitsBox } from "./compile";
+import { checkCameraPath, compileCameraPath, compileShot, compileShotList, lensToFov, obstaclesFromProject, segmentHitsBox, visibleFraction } from "./compile";
 import { shotMoves, type ShotIntent } from "./intent";
 import { shotListSchema } from "./schema";
 
@@ -168,5 +168,17 @@ describe("neighbors", () => {
   it("returns no obstacles without context", () => {
     expect(obstaclesFromProject({}, box)).toEqual([]);
     expect(obstaclesFromProject(null, box)).toEqual([]);
+  });
+});
+
+describe("visibleFraction", () => {
+  const box = PLACEHOLDER_BOUNDING_BOX;
+  it("is 1 with nothing in the way and drops when a low block hides the base", () => {
+    const low = { name: "Low Hall", min: [-40, 0, 40] as [number, number, number], max: [40, 20, 60] as [number, number, number] };
+    expect(visibleFraction([0, 1.6, 120], box, [])).toBe(1);
+    const seen = visibleFraction([0, 1.6, 120], box, [low]);
+    expect(seen).toBeLessThan(0.85);
+    expect(seen).toBeGreaterThan(0);
+    expect(visibleFraction([0, 120, 120], box, [low])).toBe(1);
   });
 });

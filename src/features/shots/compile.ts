@@ -150,7 +150,8 @@ export function compileCameraPath(intent: ShotIntent, box: Box): CameraPath {
       // Eye height near the base, low angle up at the face, with a slow drift in. A person on the
       // street stands close; from far out at eye level the neighbors would fill the frame.
       const lat = f.halfLateral * 0.1;
-      const g = clamp(f.height * 0.4, 12, d);
+      // A quarter of the drone distance, so closer retries really move it in toward the base.
+      const g = clamp(d * 0.25, 10, d);
       keyframes = [
         { t: 0, position: f.offFace(g, -lat, EYE_HEIGHT), target: f.onFace(0, f.y(0.6)) },
         { t: T * 0.5, position: f.offFace(g * 0.9, 0, EYE_HEIGHT), target: f.onFace(0, f.y(0.65)) },
@@ -169,7 +170,7 @@ export function compileCameraPath(intent: ShotIntent, box: Box): CameraPath {
 /** Returns every invariant the path breaks; empty means it is safe to play. */
 export function checkCameraPath(path: CameraPath, box: Box, obstacles: Obstacle[] = []): string[] {
   const problems: string[] = [];
-  problems.push(...sightProblems(path, obstacles));
+  problems.push(...sightProblems(path, box, obstacles));
   path.keyframes.forEach((k, i) => {
     if (insideExpanded(k.position, box, POSITION_CLEARANCE)) {
       problems.push(`keyframe ${i}: camera within ${POSITION_CLEARANCE} m of the building`);
@@ -279,6 +280,10 @@ const CONTEXT_LEVEL_HEIGHT_M = 3.2;
 const CONTEXT_DEFAULT_HEIGHT_M = 10;
 /** Samples per keyframe segment when checking the view while the camera moves. */
 const SIGHT_SAMPLES = 8;
+/** Share of the building's facing side that must stay unblocked at every moment of a shot. */
+const MIN_VISIBLE = 0.85;
+/** Grid of sight lines per facing side of the building (across x up). */
+const VIS_GRID: [number, number] = [5, 7];
 
 type LngLat = [number, number];
 type ContextItem = { footprint?: unknown; heightM?: unknown; levels?: unknown; name?: unknown };
@@ -320,7 +325,7 @@ export function obstaclesFromProject(raw: unknown, box: Box): Obstacle[] {
 }
 
 /** Problems where a neighbor blocks the view or the camera sits inside one, along the whole move. */
-function sightProblems(path: CameraPath, obstacles: Obstacle[]): string[] {
+function sightProblems(path: CameraPath, box: Box, obstacles: Obstacle[]): string[] {
   if (obstacles.length === 0) return [];
   const problems = new Set<string>();
   const frames = path.keyframes;
@@ -338,9 +343,39 @@ function sightProblems(path: CameraPath, obstacles: Obstacle[]): string[] {
         if (inside(camera, o)) problems.add(`camera passes through ${o.name}`);
         else if (segmentHitsBox(camera, end, o)) problems.add(`${o.name} blocks the view after keyframe ${i}`);
       }
+      const seen = visibleFraction(camera, box, obstacles);
+      if (seen < MIN_VISIBLE) {
+        problems.add(`only ${Math.round(seen * 100)}% of the building is in clear view after keyframe ${i}`);
+      }
     }
   }
   return [...problems];
+}
+
+/**
+ * Share of the building's camera-facing sides (a grid of points on each) that the camera can see
+ * without a neighbor in the way. 1 when nothing blocks it.
+ */
+export function visibleFraction(camera: Vec3, box: Box, obstacles: Obstacle[]): number {
+  if (obstacles.length === 0) return 1;
+  const points: Vec3[] = [];
+  for (const axis of [0, 2]) {
+    const face = camera[axis] > box.max[axis] ? box.max[axis] : camera[axis] < box.min[axis] ? box.min[axis] : null;
+    if (face === null) continue;
+    const across = axis === 0 ? 2 : 0;
+    for (let i = 0; i < VIS_GRID[0]; i++) {
+      for (let j = 0; j < VIS_GRID[1]; j++) {
+        const p: Vec3 = [0, 0, 0];
+        p[axis] = face;
+        p[across] = box.min[across] + ((box.max[across] - box.min[across]) * (i + 0.5)) / VIS_GRID[0];
+        p[1] = box.min[1] + ((box.max[1] - box.min[1]) * (j + 0.5)) / VIS_GRID[1];
+        points.push(p);
+      }
+    }
+  }
+  if (points.length === 0) return 1;
+  const clear = points.filter((p) => !obstacles.some((o) => segmentHitsBox(camera, lerp(camera, p, 0.99), o)));
+  return clear.length / points.length;
 }
 
 /** Slab test: does the segment a-b cross the box? */
