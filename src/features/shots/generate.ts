@@ -1,9 +1,11 @@
 import "server-only";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { z } from "zod";
 import type { ModelInfo } from "@/features/model/schema";
 import { callStructured } from "@/features/proposal/llm";
-import type { Client, Project } from "@/features/project/schema";
-import { compileShotList } from "./compile";
+import { PROJECT_SLUG, type Client, type Project } from "@/features/project/schema";
+import { compileShotList, obstaclesFromProject, type Obstacle } from "./compile";
 import { shotIntentSchema, shotMoves, type ShotIntent } from "./intent";
 import type { Shot } from "./schema";
 
@@ -15,7 +17,7 @@ Rules:
 - Every shot serves this client's need and frames their focus elements. A glazing contractor gets glass, a university gets campus context. Two clients on the same building must get visibly different lists.
 - Use only the sides listed in allowedSides. Other sides have no real reference.
 - Use only facts from the project and client given. Never invent features of the building.
-- You choose the move and framing; code computes the camera path. distance is a multiple of the building's largest dimension (1.2 close, 4 far). height is a multiple of the building's height (0 ground, 1 roofline, 1.6 well above).
+- You choose the move and framing; code computes the camera path. distance is a multiple of the building's largest dimension (1.2 close, 4 far). height is a multiple of the building's height (0 ground, 1 roofline, 1.6 well above). Neighboring buildings surround the site, so keep shots below the roofline close (distance under 2); far-out views need height to clear them.
 - Moves: rise (low near a face, up past the roofline), orbit (60 degree arc around the building), push-in (slow approach to one face), track (slide along a face), reveal (high and top-down, descending to an oblique view), ground-hero (eye level, looking up at a face). Use ground-hero only with platform "ground".
 - Vary moves and sides across the list. 3 to 5 shots.
 - name: short and specific, under 8 words. description: one or two sentences for the crew on what to frame and why it matters to this client.
@@ -45,6 +47,7 @@ export async function generateShots(input: { project: Project; client: Client; m
   const [firstSide, ...otherSides] = model.knownSides;
   if (!firstSide) throw new Error("The model has no side with real reference, so no shot can be framed");
   const schema = responseSchema([firstSide, ...otherSides]);
+  const obstacles = await loadObstacles(model.boundingBox);
 
   const [minX, minY, minZ] = model.boundingBox.min;
   const [maxX, maxY, maxZ] = model.boundingBox.max;
@@ -68,14 +71,14 @@ export async function generateShots(input: { project: Project; client: Client; m
   const user = `${EXAMPLES}\n\nPlan the shot list for this brief:\n${JSON.stringify(brief, null, 2)}`;
 
   let intents = await requestIntents(schema, user);
-  let compiled = compileShotList(intents, model, client.id);
+  let compiled = compileShotList(intents, model, client.id, obstacles);
   if (compiled.shots.length < MIN_SHOTS) {
     const reasons = compiled.dropped.map((d) => `"${d.name}": ${d.reasons.join("; ")}`).join("\n");
     intents = await requestIntents(
       schema,
       `${user}\n\nOnly ${compiled.shots.length} of your shots could be used. These were rejected:\n${reasons}\nReturn a full list that avoids these problems.`,
     );
-    compiled = compileShotList(intents, model, client.id);
+    compiled = compileShotList(intents, model, client.id, obstacles);
   }
   if (compiled.shots.length < MIN_SHOTS) {
     throw new Error(`Only ${compiled.shots.length} usable shots after a retry`);
@@ -90,4 +93,18 @@ async function requestIntents(schema: ReturnType<typeof responseSchema>, user: s
 
 function round(v: number): number {
   return Math.round(v * 10) / 10;
+}
+
+/**
+ * Neighboring buildings from project.json's `context`, the same ones the model shows. The parsed
+ * Project drops these keys, so this reads the file directly. No file or no context means none.
+ */
+async function loadObstacles(box: ModelInfo["boundingBox"]): Promise<Obstacle[]> {
+  try {
+    const raw = await readFile(path.join(process.cwd(), "data", PROJECT_SLUG, "project.json"), "utf8");
+    return obstaclesFromProject(JSON.parse(raw), box);
+  } catch (error) {
+    console.error("Could not read neighbors from project.json; shots are checked against the building only.", error);
+    return [];
+  }
 }

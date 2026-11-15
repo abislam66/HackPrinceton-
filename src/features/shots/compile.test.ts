@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildingSides, PLACEHOLDER_BOUNDING_BOX, type ModelMetadata } from "@/features/model/schema";
-import { checkCameraPath, compileCameraPath, compileShot, compileShotList, lensToFov } from "./compile";
+import { checkCameraPath, compileCameraPath, compileShot, compileShotList, lensToFov, obstaclesFromProject, segmentHitsBox } from "./compile";
 import { shotMoves, type ShotIntent } from "./intent";
 import { shotListSchema } from "./schema";
 
@@ -122,5 +122,51 @@ describe("compileShotList", () => {
     expect(shots[0].name).toBe("kept 0");
     expect(dropped).toHaveLength(1);
     expect(shotListSchema.safeParse(shots).success).toBe(true);
+  });
+});
+
+describe("neighbors", () => {
+  const box = PLACEHOLDER_BOUNDING_BOX;
+  // A 30 m tall block 60-80 m south of the face: in the way of low views from far out.
+  const wall = { name: "Test Hall", min: [-60, 0, 75] as [number, number, number], max: [60, 30, 95] as [number, number, number] };
+
+  it("detects a segment crossing a box, and one passing over it", () => {
+    expect(segmentHitsBox([0, 5, 200], [0, 5, 15], wall)).toBe(true);
+    expect(segmentHitsBox([0, 60, 200], [0, 40, 15], wall)).toBe(false);
+  });
+
+  it("flags a far, low shot that a neighbor blocks", () => {
+    const path = compileCameraPath(intent({ move: "push-in", distance: 4, height: 0.1 }), box);
+    expect(checkCameraPath(path, box, [wall]).join("\n")).toMatch(/Test Hall/);
+  });
+
+  it("adjusts a blocked shot until it is clear, or drops it with the reason", () => {
+    const model = { boundingBox: box, knownSides: ["south" as const] };
+    for (const move of shotMoves) {
+      const result = compileShot(intent({ move, distance: 3, height: 0.2 }), model, [wall]);
+      if (result.ok) expect(checkCameraPath(result.shot.camera, box, [wall])).toEqual([]);
+      else expect(result.reasons.join("\n")).toMatch(/Test Hall/);
+    }
+  });
+
+  it("places neighbors in the model builder's frame and skips the subject building", () => {
+    // A 0.001° square site with a neighbor 0.002° east; the site maps onto the model box.
+    const site = [[-75.0005, 40.0005], [-74.9995, 40.0005], [-74.9995, 39.9995], [-75.0005, 39.9995]];
+    const east = [[-74.9985, 40.0002], [-74.9975, 40.0002], [-74.9975, 39.9998], [-74.9985, 39.9998]];
+    const half = 0.0005 * 111_320 * Math.cos((40 * Math.PI) / 180);
+    const siteBox = { min: [-half, 0, -55] as [number, number, number], max: [half, 50, 55] as [number, number, number] };
+    const obstacles = obstaclesFromProject(
+      { footprint: site, context: [{ footprint: site, heightM: 50 }, { footprint: east, levels: 5, name: "East Hall" }] },
+      siteBox,
+    );
+    expect(obstacles).toHaveLength(1);
+    expect(obstacles[0].name).toBe("East Hall");
+    expect(obstacles[0].max[1]).toBeCloseTo(16);
+    expect(obstacles[0].min[0]).toBeGreaterThan(half);
+  });
+
+  it("returns no obstacles without context", () => {
+    expect(obstaclesFromProject({}, box)).toEqual([]);
+    expect(obstaclesFromProject(null, box)).toEqual([]);
   });
 });
