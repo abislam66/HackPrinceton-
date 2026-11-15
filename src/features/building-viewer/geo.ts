@@ -35,22 +35,41 @@ export type LatLng = { lat: number; lng: number };
 /** Geocoding result: the point, or null with the reason shown to the model and the user. */
 export type GeocodeResult = { point: LatLng; status: "retrieved" } | { point: null; status: "not retrieved" };
 
-/** Google Geocoding. Never throws; a failure returns "not retrieved" so the run can continue. */
+/**
+ * Why a geocode failed, for the server log: Google's own status and error_message when it answered, the HTTP status
+ * when it didn't, or a missing key. Never the request URL (it carries the key) and never the address.
+ */
+function logGeocodeFailure(reason: string) {
+  console.warn(`building-viewer geocode not retrieved: ${reason}`);
+}
+
+/** Google Geocoding. Never throws; a failure returns "not retrieved" so the run can continue, and logs why. */
 export async function geocodeAddress(address: string, key: string | undefined): Promise<GeocodeResult> {
-  if (!key) return { point: null, status: "not retrieved" };
+  if (!key) {
+    logGeocodeFailure("no key configured (GOOGLE_MAPS_KEY is not set)");
+    return { point: null, status: "not retrieved" };
+  }
   try {
     const url = new URL(GEOCODE_URL);
     url.searchParams.set("address", address);
     url.searchParams.set("key", key);
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
-    if (!res.ok) return { point: null, status: "not retrieved" };
-    const data = (await res.json()) as { status?: string; results?: { geometry?: { location?: LatLng } }[] };
+    if (!res.ok) {
+      logGeocodeFailure(`HTTP ${res.status}`);
+      return { point: null, status: "not retrieved" };
+    }
+    const data = (await res.json()) as { status?: string; error_message?: string; results?: { geometry?: { location?: LatLng } }[] };
     const loc = data.results?.[0]?.geometry?.location;
     if (data.status !== "OK" || !loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) {
+      // Google's message describes the problem (e.g. "This IP ... is not authorized"). It doesn't echo the key or the
+      // address today; strip both anyway, so the log can never carry either.
+      const message = (data.error_message ?? "none").split(key).join("[key]").split(address).join("[address]").slice(0, 300);
+      logGeocodeFailure(`HTTP ${res.status}, status=${data.status ?? "missing"}, error_message=${message}`);
       return { point: null, status: "not retrieved" };
     }
     return { point: { lat: loc.lat, lng: loc.lng }, status: "retrieved" };
-  } catch {
+  } catch (error) {
+    logGeocodeFailure(`request failed (${(error as Error).name})`);
     return { point: null, status: "not retrieved" };
   }
 }
