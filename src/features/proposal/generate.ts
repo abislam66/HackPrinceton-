@@ -29,7 +29,7 @@ export async function generateProposal(clientId: string, projectSlug: string = P
   if (!client || !project) return { status: "unknown-client" };
 
   const live = (async () => {
-    const model = await loadStakeholderModel(clientId);
+    const model = await loadStakeholderModel(clientId, projectSlug);
     const shots = await generateShots({ project, client, model });
     const pitch = await generatePitch({ project, client, shots });
     const proposal: Proposal = { clientId, projectSlug, status: "draft", pitch, shots };

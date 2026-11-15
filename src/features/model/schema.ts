@@ -28,6 +28,8 @@ export type ModelInfo = {
   url: string | null;
   boundingBox: ModelMetadata["boundingBox"];
   knownSides: ModelMetadata["knownSides"];
+  /** A model the building viewer generated for a project other than the demo. Its neighbors are not the demo's. */
+  generated?: boolean;
 };
 
 /** Stand-in size used until the model builder has written a model. */

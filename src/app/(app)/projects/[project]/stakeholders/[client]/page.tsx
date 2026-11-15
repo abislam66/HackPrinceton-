@@ -20,7 +20,7 @@ export default async function StakeholderPage({
   const [project, status, model, query, drafts] = await Promise.all([
     loadProjectFacts(projectSlug),
     loadStakeholder(projectSlug, clientId),
-    loadStakeholderModel(clientId),
+    loadStakeholderModel(clientId, projectSlug),
     searchParams,
     listDrafts(projectSlug),
   ]);
