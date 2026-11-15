@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { ScoutedProjectModel } from "@/components/app/model/ScoutedProjectModel";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -21,7 +21,9 @@ function StageTag({ status }: { status: StakeholderStatus }) {
 export default async function ProjectStakeholdersPage({ params }: PageProps<"/projects/[project]">) {
   const { project: slug } = await params;
   const [project, stakeholders] = await Promise.all([loadProjectFacts(slug), loadStakeholders(slug)]);
-  if (!project) notFound();
+  // Not a demo or agent-opened project: one added from scouting, with no stakeholders yet, so its first tab is its
+  // model. (The model 404s for an unknown project.)
+  if (!project) return <ScoutedProjectModel slug={slug} />;
   const sent = stakeholders.filter((s) => s.stage === "sent").length;
   const base = `/projects/${slug}`;
 

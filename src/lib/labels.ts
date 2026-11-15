@@ -1,4 +1,6 @@
 import type { Client } from "@/features/project/schema";
+import type { ProjectStage } from "@/features/scout/schema";
+import type { FirmRole } from "@/lib/agent/schema";
 
 /*
  * UI copy for the pre-loaded stakeholder data. The data stores enums; screens show these labels.
@@ -20,6 +22,27 @@ export const NEED_LABEL: Record<Client["need"], string> = {
   "sales-and-bids": "Win more bids",
   "investor-and-owner-updates": "Update owners and investors",
   "community-and-pr": "Community and PR",
+};
+
+/** A firm's role on a researched project (scouting and the dossier). */
+export const FIRM_ROLE_LABEL: Record<FirmRole, string> = {
+  owner: "Owner",
+  developer: "Developer",
+  architect: "Architect",
+  "general-contractor": "General contractor",
+  "construction-manager": "Construction manager",
+  facade: "Facade",
+  "structural-engineer": "Structural engineer",
+  "mep-engineer": "MEP engineer",
+  "landscape-architect": "Landscape architect",
+  other: "Other firm",
+};
+
+/** Where a scouted project is. */
+export const STAGE_LABEL: Record<ProjectStage, string> = {
+  "under-construction": "Under construction",
+  "topped-out": "Topped out",
+  completed: "Completed",
 };
 
 /** Up to two initials from a company name, for avatars. Ignores a trailing "(placeholder)". */

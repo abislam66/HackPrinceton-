@@ -111,6 +111,21 @@ describe("outreach actions", () => {
     expect((await draftOutreach("client-a", { force: true })).status).toBe("ok");
   });
 
+  it("sends the operator's edits and keeps the proposal link in the body", async () => {
+    await draftOutreach("client-a");
+    const sent = await sendOutreach("client-a", {
+      edits: { subject: "  Morgan Hall North, on film  ", body: "Hi Sam,\n\nA short note with our proposal for you." },
+    });
+    if (sent.status !== "ok") throw new Error(sent.status);
+    expect(sent.message.subject).toBe("Morgan Hall North, on film");
+    expect(sent.message.body).toBe(
+      "Hi Sam,\n\nA short note with our proposal for you.\n\nThe proposal: http://localhost:3000/proposals/client-a?ref=email",
+    );
+    const body = Buffer.from(sends[0].split("\r\n\r\n")[1].replace(/\r\n/g, ""), "base64").toString("utf8");
+    expect(body).toContain("A short note with our proposal for you.");
+    expect(body).toContain("http://localhost:3000/proposals/client-a?ref=email");
+  });
+
   it("sends once when two sends race", async () => {
     await draftOutreach("client-b");
     const results = await Promise.all([sendOutreach("client-b"), sendOutreach("client-b")]);

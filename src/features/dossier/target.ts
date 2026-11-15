@@ -1,6 +1,7 @@
 import "server-only";
 import { loadProject } from "@/features/project/load";
 import { PROJECT_SLUG, type Project } from "@/features/project/schema";
+import { getScoutedProject } from "@/features/scout/projects";
 import { scoutResultSchema, type ScoutCandidate } from "@/features/scout/schema";
 import type { FirmRole } from "@/lib/agent/schema";
 import { readRecord, readSnapshot } from "@/lib/store/json-store";
@@ -79,13 +80,18 @@ function candidateTarget(candidate: ScoutCandidate): DossierTarget {
   };
 }
 
-/** The candidate from the latest stored scout run, else from the committed scout snapshot. */
+/**
+ * The candidate from the latest stored scout run, else from the committed scout snapshot, else from a project added
+ * from an earlier scout run (which keeps its own copy).
+ */
 async function findCandidate(id: string): Promise<ScoutCandidate | null> {
   const stored = await readRecord("scout", "latest", scoutResultSchema);
   const fromStore = stored?.candidates.find((c) => c.id === id);
   if (fromStore) return fromStore;
   const snapshot = await readSnapshot(SCOUT_SNAPSHOT, scoutResultSchema);
-  return snapshot?.candidates.find((c) => c.id === id) ?? null;
+  const fromSnapshot = snapshot?.candidates.find((c) => c.id === id);
+  if (fromSnapshot) return fromSnapshot;
+  return (await getScoutedProject(id))?.candidate ?? null;
 }
 
 /** The dossier target for a project id, or null when no such project is known. */

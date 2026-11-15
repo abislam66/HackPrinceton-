@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 import { ProjectTabs } from "@/components/app/ProjectTabs";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -6,6 +7,8 @@ import { Panel } from "@/components/ui/Panel";
 import { StatStrip } from "@/components/ui/StatStrip";
 import { KEY_FACTS, shortAddress } from "@/features/demo/building";
 import { listDrafts, loadProjectClients, loadProjectFacts } from "@/features/project-agent/store";
+import { scoutFacts, scoutPlace } from "@/features/scout/facts";
+import { getScoutedProject } from "@/features/scout/projects";
 import { ProjectAgent } from "@/components/project-agent/ProjectAgent";
 import { draftView } from "@/components/project-agent/draft-view";
 
@@ -17,6 +20,9 @@ import { draftView } from "@/components/project-agent/draft-view";
  * The project agent docks on the right of every tab once the main column (container `project`) is 1100 px wide,
  * and stays in view while the page scrolls. Narrower, it follows the tab's content and the header links down to it.
  * As part of the layout it survives tab switches, so a reply keeps streaming while the user looks around the project.
+ *
+ * A project added from scouting has no stakeholders for the agent to work on yet, so it shows what scouting knows
+ * and no agent.
  */
 export default async function ProjectOverviewLayout({ children, params }: LayoutProps<"/projects/[project]">) {
   const { project: slug } = await params;
@@ -25,7 +31,24 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
     loadProjectClients(slug),
     listDrafts(slug),
   ]);
-  if (!project || !clients) notFound();
+
+  if (!project || !clients) {
+    const scouted = await getScoutedProject(slug);
+    if (!scouted) notFound();
+    const c = scouted.candidate;
+    return (
+      <div className="@container flex flex-col p-8">
+        <ProjectHeader
+          name={c.name}
+          description={`${scoutPlace(c)} · ${c.buildingType}`}
+          facts={scoutFacts(c, { fit: false })}
+          tabs={<ProjectTabs base={`/projects/${slug}`} kind="scouted" />}
+        >
+          {children}
+        </ProjectHeader>
+      </div>
+    );
+  }
 
   const base = `/projects/${slug}`;
   const pending = drafts.filter((d) => d.status === "pending").map(draftView);
@@ -36,27 +59,19 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
       <div className="flex flex-col @min-[1100px]/project:flex-row @min-[1100px]/project:items-start">
         {/* A container, so the tabs' two-column views fold by the width they get, with the sidebar open or collapsed. */}
         <div className="@container flex min-w-0 flex-1 flex-col p-8 @min-[1100px]/project:pr-6">
-          <PageHeader
-            breadcrumbs={[{ label: "Projects", href: "/projects" }, { label: project.name }]}
-            title={project.name}
+          <ProjectHeader
+            name={project.name}
             description={shortAddress(project.address)}
+            facts={KEY_FACTS}
+            tabs={<ProjectTabs base={base} counts={{ stakeholders: clients.length }} />}
             actions={
               <Button href="#project-agent" className="@min-[1100px]/project:hidden">
                 Project agent
               </Button>
             }
-          />
-
-          <div className="flex flex-col gap-6">
-            <Panel flush>
-              <StatStrip label="Key facts" items={KEY_FACTS} />
-            </Panel>
-
-            {/* The tabs switch the views below, so they sit on the page, not inside the facts panel. */}
-            <ProjectTabs base={base} counts={{ stakeholders: clients.length }} />
-
+          >
             {children}
-          </div>
+          </ProjectHeader>
         </div>
 
         <aside
@@ -74,5 +89,44 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
         </aside>
       </div>
     </div>
+  );
+}
+
+/** The page header, the key facts panel, the tabs, then the tab's view. */
+function ProjectHeader({
+  name,
+  description,
+  facts,
+  tabs,
+  actions,
+  children,
+}: {
+  name: string;
+  description: string;
+  facts: { label: string; value: string }[];
+  tabs: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Projects", href: "/projects" }, { label: name }]}
+        title={name}
+        description={description}
+        actions={actions}
+      />
+
+      <div className="flex flex-col gap-6">
+        <Panel flush>
+          <StatStrip label="Key facts" items={facts} />
+        </Panel>
+
+        {/* The tabs switch the views below, so they sit on the page, not inside the facts panel. */}
+        {tabs}
+
+        {children}
+      </div>
+    </>
   );
 }

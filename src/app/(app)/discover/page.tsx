@@ -1,81 +1,35 @@
-import { ElevationGlyph, floorsFromText } from "@/components/ui/ElevationGlyph";
-import { MediaList, MediaRow } from "@/components/ui/MediaRow";
-import { PageHeader } from "@/components/ui/PageHeader";
-import { Panel } from "@/components/ui/Panel";
-import { WHY_IT_FITS, shortAddress } from "@/features/demo/building";
-import { SAMPLE_PROJECTS } from "@/features/demo/projects";
+import { MEASUREMENTS, WHY_IT_FITS, shortAddress } from "@/features/demo/building";
 import { loadProject } from "@/features/project/load";
 import { loadProjectClients } from "@/features/project-agent/store";
-import { cx } from "@/lib/cx";
+import { loadScoutResult } from "@/features/scout/load";
+import { replayFrom } from "@/lib/agent/replay-param";
+import { ScoutBoard } from "./_components/ScoutBoard";
 
-type Found = {
-  id: string;
-  name: string;
-  location: string;
-  why: string;
-  stakeholders: number;
-  /** Only the loaded project opens; the others are static rows, which MediaRow mutes. */
-  href?: string;
-};
-
-/*
- * What the scout searched for. Shown as plain text, not as filter chips: every project here matches all four, and
- * nothing records when the scout found each one, so a toggle would change nothing.
+/**
+ * Discover: the latest scout run (stored, else the committed snapshot) with the pre-loaded demo project first.
+ * `?replay=1` makes "Run scout" replay the last recorded run instead of searching live.
  */
-function ScoutCriteria() {
-  return (
-    <>
-      Scout criteria: Philadelphia · Finished buildings · Residential · Last <span className="app-num">7</span> days
-    </>
-  );
-}
-
-export default async function DiscoverPage() {
-  // The scout found the pre-loaded project. Its stakeholders include any the project agent added; projects opened
-  // from its drafts are copies, listed under Projects.
-  const project = await loadProject();
+export default async function DiscoverPage({ searchParams }: PageProps<"/discover">) {
+  // The pre-loaded project's stakeholders include any the project agent added; projects opened from its drafts are
+  // copies, listed under Projects.
+  const [project, scout, query] = await Promise.all([loadProject(), loadScoutResult(), searchParams]);
   const clients = (await loadProjectClients(project.slug)) ?? [];
 
-  const found: Found[] = [
-    {
-      id: project.slug,
-      name: project.name,
-      location: shortAddress(project.address),
-      why: WHY_IT_FITS,
-      stakeholders: clients.length,
-      href: `/projects/${project.slug}`,
-    },
-    ...SAMPLE_PROJECTS.map((p) => ({
-      id: p.id,
-      name: p.name,
-      location: p.location,
-      why: p.whyItFits,
-      stakeholders: p.stakeholders,
-    })),
-  ];
-
   return (
-    <div className="flex flex-col p-8">
-      <PageHeader title="Discover" description={<ScoutCriteria />} />
-
-      <Panel title="Projects" count={found.length} flush>
-        <MediaList>
-          {found.map((p) => (
-            <MediaRow
-              key={p.id}
-              href={p.href}
-              media={<ElevationGlyph floors={floorsFromText(p.why)} />}
-              title={p.name}
-              meta={`${p.location} · ${p.why}`}
-            >
-              <span className="text-xs whitespace-nowrap text-muted">
-                <span className={cx("app-num", p.href && "text-ink")}>{p.stakeholders}</span>{" "}
-                {p.stakeholders === 1 ? "stakeholder" : "stakeholders"}
-              </span>
-            </MediaRow>
-          ))}
-        </MediaList>
-      </Panel>
+    <div className="@container flex flex-col p-8">
+      <ScoutBoard
+        demo={{
+          href: `/projects/${project.slug}`,
+          name: project.name,
+          location: shortAddress(project.address),
+          why: WHY_IT_FITS,
+          floors: MEASUREMENTS.floors,
+          stakeholders: clients.length,
+          region: "philadelphia-main-line",
+        }}
+        initial={scout?.data ?? null}
+        replay={replayFrom(query)}
+      />
     </div>
   );
 }

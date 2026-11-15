@@ -7,6 +7,8 @@ import { Tag } from "@/components/ui/Tag";
 import { WHY_IT_FITS, shortAddress } from "@/features/demo/building";
 import { SAMPLE_PROJECTS } from "@/features/demo/projects";
 import { listProjects, loadProjectFacts } from "@/features/project-agent/store";
+import { loadProjectModel } from "@/features/scout/model";
+import { listScoutedProjects } from "@/features/scout/projects";
 import { loadStakeholders } from "@/features/workspace/status";
 import { cx } from "@/lib/cx";
 
@@ -45,12 +47,26 @@ async function projectRow(
 }
 
 export default async function ProjectsPage() {
-  const projects = await listProjects();
+  const [projects, scouted] = await Promise.all([listProjects(), listScoutedProjects()]);
   const names = new Map(projects.map((p) => [p.id, p.name]));
-  const loaded = (await Promise.all(projects.map((p) => projectRow(p, names)))).filter((r): r is ProjectRow => r !== null);
+  const [loaded, models] = await Promise.all([
+    Promise.all(projects.map((p) => projectRow(p, names))).then((rows) => rows.filter((r): r is ProjectRow => r !== null)),
+    Promise.all(scouted.map((p) => loadProjectModel(p.id))),
+  ]);
 
   const rows: ProjectRow[] = [
     ...loaded,
+    // Added from scouting: no stakeholders yet, so the status is whether its model is ready.
+    ...scouted.map((p, i) => ({
+      id: p.id,
+      name: p.candidate.name,
+      location: `${p.candidate.city}, ${p.candidate.state}`,
+      floors: p.candidate.floors,
+      stakeholders: 0,
+      sent: 0,
+      status: models[i] ? <Tag tone="ready">Model ready</Tag> : <Tag>New</Tag>,
+      href: `/projects/${p.id}`,
+    })),
     ...SAMPLE_PROJECTS.map((p) => ({
       id: p.id,
       name: p.name,

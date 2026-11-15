@@ -1,10 +1,11 @@
 import "server-only";
 import { PROJECT_SLUG } from "@/features/project/schema";
 import { markSent } from "@/features/workspace/state";
-import { draftEmail, type DraftSource } from "./draft";
+import { draftEmail, ensureUrl, type DraftSource } from "./draft";
 import { getAccount, getDeliverTo, gmailConfigured, isAllowedRecipient, sendEmail } from "./gmail";
 import {
   outreachOverviewSchema,
+  type EmailDraft,
   type OutreachMessage,
   type OutreachOverview,
 } from "./schema";
@@ -100,11 +101,23 @@ export function demoLine(intendedFor: OutreachMessage["intendedFor"]): string {
  * unless `resend`. Configuration problems leave the message untouched; a Gmail failure marks it
  * `failed` with the error.
  */
-export async function sendOutreach(clientId: string, opts: { resend?: boolean } = {}): Promise<SendOutcome> {
+export async function sendOutreach(
+  clientId: string,
+  opts: { resend?: boolean; edits?: EmailDraft } = {},
+): Promise<SendOutcome> {
   return withClientLock(clientId, async (): Promise<SendOutcome> => {
-    const message = await getMessage(clientId);
-    if (!message) return { status: "no-draft" };
-    if (message.status === "sent" && !opts.resend) return { status: "already-sent", message };
+    const stored = await getMessage(clientId);
+    if (!stored) return { status: "no-draft" };
+    if (stored.status === "sent" && !opts.resend) return { status: "already-sent", message: stored };
+
+    // The operator's edits from the send dialog replace the draft. The proposal link always stays in the body.
+    const message = opts.edits
+      ? await saveMessage({
+          ...stored,
+          subject: opts.edits.subject.trim(),
+          body: ensureUrl(opts.edits.body.trim(), stored.proposalUrl),
+        })
+      : stored;
 
     if (!gmailConfigured()) {
       return {
