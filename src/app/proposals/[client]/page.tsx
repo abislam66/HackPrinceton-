@@ -1,10 +1,10 @@
 import { notFound } from "next/navigation";
-import { loadModelInfo } from "@/features/model/load";
 import { loadProjectFacts } from "@/features/project-agent/store";
 import { getProposal } from "@/features/proposal/store";
 import { ProposalTracker } from "@/features/tracking/ProposalTracker";
 import { teaserPath } from "@/features/viewer/camera-paths";
 import { ModelViewer } from "@/features/viewer/ModelViewer";
+import { loadStakeholderModel } from "@/features/workspace/model";
 import { findStakeholder } from "@/features/workspace/status";
 
 export default async function ProposalPage({ params, searchParams }: PageProps<"/proposals/[client]">) {
@@ -18,7 +18,7 @@ export default async function ProposalPage({ params, searchParams }: PageProps<"
 
   const [project, model, proposal] = await Promise.all([
     loadProjectFacts(projectSlug),
-    loadModelInfo(),
+    loadStakeholderModel(clientId, projectSlug),
     getProposal(clientId, projectSlug),
   ]);
   if (!project) notFound();
