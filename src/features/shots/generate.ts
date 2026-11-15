@@ -45,6 +45,12 @@ function responseSchema(knownSides: [Side, ...Side[]], count: ShotCount) {
   });
 }
 
+/** Generated buildings get 4 to 6 shots; every other model keeps the default 3 to 5. */
+export const GENERATED_SHOT_COUNT: ShotCount = { min: 4, max: 6 };
+export function shotCountFor(model: Pick<ModelInfo, "generated">): ShotCount | undefined {
+  return model.generated ? GENERATED_SHOT_COUNT : undefined;
+}
+
 /** Clamps a requested count to 3..6 with min <= max. */
 export function normalizeShotCount(count: ShotCount = DEFAULT_SHOT_COUNT): ShotCount {
   const clampInt = (v: number) => Math.min(Math.max(Math.round(v), FLOOR_SHOTS), MAX_SHOT_COUNT);

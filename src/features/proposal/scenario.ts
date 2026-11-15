@@ -4,7 +4,7 @@ import { generatePitch } from "@/features/pitch/generate";
 import { loadClient, loadProject } from "@/features/project/load";
 import { needCategories, stakeholderRoles, type Client, type Project } from "@/features/project/schema";
 import type { ModelInfo } from "@/features/model/schema";
-import { generateShots } from "@/features/shots/generate";
+import { generateShots, shotCountFor } from "@/features/shots/generate";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { callStructured } from "./llm";
 import type { Proposal } from "./schema";
@@ -143,7 +143,7 @@ export async function planNewStakeholder(input: {
 }
 
 async function proposalFor(project: Project, client: Client, model: ModelInfo): Promise<Proposal> {
-  const shots = await generateShots({ project, client, model });
+  const shots = await generateShots({ project, client, model, shotCount: shotCountFor(model) });
   const pitch = await generatePitch({ project, client, shots });
   return { clientId: client.id, projectSlug: project.slug, status: "draft", pitch, shots };
 }
