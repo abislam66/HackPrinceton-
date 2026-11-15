@@ -4,19 +4,19 @@ import { ContactShadows, Edges, Grid, OrbitControls, useGLTF } from "@react-thre
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { type RefObject, Suspense, useMemo, useRef, useState } from "react";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import { Box3, DirectionalLight, PerspectiveCamera, Sphere, Vector3 } from "three";
+import { Box3, DirectionalLight, type Mesh, type Object3D, PerspectiveCamera, Sphere, Vector3 } from "three";
 import { GROUND_TOON } from "@/features/model/scene";
 import type { ModelInfo } from "@/features/model/schema";
 import { poseAt } from "@/features/shots/motion";
 import type { CameraPath } from "@/features/shots/schema";
 import { boxCenter, fitDistance, pathDuration, presetViews, VIEW_FOV } from "./camera-paths";
-import { applyHouseLook, toonMaterial } from "./house-look";
+import { FILLER_SEED, fillerBlocks, footprintOf, type GroundTriangle } from "./filler";
+import { applyHouseLook, fillerMesh, HOUSE_GROUND_RADIUS, HOUSE_SKY, skyMaterial, toonMaterial } from "./house-look";
 
-/** The building viewer's house stage (building-viewer/scaffold.html): its background, sun direction and ground. */
-const HOUSE_BACKGROUND = "#DC5527";
+/** The building viewer's house stage (building-viewer/scaffold.html): its sun direction. Sky and ground: house-look.ts. */
 const HOUSE_SUN = new Vector3(0.55, 0.75, 0.35).normalize();
-/** Covers the neighbours and streets, which reach 220 m from the building (geo.ts). */
-const HOUSE_GROUND_RADIUS = 260;
+/** The camera's far plane. The sky dome sits well inside it. */
+const CAMERA_FAR = 20000;
 
 type Props = {
   model: ModelInfo;
@@ -64,13 +64,15 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
         <Canvas
           key={house ? "house" : "studio"}
           shadows={house ? "percentage" : false}
-          camera={{ fov: path.fov, near: 0.5, far: 20000 }}
+          camera={{ fov: path.fov, near: 0.5, far: CAMERA_FAR }}
           dpr={[1, 2]}
           className="!absolute inset-0"
         >
           {house && model.url ? (
             <>
-              <color attach="background" args={[HOUSE_BACKGROUND]} />
+              {/* The horizon colour behind the sky, for the frame before the dome draws */}
+              <color attach="background" args={[HOUSE_SKY.horizon]} />
+              <HouseSky />
               {/* Outside Suspense, so the stand-in is lit while the GLB loads */}
               <HouseSun box={box} />
               <HouseGround />
@@ -160,7 +162,38 @@ export function ModelViewer({ model, path, loop = true, interactive = true, clas
 function HouseModel({ url }: { url: string }) {
   const { scene } = useGLTF(url);
   useMemo(() => applyHouseLook(scene), [scene]);
-  return <primitive object={scene} />;
+  // The filler town keeps clear of the real context and steps around any of it that reaches past its circle.
+  const filler = useMemo(() => fillerMesh(fillerBlocks(footprintOf(groundTriangles(scene)), FILLER_SEED)), [scene]);
+  return (
+    <>
+      <primitive object={scene} />
+      <primitive object={filler} />
+    </>
+  );
+}
+
+/** Every triangle of the loaded model, seen from above, in world metres: where the real model stands. */
+function groundTriangles(root: Object3D): GroundTriangle[] {
+  root.updateMatrixWorld(true);
+  const a = new Vector3();
+  const b = new Vector3();
+  const c = new Vector3();
+  const out: GroundTriangle[] = [];
+  root.traverse((o) => {
+    const mesh = o as Mesh;
+    if (!mesh.isMesh || mesh.name === "filler") return;
+    const position = mesh.geometry.getAttribute("position");
+    const index = mesh.geometry.getIndex();
+    const count = index ? index.count : position.count;
+    for (let k = 0; k + 2 < count; k += 3) {
+      const [ia, ib, ic] = index ? [index.getX(k), index.getX(k + 1), index.getX(k + 2)] : [k, k + 1, k + 2];
+      a.fromBufferAttribute(position, ia).applyMatrix4(mesh.matrixWorld);
+      b.fromBufferAttribute(position, ib).applyMatrix4(mesh.matrixWorld);
+      c.fromBufferAttribute(position, ic).applyMatrix4(mesh.matrixWorld);
+      out.push([a.x, a.z, b.x, b.z, c.x, c.z]);
+    }
+  });
+  return out;
 }
 
 /** Neighbours come from within 220 m of the building (geo.ts), so the sun's shadow covers that much around it. */
@@ -197,12 +230,34 @@ function HouseSun({ box }: { box: Box }) {
   );
 }
 
-/** The house ground: a toon disc in the locked ground colours, catching the sun's shadows. */
+/**
+ * The house ground: a toon disc in the locked ground colours, catching the sun's shadows. It runs out to the horizon
+ * and fades into the sky's haze there, so there is no edge to see.
+ */
 function HouseGround() {
-  const material = useMemo(() => toonMaterial(GROUND_TOON), []);
+  const ref = useRef<Mesh>(null);
+  const material = useMemo(() => toonMaterial(GROUND_TOON, { hazeTo: HOUSE_SKY.horizon }), []);
+  // Follow the camera across the ground, so the disc's edge is always out in the full haze.
+  useFrame(({ camera }) => {
+    ref.current?.position.set(camera.position.x, -0.05, camera.position.z);
+  });
   return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow material={material}>
-      <circleGeometry args={[HOUSE_GROUND_RADIUS, 96]} />
+    <mesh ref={ref} rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.05, 0]} receiveShadow material={material}>
+      <circleGeometry args={[HOUSE_GROUND_RADIUS, 128]} />
+    </mesh>
+  );
+}
+
+/** The house sky: a dome that follows the camera, so it is always all the way around. */
+function HouseSky() {
+  const ref = useRef<Mesh>(null);
+  const material = useMemo(() => skyMaterial(), []);
+  useFrame(({ camera }) => {
+    ref.current?.position.copy(camera.position);
+  });
+  return (
+    <mesh ref={ref} material={material} renderOrder={-1} frustumCulled={false}>
+      <sphereGeometry args={[CAMERA_FAR / 2, 32, 16]} />
     </mesh>
   );
 }

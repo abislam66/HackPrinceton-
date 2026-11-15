@@ -55,10 +55,31 @@ export function assembleViewer(scaffold: string, title: string, glb: Uint8Array)
   // Inside a JS string in a <script>: JSON escapes quotes and backslashes; < is escaped so "</script>" can't appear.
   const jsTitle = JSON.stringify(title).slice(1, -1).replace(/</g, "\\u003c");
   const htmlTitle = title.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+  return fillScaffold(scaffold, htmlTitle, jsTitle, Buffer.from(glb).toString("base64"));
+}
+
+/** The scaffold with already-escaped title strings and the base64 GLB put in its placeholders. */
+function fillScaffold(scaffold: string, htmlTitle: string, jsTitle: string, base64: string): string {
   return scaffold
     .replace(/<title>[^<]*<\/title>/, () => `<title>${htmlTitle}</title>`)
     .replace(`"${TITLE_PLACEHOLDER}"`, () => `"${jsTitle}"`)
-    .replace(`"${GLB_PLACEHOLDER}"`, () => `"${Buffer.from(glb).toString("base64")}"`);
+    .replace(`"${GLB_PLACEHOLDER}"`, () => `"${base64}"`);
+}
+
+/**
+ * A stored viewer page moved onto the current scaffold: its title and GLB are lifted out and put into today's
+ * scaffold, so a page generated before a stage change (the sky, the ground) shows the current one without a new
+ * generation. Only the strings the scaffold itself wrote are read, and each is checked to be what it was escaped to
+ * be, so nothing else from the stored page carries over. A page that isn't a filled scaffold (an older, code-writing
+ * generation) comes back unchanged.
+ */
+export function rebaseViewer(stored: string, scaffold: string): string {
+  if (!scaffold.includes(TITLE_PLACEHOLDER) || !scaffold.includes(GLB_PLACEHOLDER)) return stored;
+  const glb = stored.match(/const MODEL_GLB = "([A-Za-z0-9+/=]*)";/)?.[1];
+  const jsTitle = stored.match(/const SUBJECT = \{ title: "((?:[^"\\<\n]|\\.)*)" \};/)?.[1];
+  const htmlTitle = stored.match(/<title>([^<]*)<\/title>/)?.[1];
+  if (!glb || jsTitle === undefined || htmlTitle === undefined) return stored;
+  return fillScaffold(scaffold, htmlTitle, jsTitle, glb);
 }
 
 export type PromptValues = {

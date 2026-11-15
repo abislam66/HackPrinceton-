@@ -21,9 +21,10 @@
 .agent-thread {
   flex: 1;
 }
-/* Text keeps a readable measure; the column itself flexes. */
+/* Text keeps a readable measure, centred in the conversation column like the composer below it. */
 .agent-measure {
   max-width: 68ch;
+  margin-inline: auto;
 }
 .agent-desc {
   overflow-wrap: anywhere;
@@ -82,16 +83,22 @@
 
 /* ------------------------------------------------------------------ thread */
 
+/* The operator's prompt: a bubble on the right, so it never reads as the agent's words. The flatter corner points
+   at the speaker, the way a chat bubble's tail does. */
 .agent-prompt {
   position: relative;
   isolation: isolate;
-  padding: 2px 0 2px 16px;
-  border-left: 2px solid var(--tm-concrete);
+  align-self: flex-end;
+  max-width: min(85%, 56ch);
+  padding: 10px 16px;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--app-tint);
 }
 .agent-prompt::before {
   content: "";
   position: absolute;
-  inset: -4px -8px -4px 0;
+  inset: 0;
+  border-radius: inherit;
   z-index: -1;
   background: var(--app-status-running-fill);
   opacity: 0;
@@ -115,6 +122,7 @@
   line-clamp: 8;
 }
 .agent-more {
+  position: relative;
   min-height: 32px;
   margin-top: 4px;
   color: var(--app-muted);
@@ -143,6 +151,13 @@
 }
 .agent-reply li::marker {
   color: var(--app-muted);
+}
+
+/* 40 px hit area around the 32 px row. */
+.agent-more::after {
+  content: "";
+  position: absolute;
+  inset: -4px 0;
 }
 
 /* The run reference: a small row that points into the rail. */
@@ -265,7 +280,8 @@
   max-width: 68ch;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 16px;
+  /* Centred under the composer, the same column as the thread. */
+  margin: 16px auto 0;
 }
 .agent-quick-item {
   display: flex;
@@ -279,7 +295,9 @@
   background: var(--tm-sheet);
   text-align: left;
   cursor: pointer;
-  transition: border-color 150ms ease-out;
+  transition:
+    border-color 150ms ease-out,
+    transform 100ms ease-out;
 }
 @media (hover: hover) and (pointer: fine) {
   .agent-quick-item:hover {
@@ -287,8 +305,7 @@
   }
 }
 .agent-quick-item:active {
-  transform: scale(0.99);
-  transition: transform 100ms ease-out;
+  transform: scale(0.96);
 }
 .agent-quick-label {
   font-size: 13px;
@@ -475,6 +492,7 @@
 .agent-dock-inner {
   position: relative;
   max-width: 68ch;
+  margin-inline: auto;
 }
 
 /* ------------------------------------------------------------------ notice */

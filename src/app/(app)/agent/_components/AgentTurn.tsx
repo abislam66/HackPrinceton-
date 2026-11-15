@@ -36,7 +36,7 @@ export function AgentTurn(props: AgentTurnProps) {
       <li data-turn-id={turn.id} className="agent-measure flex flex-col gap-3">
         <Prompt text={turn.text} lit={lit} flashKey={flashKey} />
         {runs.length > 0 ? (
-          <ul className="flex flex-wrap gap-2" aria-label="Runs for this prompt">
+          <ul className="flex flex-wrap justify-end gap-2" aria-label="Runs for this prompt">
             {runs.map((run) => {
               const status = STATUS[run.status];
               const elapsed = formatElapsed(elapsedOf(run, now));

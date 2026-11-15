@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>House Scaffold</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #DC5527; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
+  html, body { margin: 0; height: 100%; background: #E6EEF2; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; }
   #c { display: block; width: 100%; height: 100%; touch-action: none; }
   .bar { position: fixed; left: 12px; right: 12px; top: 12px; display: flex; flex-wrap: wrap; gap: 8px; pointer-events: none; }
   .bar button { pointer-events: auto; border: 1.5px solid #1b1d33; background: #F4F1EA; color: #1b1d33; font-size: 14px; font-weight: 600;
@@ -41,10 +41,10 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
-renderer.setClearColor(0xDC5527);
+renderer.setClearColor(0xE6EEF2);
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(35, 1, 2, 6000);
+const camera = new THREE.PerspectiveCamera(35, 1, 2, 20000);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI * 0.495;
@@ -61,7 +61,12 @@ scene.add(sun); scene.add(sun.target);
 
 const hex = h => { const n = parseInt(h.replace("#", ""), 16); return new THREE.Vector3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255); };
 
-function toonMaterial(m) {
+/* LOCKED stage: a daytime sky, and a ground that fades into its haze far out (src/features/viewer/house-look.ts). */
+const SKY = { zenith: "#8FB8DE", horizon: "#E6EEF2" };
+const HAZE = { start: 1500, end: 8000 };   // metres from the camera: clear nearer than start, all sky haze from end
+const GROUND_RADIUS = 9500;                // the ground follows the camera, so it never ends
+
+function toonMaterial(m, hazeTo) {
   const p = Object.assign({ type: "toon", floor_h: 4, line_w: 0.35, mull: 3, mull_w: 0.2, major_n: 3, band_w: 0.7, z0: 0,
     grad: null, grad_z0: 0, grad_z1: 1, grad_max: 0 }, m);
   const curtain = p.type === "curtain";
@@ -75,15 +80,18 @@ function toonMaterial(m) {
     uP: { value: new THREE.Vector4(p.floor_h, p.line_w, p.mull, p.mull_w) },
     uQ: { value: new THREE.Vector3(p.major_n, p.band_w, p.z0) },
     uGrad: { value: hex(p.grad || p.light) },
-    uGz: { value: new THREE.Vector3(p.grad_z0, p.grad_z1, p.grad ? p.grad_max : 0) }
+    uGz: { value: new THREE.Vector3(p.grad_z0, p.grad_z1, p.grad ? p.grad_max : 0) },
+    uHaze: { value: hex(hazeTo || p.light) },
+    uHazeRange: { value: new THREE.Vector3(HAZE.start, HAZE.end, hazeTo ? 1 : 0) }
   };
   mat.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, u);
     sh.vertexShader = "varying vec3 vWPos; varying vec3 vWNrm;\n" + sh.vertexShader.replace(
       "#include <worldpos_vertex>",
-      "#include <worldpos_vertex>\n vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\n vWNrm = normalize(mat3(modelMatrix) * objectNormal);");
+      "#include <worldpos_vertex>\n vec4 houseWPos = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\n houseWPos = instanceMatrix * houseWPos;\n#endif\n vWPos = (modelMatrix * houseWPos).xyz;\n vWNrm = normalize(mat3(modelMatrix) * objectNormal);");
     sh.fragmentShader = `varying vec3 vWPos; varying vec3 vWNrm;
 uniform vec3 uLineS, uBandS; uniform vec3 uLight, uShade, uLine, uBand, uGrad, uGz; uniform float uCurtain; uniform vec4 uP; uniform vec3 uQ;
+uniform vec3 uHaze, uHazeRange;
 float lines(float c, float period, float w) { return (w <= 0.0) ? 0.0 : step(fract(c / period), w / period); }
 ` + sh.fragmentShader
       .replace("#include <opaque_fragment>", `
@@ -100,6 +108,7 @@ float lines(float c, float period, float w) { return (w <= 0.0) ? 0.0 : step(fra
     col = mix(col, (b > 0.18) ? uLine : uLineS, minor);
     col = mix(col, (b > 0.18) ? uBand : uBandS, major);
   }
+  col = mix(col, uHaze, smoothstep(uHazeRange.x, uHazeRange.y, distance(vWPos, cameraPosition)) * uHazeRange.z);
   gl_FragColor = vec4(col, 1.0);`)
       .replace("#include <colorspace_fragment>", "")
       .replace("#include <tonemapping_fragment>", "");
@@ -116,13 +125,127 @@ const PALETTE = {
 const lineMat = new THREE.LineBasicMaterial({ color: PALETTE.outline });
 const CONTEXT_MATERIAL = { light: "#D9D3C7", shade: "#A59C93" };
 
-/* ===================== LOCKED: ground ===================== */
+/* ===================== LOCKED: ground and sky ===================== */
 const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(260, 96).rotateX(-Math.PI / 2),   // covers the 220 m of neighbours and streets
-  toonMaterial({ light: PALETTE.ground.light, shade: PALETTE.ground.shade })
+  new THREE.CircleGeometry(GROUND_RADIUS, 128).rotateX(-Math.PI / 2),   // out to the horizon, hazing into the sky
+  toonMaterial({ light: PALETTE.ground.light, shade: PALETTE.ground.shade }, SKY.horizon)
 );
 ground.receiveShadow = true; ground.position.y = -0.05;
 scene.add(ground);
+
+// A dome that follows the camera: horizon haze up to light blue overhead. Drawn first, never written to depth.
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(camera.far / 2, 32, 16),
+  new THREE.ShaderMaterial({
+    uniforms: { uZenith: { value: hex(SKY.zenith) }, uHorizon: { value: hex(SKY.horizon) } },
+    vertexShader: `varying vec3 vDir;
+void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform vec3 uZenith, uHorizon; varying vec3 vDir;
+void main() {
+  float up = clamp(normalize(vDir).y, 0.0, 1.0);
+  vec3 col = mix(uHorizon, uZenith, pow(up, 0.45));
+  float noise = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  gl_FragColor = vec4(col + (noise - 0.5) / 255.0, 1.0);
+}`,
+    side: THREE.BackSide, depthTest: false, depthWrite: false, fog: false
+  })
+);
+sky.renderOrder = -1; sky.frustumCulled = false;
+scene.add(sky);
+
+/* ===================== LOCKED: filler town (src/features/viewer/filler.ts) =====================
+   Generic low-rise blocks past the real neighbours, so the ground to the horizon reads as town, not desert.
+   One fixed seed, so the Model tab and the shots show the same town. No outlines, no shadows: background. */
+const FILLER = { cell: 64, street: 14, outer: 5000, gap: 20 };
+// Roofs a step lighter than the ground: with no outlines, ground-coloured roofs would vanish when seen from above.
+const FILLER_MATERIAL = { light: "#E9E4DA", shade: "#ACA399" };
+const FILLER_SEED = 0x7a3c91d5;   // one town for every model and view (filler.ts FILLER_SEED)
+const FOOTPRINT_CELL = 8, FILLER_CLEAR = 220 + FILLER.gap;   // the real map context's circle plus the gap
+// Where the real model stands, from above: grid cells whose centre a triangle covers (filler.ts footprintOf).
+function footprintOf(tris) {
+  if (!tris.length) return null;
+  const C = FOOTPRINT_CELL;
+  let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+  for (const t of tris) {
+    minX = Math.min(minX, t[0], t[2], t[4]); maxX = Math.max(maxX, t[0], t[2], t[4]);
+    minZ = Math.min(minZ, t[1], t[3], t[5]); maxZ = Math.max(maxZ, t[1], t[3], t[5]);
+  }
+  const x0 = Math.floor(minX / C) * C, z0 = Math.floor(minZ / C) * C;
+  const cols = Math.max(1, Math.ceil((maxX - x0) / C) + 1), rows = Math.max(1, Math.ceil((maxZ - z0) / C) + 1);
+  const filled = new Uint8Array(cols * rows);
+  for (const [ax, az, bx, bz, cx, cz] of tris) {
+    const area = (bx - ax) * (cz - az) - (cx - ax) * (bz - az);
+    if (Math.abs(area) < 1e-6) continue;
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / C)), i1 = Math.min(cols - 1, Math.floor((Math.max(ax, bx, cx) - x0) / C));
+    const j0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) / C)), j1 = Math.min(rows - 1, Math.floor((Math.max(az, bz, cz) - z0) / C));
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const px = x0 + (i + 0.5) * C, pz = z0 + (j + 0.5) * C;
+      const w0 = ((bx - px) * (cz - pz) - (cx - px) * (bz - pz)) / area;
+      const w1 = ((cx - px) * (az - pz) - (ax - px) * (cz - pz)) / area;
+      if (w0 >= 0 && w1 >= 0 && w0 + w1 <= 1) filled[j * cols + i] = 1;
+    }
+  }
+  return { x0, z0, cols, rows, filled };
+}
+function clearOf(fp, x, z, w, d) {
+  if (!fp) return true;
+  const C = FOOTPRINT_CELL, g = FILLER.gap;
+  const i0 = Math.max(0, Math.floor((x - w / 2 - g - fp.x0) / C)), i1 = Math.min(fp.cols - 1, Math.floor((x + w / 2 + g - fp.x0) / C));
+  const j0 = Math.max(0, Math.floor((z - d / 2 - g - fp.z0) / C)), j1 = Math.min(fp.rows - 1, Math.floor((z + d / 2 + g - fp.z0) / C));
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (fp.filled[j * fp.cols + i]) return false;
+  return true;
+}
+function fillerBlocks(footprint, seed) {
+  let a = seed >>> 0;
+  const rand = () => {
+    a = (a + 0x6d2b79f5) >>> 0; let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const block = FILLER.cell - FILLER.street, out = [];
+  const reach = Math.ceil(FILLER.outer / FILLER.cell);
+  for (let i = -reach; i < reach; i++) for (let j = -reach; j < reach; j++) {
+    const keep = rand(), split = rand();
+    const x0 = i * FILLER.cell + FILLER.street / 2, z0 = j * FILLER.cell + FILLER.street / 2;
+    const lots = split < 0.35 ? 1 : split < 0.7 ? 2 : 4;
+    const cols = lots === 4 ? 2 : lots === 2 && split < 0.525 ? 2 : 1, rows = lots / cols;
+    const lotW = block / cols, lotD = block / rows;
+    for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+      const fill = 0.55 + rand() * 0.35, fillD = 0.55 + rand() * 0.35, jx = rand(), jz = rand(), tall = rand(), storeys = rand();
+      const w = lotW * fill, d = lotD * fillD;
+      const x = x0 + c * lotW + (lotW - w) * jx + w / 2, z = z0 + r * lotD + (lotD - d) * jz + d / 2;
+      const far = Math.hypot(x, z), near = Math.hypot(Math.max(Math.abs(x) - w / 2, 0), Math.max(Math.abs(z) - d / 2, 0));
+      if (near < FILLER_CLEAR || far > FILLER.outer) continue;
+      if (keep < 0.15 + 0.2 * (far / FILLER.outer)) continue;
+      if (!clearOf(footprint, x, z, w, d)) continue;
+      out.push({ x, z, w, d, h: tall < 0.05 ? 28 + storeys * 32 : 7 + storeys * storeys * 16 });
+    }
+  }
+  return out;
+}
+function groundTriangles(root) {
+  root.updateMatrixWorld(true);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), out = [];
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    const p = o.geometry.getAttribute("position"), idx = o.geometry.getIndex(), n = idx ? idx.count : p.count;
+    for (let k = 0; k + 2 < n; k += 3) {
+      a.fromBufferAttribute(p, idx ? idx.getX(k) : k).applyMatrix4(o.matrixWorld);
+      b.fromBufferAttribute(p, idx ? idx.getX(k + 1) : k + 1).applyMatrix4(o.matrixWorld);
+      c.fromBufferAttribute(p, idx ? idx.getX(k + 2) : k + 2).applyMatrix4(o.matrixWorld);
+      out.push([a.x, a.z, b.x, b.z, c.x, c.z]);
+    }
+  });
+  return out;
+}
+function fillerMesh(blocks) {
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
+    toonMaterial(FILLER_MATERIAL, SKY.horizon), blocks.length);
+  const m = new THREE.Matrix4();
+  blocks.forEach((b, i) => mesh.setMatrixAt(i, m.makeScale(b.w, b.h, b.d).setPosition(b.x, 0, b.z)));
+  mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere();
+  return mesh;
+}
 
 /* ===================== MODEL (FILLED BY THE SERVER) =====================
    The server builds the building and its neighbours from Claude's JSON scene
@@ -149,7 +272,7 @@ async function buildSubject() {
 /* ===================== END SUBJECT BLOCK ===================== */
 
 /* ===================== LOCKED: outlines, shadows, framing, UI ===================== */
-let current = null, linesOn = true, shadowsOn = true;
+let current = null, filler = null, linesOn = true, shadowsOn = true;
 
 async function show() {
   if (current) scene.remove(current.group);
@@ -163,6 +286,9 @@ async function show() {
     o.add(e);
   });
   scene.add(group);
+  if (filler) scene.remove(filler);
+  filler = fillerMesh(fillerBlocks(footprintOf(groundTriangles(group)), FILLER_SEED));
+  scene.add(filler);
   // Shadows cover the neighbours too; the camera frames the building itself.
   const all = new THREE.Box3().setFromObject(group);
   const box = new THREE.Box3().setFromObject(group.getObjectByName("subject") || group);
@@ -191,6 +317,8 @@ function frame(box) {
   const span = Math.max(size.x, size.z);
   const dist = 1.3 * Math.max((h / 2) / Math.tan(vfov / 2), (span / 2) / Math.tan(hfov / 2));
   camera.position.set(c.x - dist * 0.86, Math.max(h * 0.36, dist * 0.32), c.z + dist * 0.5);
+  // Zoom out to three framings at most, so the town and the haze always fill the view (ModelViewer caps the same way).
+  controls.maxDistance = dist * 3;
   controls.update();
 }
 
@@ -218,6 +346,8 @@ show();
 
 renderer.setAnimationLoop(() => {
   controls.update();
+  sky.position.copy(camera.position);
+  ground.position.set(camera.position.x, -0.05, camera.position.z);
   renderer.render(scene, camera);
 });
 </script>

@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { assembleViewer, fillTemplate, GLB_PLACEHOLDER, parseReply, parseSceneBlock, TITLE_PLACEHOLDER, type PromptValues } from "./prompt";
+import {
+  assembleViewer,
+  fillTemplate,
+  GLB_PLACEHOLDER,
+  parseReply,
+  parseSceneBlock,
+  rebaseViewer,
+  TITLE_PLACEHOLDER,
+  type PromptValues,
+} from "./prompt";
 
 const scaffold = readFileSync(path.join(process.cwd(), "building-viewer", "scaffold.html"), "utf8");
 const template = readFileSync(path.join(process.cwd(), "building-viewer", "house_viewer_prompt.md"), "utf8");
@@ -103,5 +112,37 @@ describe("viewer assembly", () => {
     expect(() => assembleViewer("<html><title>x</title></html>", "T", glb)).toThrow(/placeholders/);
     expect(() => assembleViewer(scaffold.replace(`"${GLB_PLACEHOLDER}"`, '""'), "T", glb)).toThrow(/placeholders/);
     expect(() => assembleViewer(scaffold.replace(`"${TITLE_PLACEHOLDER}"`, '""'), "T", glb)).toThrow(/placeholders/);
+  });
+});
+
+describe("moving a stored viewer onto today's scaffold", () => {
+  const glb = new Uint8Array([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0, 255, 254]);
+  // A page stored before the sky: the same scaffold with the old orange stage.
+  const before = scaffold.replaceAll("#E6EEF2", "#DC5527").replaceAll("0xE6EEF2", "0xDC5527");
+
+  it("the scaffold's stage is the sky, not the old orange", () => {
+    expect(scaffold).not.toMatch(/DC5527/i);
+    expect(before).toMatch(/DC5527/);
+  });
+
+  it.each(["Test tower", '</script><b>"x" \\ $& $1', "8 Carlisle"])("gives the page a fresh scaffold would (%s)", (title) => {
+    const stored = assembleViewer(before, title, glb);
+    expect(rebaseViewer(stored, scaffold)).toBe(assembleViewer(scaffold, title, glb));
+  });
+
+  it("is a no-op on a page that is already current", () => {
+    const current = assembleViewer(scaffold, "T", glb);
+    expect(rebaseViewer(current, scaffold)).toBe(current);
+  });
+
+  it("leaves a page that isn't a filled scaffold alone", () => {
+    const older = "<html><title>Old</title><script>/* model-written code */</script></html>";
+    expect(rebaseViewer(older, scaffold)).toBe(older);
+    expect(rebaseViewer(scaffold, scaffold)).toBe(scaffold);
+  });
+
+  it("keeps the stored page when the new scaffold has lost its placeholders", () => {
+    const stored = assembleViewer(before, "T", glb);
+    expect(rebaseViewer(stored, "<html></html>")).toBe(stored);
   });
 });

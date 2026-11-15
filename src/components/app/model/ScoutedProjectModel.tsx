@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
+import { currentViewerPage } from "@/features/building-viewer/viewer-page";
 import { loadDossier } from "@/features/dossier/load";
 import { loadModelRun, loadProjectModel } from "@/features/scout/model";
 import { getScoutedProject } from "@/features/scout/projects";
@@ -14,6 +15,8 @@ export async function ScoutedProjectModel({ slug }: { slug: string }) {
     loadModelRun(slug),
   ]);
   if (!project) notFound();
+  // Pages stored before a stage change (the sky, the ground) are shown on today's scaffold.
+  const page = model ? await currentViewerPage(model.html) : null;
   const background: BackgroundRun =
     run?.status === "generating"
       ? { status: "generating", startedAt: run.startedAt }
@@ -31,7 +34,8 @@ export async function ScoutedProjectModel({ slug }: { slug: string }) {
       initial={
         model
           ? {
-              html: model.html,
+              html: page?.html ?? model.html,
+              stale: page ? !page.current : false,
               reply: model.reply,
               geocodeStatus: model.geocodeStatus,
               contextStatus: model.contextStatus,

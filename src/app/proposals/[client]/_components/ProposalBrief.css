@@ -10,6 +10,9 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* The page is white, not the brand's plaster. Keeps tm-ground-plaster's ink, rule and muted tones. */
+.proposal.tm-ground-plaster { background: #ffffff; }
+
 .proposal-viewer {
   inset: 0;
   position: absolute;
@@ -53,7 +56,7 @@
 
 .proposal-open-copy .tm-h { max-width: 22ch; }
 
-/* Over the light house stage (cream ground, orange sky): asphalt copy and logo. */
+/* Over the light house stage (beige ground, pale blue sky): asphalt copy and logo. */
 .proposal-open--light .proposal-logo,
 .proposal-open--light .proposal-open-copy { color: var(--tm-asphalt); }
 

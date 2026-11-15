@@ -173,7 +173,8 @@ export function RunCard({ run, now, open, cone, lit, flashKey, onToggle, onStop,
 
           {showSteps ? <Steps run={run} /> : null}
 
-          <Button variant="tertiary" onClick={onShowTurn} className="self-start">
+          {/* Tertiary pads its label 12 px; pull it back so it lines up with the card's text and Show steps. */}
+          <Button variant="tertiary" onClick={onShowTurn} className="-ml-3 self-start">
             Show prompt
           </Button>
         </div>
