@@ -4,8 +4,8 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { WHY_IT_FITS, shortAddress } from "@/features/demo/building";
 import { SAMPLE_PROJECTS } from "@/features/demo/projects";
-import { loadClients, loadProject } from "@/features/project/load";
-import { PROJECT_SLUG } from "@/features/project/schema";
+import { loadProject } from "@/features/project/load";
+import { loadProjectClients } from "@/features/project-agent/store";
 import { cx } from "@/lib/cx";
 
 type Found = {
@@ -31,16 +31,19 @@ function ScoutCriteria() {
 }
 
 export default async function DiscoverPage() {
-  const [project, clients] = await Promise.all([loadProject(), loadClients()]);
+  // The scout found the pre-loaded project. Its stakeholders include any the project agent added; projects opened
+  // from its drafts are copies, listed under Projects.
+  const project = await loadProject();
+  const clients = (await loadProjectClients(project.slug)) ?? [];
 
   const found: Found[] = [
     {
-      id: PROJECT_SLUG,
+      id: project.slug,
       name: project.name,
       location: shortAddress(project.address),
       why: WHY_IT_FITS,
       stakeholders: clients.length,
-      href: `/projects/${PROJECT_SLUG}`,
+      href: `/projects/${project.slug}`,
     },
     ...SAMPLE_PROJECTS.map((p) => ({
       id: p.id,

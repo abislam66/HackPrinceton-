@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { loadProject } from "@/features/project/load";
-import { PROJECT_SLUG } from "@/features/project/schema";
+import { loadProjectFacts } from "@/features/project-agent/store";
 import { loadStakeholderModel } from "@/features/workspace/model";
 import { loadStakeholder } from "@/features/workspace/status";
 import { NEED_LABEL } from "@/lib/labels";
@@ -16,18 +15,18 @@ export default async function StakeholderPage({
   searchParams,
 }: PageProps<"/projects/[project]/stakeholders/[client]">) {
   const { project: projectSlug, client: clientId } = await params;
-  if (projectSlug !== PROJECT_SLUG) notFound();
 
-  const [status, project, model, query] = await Promise.all([
-    loadStakeholder(clientId),
-    loadProject(),
+  const [project, status, model, query] = await Promise.all([
+    loadProjectFacts(projectSlug),
+    loadStakeholder(projectSlug, clientId),
     loadStakeholderModel(clientId),
     searchParams,
   ]);
-  if (!status) notFound();
+  if (!project || !status) notFound();
 
   const { client, stage, proposal, engagement, events, sentAt } = status;
-  const basePath = `/projects/${PROJECT_SLUG}/stakeholders/${client.id}`;
+  const projectPath = `/projects/${projectSlug}`;
+  const basePath = `${projectPath}/stakeholders/${client.id}`;
 
   const requested = typeof query.tab === "string" ? (query.tab as WorkspaceTab) : null;
   const fallbackTab: WorkspaceTab = stage === "sent" ? "engagement" : "shots";
@@ -39,7 +38,7 @@ export default async function StakeholderPage({
       <PageHeader
         breadcrumbs={[
           { label: "Projects", href: "/projects" },
-          { label: project.name, href: `/projects/${PROJECT_SLUG}` },
+          { label: project.name, href: projectPath },
           { label: client.company },
         ]}
         title={client.company}
@@ -48,6 +47,7 @@ export default async function StakeholderPage({
           stage === "not-built" ? undefined : (
             <StakeholderActions
               stage={stage}
+              projectSlug={projectSlug}
               client={{ id: client.id, company: client.company, contact: client.contact }}
               projectName={project.name}
               basePath={basePath}
@@ -58,6 +58,7 @@ export default async function StakeholderPage({
         }
       />
       <Workspace
+        projectSlug={projectSlug}
         basePath={basePath}
         stage={stage}
         tab={tab}

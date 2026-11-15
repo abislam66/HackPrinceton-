@@ -12,6 +12,7 @@ import { sendProposal } from "@/features/workspace/actions";
 type Props = {
   open: boolean;
   onClose: () => void;
+  projectSlug: string;
   client: Pick<Client, "id" | "company" | "contact">;
   projectName: string;
   basePath: string;
@@ -30,7 +31,7 @@ function defaultMessage(contactName: string, projectName: string, company: strin
   ].join("\n");
 }
 
-export function SendDialog({ open, onClose, client, projectName, basePath }: Props) {
+export function SendDialog({ open, onClose, projectSlug, client, projectName, basePath }: Props) {
   const router = useRouter();
   const formId = useId();
   const [subject, setSubject] = useState(`${projectName}, on film for ${client.company}`);
@@ -41,7 +42,7 @@ export function SendDialog({ open, onClose, client, projectName, basePath }: Pro
   const send = () => {
     setError(null);
     startTransition(async () => {
-      const result = await sendProposal(client.id);
+      const result = await sendProposal(projectSlug, client.id);
       if (!result.ok) {
         setError(result.error);
         return;

@@ -1,19 +1,27 @@
 import { notFound } from "next/navigation";
 import { loadModelInfo } from "@/features/model/load";
-import { loadClient, loadProject } from "@/features/project/load";
+import { loadProjectFacts } from "@/features/project-agent/store";
 import { getProposal } from "@/features/proposal/store";
 import { ProposalTracker } from "@/features/tracking/ProposalTracker";
 import { teaserPath } from "@/features/viewer/camera-paths";
 import { ModelViewer } from "@/features/viewer/ModelViewer";
+import { findStakeholder } from "@/features/workspace/status";
 
 export default async function ProposalPage({ params, searchParams }: PageProps<"/proposals/[client]">) {
   const { client: clientId } = await params;
   // Internal previews (?preview=1) must not count as client activity.
   const isPreview = (await searchParams).preview === "1";
-  const client = await loadClient(clientId);
-  if (!client) notFound();
+  // The URL carries only the client; its project is the one that holds this stakeholder id.
+  const found = await findStakeholder(clientId);
+  if (!found) notFound();
+  const { client, projectSlug } = found;
 
-  const [project, model, proposal] = await Promise.all([loadProject(), loadModelInfo(), getProposal(clientId)]);
+  const [project, model, proposal] = await Promise.all([
+    loadProjectFacts(projectSlug),
+    loadModelInfo(),
+    getProposal(clientId, projectSlug),
+  ]);
+  if (!project) notFound();
 
   return (
     <main className="flex flex-1 flex-col">

@@ -22,6 +22,7 @@ import { ShotList } from "./ShotList";
 export type WorkspaceTab = "shots" | "engagement";
 
 type Props = {
+  projectSlug: string;
   basePath: string;
   stage: Stage;
   tab: WorkspaceTab;
@@ -49,8 +50,19 @@ const SIDE_PANEL = "flex min-h-0 flex-col overflow-hidden";
  * The workspace body: the viewer (the page's one Asphalt surface) on the left, a 360 px panel on the right.
  * Captions under the canvas use `text-muted` and `Tag`, which switch to their dark values on Asphalt by themselves.
  */
-export function Workspace({ basePath, stage, tab, model, client, proposal, engagement, events, sentAt }: Props) {
-  const build = useProposalBuild({ clientId: client.id, company: client.company, basePath });
+export function Workspace({
+  projectSlug,
+  basePath,
+  stage,
+  tab,
+  model,
+  client,
+  proposal,
+  engagement,
+  events,
+  sentAt,
+}: Props) {
+  const build = useProposalBuild({ projectSlug, clientId: client.id, company: client.company, basePath });
   const { state } = build;
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 

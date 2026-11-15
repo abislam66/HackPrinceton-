@@ -10,8 +10,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Tag } from "@/components/ui/Tag";
 import { formatShortDate, formatWatch, relativeTime } from "@/features/demo/format";
 import { SAMPLE_REPLIES, SAMPLE_SENT } from "@/features/demo/outreach";
-import { loadProject } from "@/features/project/load";
-import { PROJECT_SLUG } from "@/features/project/schema";
+import { listProjects } from "@/features/project-agent/store";
 import { loadStakeholders, type StakeholderStatus } from "@/features/workspace/status";
 import { NEED_LABEL, ROLE_LABEL } from "@/lib/labels";
 
@@ -19,8 +18,8 @@ type Tab = "sent" | "replies" | "drafts";
 
 const GMAIL_REASON = "Gmail integration isn't available yet.";
 
-function workspaceHref(clientId: string, tab?: string) {
-  return `/projects/${PROJECT_SLUG}/stakeholders/${clientId}${tab ? `?tab=${tab}` : ""}`;
+function workspaceHref(s: StakeholderStatus, tab?: string) {
+  return `/projects/${s.projectSlug}/stakeholders/${s.client.id}${tab ? `?tab=${tab}` : ""}`;
 }
 
 function lastActivity(s: StakeholderStatus): string {
@@ -36,7 +35,7 @@ function StatusTag({ opened }: { opened: boolean }) {
   return opened ? <Tag tone="pass">Opened</Tag> : <Tag tone="neutral">Waiting</Tag>;
 }
 
-function SentTab({ sent, projectName }: { sent: StakeholderStatus[]; projectName: string }) {
+function SentTab({ sent, projectNames }: { sent: StakeholderStatus[]; projectNames: Map<string, string> }) {
   return (
     // Compact, so the seven columns sit on one line from 1024 px wide with the sidebar collapsed.
     <Panel flush className="overflow-x-auto">
@@ -54,16 +53,16 @@ function SentTab({ sent, projectName }: { sent: StakeholderStatus[]; projectName
         </THead>
         <tbody>
           {sent.map((s) => (
-            <TR key={s.client.id}>
+            <TR key={`${s.projectSlug}/${s.client.id}`}>
               <TD>
                 <Link
-                  href={workspaceHref(s.client.id, "engagement")}
+                  href={workspaceHref(s, "engagement")}
                   className="font-semibold underline-offset-4 hover:underline"
                 >
                   {s.client.company}
                 </Link>
               </TD>
-              <TD className="text-muted">{projectName}</TD>
+              <TD className="text-muted">{projectNames.get(s.projectSlug) ?? s.projectSlug}</TD>
               <TD mono>{s.sentAt ? formatShortDate(s.sentAt) : "–"}</TD>
               <TD num>{s.engagement.opens}</TD>
               <TD num>{formatWatch(s.engagement.watchSeconds)}</TD>
@@ -123,8 +122,8 @@ function DraftsTab({ drafts }: { drafts: StakeholderStatus[] }) {
           title="No drafts"
           description="Proposals that are built but not sent yet show up here."
           action={
-            <Button href={`/projects/${PROJECT_SLUG}`} variant="primary">
-              Open stakeholders
+            <Button href="/projects" variant="primary">
+              Open projects
             </Button>
           }
         />
@@ -136,8 +135,8 @@ function DraftsTab({ drafts }: { drafts: StakeholderStatus[] }) {
       <MediaList>
         {drafts.map((s) => (
           <MediaRow
-            key={s.client.id}
-            href={workspaceHref(s.client.id)}
+            key={`${s.projectSlug}/${s.client.id}`}
+            href={workspaceHref(s)}
             media={<Avatar name={s.client.company} />}
             title={s.client.company}
             meta={`${ROLE_LABEL[s.client.role]} · Needs: ${NEED_LABEL[s.client.need]}`}
@@ -157,7 +156,10 @@ export default async function OutreachPage({
 }) {
   const { tab: rawTab } = await searchParams;
   const tab: Tab = rawTab === "replies" || rawTab === "drafts" ? rawTab : "sent";
-  const [project, stakeholders] = await Promise.all([loadProject(), loadStakeholders()]);
+  // Every project's stakeholders: the demo project and the ones the project agent opened.
+  const projects = await listProjects();
+  const projectNames = new Map(projects.map((p) => [p.id, p.name]));
+  const stakeholders = (await Promise.all(projects.map((p) => loadStakeholders(p.id)))).flat();
 
   const sent = stakeholders.filter((s) => s.stage === "sent");
   const drafts = stakeholders.filter((s) => s.stage === "ready");
@@ -192,7 +194,7 @@ export default async function OutreachPage({
         />
 
         {tab === "sent" ? (
-          <SentTab sent={sent} projectName={project.name} />
+          <SentTab sent={sent} projectNames={projectNames} />
         ) : tab === "replies" ? (
           <RepliesTab />
         ) : (
