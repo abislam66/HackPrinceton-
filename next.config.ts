@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
       "./data/**/*.json",
       "./public/models/**/*.json",
       "./src/features/proposal/fallback/*.json",
+      // Last good live runs (scouting, dossiers) and their recordings, for the deployed demo.
+      "./src/features/scout/snapshot/*.json",
+      "./src/features/dossier/snapshot/*.json",
+      "./src/features/*/recordings/*.ndjson",
     ],
   },
   turbopack: {
