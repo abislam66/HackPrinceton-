@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ProjectTabs } from "@/components/app/ProjectTabs";
+import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Panel } from "@/components/ui/Panel";
 import { StatStrip } from "@/components/ui/StatStrip";
@@ -26,6 +27,7 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
         breadcrumbs={[{ label: "Projects", href: "/projects" }, { label: project.name }]}
         title={project.name}
         description={shortAddress(project.address)}
+        actions={<Button href={`/building-viewer?project=${PROJECT_SLUG}`}>Generate 3D viewer</Button>}
       />
 
       <div className="flex flex-col gap-6">
