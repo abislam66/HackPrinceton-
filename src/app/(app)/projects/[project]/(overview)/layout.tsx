@@ -53,8 +53,8 @@ export default async function ProjectOverviewLayout({ children, params }: Layout
           }
           actions={
             <>
-              {/* A scouted building generates its viewer in its Model tab. */}
-              {scouted ? null : <Button href={`/building-viewer?project=${slug}`}>Generate 3D viewer</Button>}
+              {/* The standalone building viewer is hidden; a scouted building generates its model in its Model tab. */}
+              {/* {scouted ? null : <Button href={`/building-viewer?project=${slug}`}>Generate 3D viewer</Button>} */}
               <Button href="#project-agent" className="@min-[1100px]/project:hidden">
                 Project agent
               </Button>

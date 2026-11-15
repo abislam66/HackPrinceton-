@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, Box, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, RotateCcw, Send, type LucideIcon } from "lucide-react";
+import { Bot, Compass, FolderKanban, PanelLeftClose, PanelLeftOpen, RotateCcw, Send, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -15,7 +15,9 @@ const NAV: { label: string; href: string; icon: LucideIcon }[] = [
   { label: "Agent", href: "/agent", icon: Bot },
   { label: "Discover", href: "/discover", icon: Compass },
   { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "Building viewer", href: "/building-viewer", icon: Box },
+  // Hidden: generated models now run by themselves and show on each project's Model tab. Uncomment to bring the
+  // standalone generator back (and remove the notFound() in src/app/(app)/building-viewer/page.tsx).
+  // { label: "Building viewer", href: "/building-viewer", icon: Box },
   { label: "Outreach", href: "/outreach", icon: Send },
 ];
 
