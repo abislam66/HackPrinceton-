@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { listProjects, loadProjectClient, loadProjectClients } from "@/features/project-agent/store";
+import { listProjectSlugs, loadProjectClient, loadProjectClients } from "@/features/project-agent/store";
 import { canTransition } from "@/features/proposal/status";
 import { getProposal, saveProposal } from "@/features/proposal/store";
 import type { Proposal } from "@/features/proposal/schema";
@@ -62,9 +62,9 @@ export async function resetDemo(): Promise<ActionResult> {
   try {
     clearWorkspaceMemory();
     clearEventMemory();
-    for (const project of await listProjects()) {
-      for (const client of (await loadProjectClients(project.id)) ?? []) {
-        const proposal = await getProposal(client.id, project.id);
+    for (const projectSlug of await listProjectSlugs()) {
+      for (const client of (await loadProjectClients(projectSlug)) ?? []) {
+        const proposal = await getProposal(client.id, projectSlug);
         if (proposal && proposal.status !== "draft") await saveProposal({ ...proposal, status: "draft" });
       }
     }
